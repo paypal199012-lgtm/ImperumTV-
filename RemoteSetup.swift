@@ -4,8 +4,8 @@ import Foundation
 enum RemoteSetup {
     // Diese zwei Werte kommen aus deinem Supabase-Projekt
     // (Project Settings > API: Project URL und publishable/anon key).
-    static let supabaseURL = "DEINE_SUPABASE_URL"
-    static let supabaseKey = "DEIN_SUPABASE_KEY"
+    static let supabaseURL = "https://dprwastkfqhisvsjrvrv.supabase.co"
+    static let supabaseKey = "sb_publishable_LZau0nT_CfDUYqrzlQfM2Q_61r7g-K3"
 
     /// Adresse der Website (GitHub Pages)
     static let websiteURL = "https://paypal199012-lgtm.github.io/ImperumTV-/"
