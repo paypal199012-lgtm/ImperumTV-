@@ -57,7 +57,7 @@ struct EPGEntry: Identifiable, Hashable {
 }
 
 enum Route: Hashable {
-    case live, epg, vod, series, favorites, search, account, settings
+    case live, epg, vod, series, favorites, search, account, settings, multi
 }
 
 struct Account: Equatable {

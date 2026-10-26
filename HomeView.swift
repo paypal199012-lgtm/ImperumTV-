@@ -26,7 +26,9 @@ struct RootView: View {
     private func destination(_ route: Route) -> some View {
         switch route {
         case .live:
-            ChannelListView(title: "Live-TV", items: store.channels, isLive: true)
+            LiveTVView()
+        case .multi:
+            MultiView()
         case .epg:
             EPGListView()
         case .vod:
@@ -78,8 +80,9 @@ struct HomeView: View {
                         bigTile(.series, "Serien", "play.rectangle.on.rectangle")
                     }
 
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 10)], spacing: 10) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 60), spacing: 8)], spacing: 8) {
                         smallTile(.favorites, "Favoriten", "star.fill")
+                        smallTile(.multi, "Multi", "square.grid.2x2")
                         smallTile(.search, "Suche", "magnifyingglass")
                         smallTile(.account, "Konto", "person.crop.circle")
                         smallTile(.settings, "Einstellungen", "gearshape.fill")
@@ -122,6 +125,7 @@ struct HomeView: View {
 
             HStack(spacing: 8) {
                 smallTile(.favorites, "Favoriten", "star.fill", height: smallHeight).frame(width: 78)
+                smallTile(.multi, "Multi", "square.grid.2x2", height: smallHeight).frame(width: 78)
                 smallTile(.search, "Suche", "magnifyingglass", height: smallHeight).frame(width: 78)
                 smallTile(.account, "Konto", "person.crop.circle", height: smallHeight).frame(width: 78)
                 smallTile(.settings, "Einstellungen", "gearshape.fill", height: smallHeight).frame(width: 78)

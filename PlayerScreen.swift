@@ -36,6 +36,8 @@ final class PlayerModel: NSObject, ObservableObject {
     private var audioPrefApplied = false
     private var subPrefApplied = false
 
+    private var wantsMuted = false
+
     // Erkennung von hängenden Streams (Standbild)
     private var lastProgressValue: Double = -1
     private var lastProgressDate = Date()
@@ -68,6 +70,19 @@ final class PlayerModel: NSObject, ObservableObject {
             self.isBuffering = self.player.timeControlStatus == .waitingToPlayAtSpecifiedRate
             self.isPlaying = self.player.timeControlStatus != .paused
             self.checkForStall()
+        }
+    }
+
+    /// Ton aus- oder einschalten (für die Multi-Ansicht)
+    func setMuted(_ muted: Bool) {
+        wantsMuted = muted
+        applyMute()
+    }
+
+    private func applyMute() {
+        player.isMuted = wantsMuted
+        if usesVLC, let audio = vlcPlayer.audio as VLCAudio? {
+            if audio.isMuted != wantsMuted { audio.isMuted = wantsMuted }
         }
     }
 
@@ -228,6 +243,7 @@ final class PlayerModel: NSObject, ObservableObject {
         }
 
         if ms > 0 { refreshVLCTracks() }
+        applyMute()
         checkForStall()
     }
 
@@ -471,6 +487,8 @@ struct VLCVideoView: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
         let view = UIView()
         view.backgroundColor = .black
+        // Berührungen an SwiftUI weiterreichen (Tippen blendet Steuerung ein/aus)
+        view.isUserInteractionEnabled = false
         player.drawable = view
         return view
     }
@@ -508,6 +526,7 @@ struct PlayerLayerView: UIViewRepresentable {
     func makeUIView(context: Context) -> PlayerUIView {
         let view = PlayerUIView()
         view.backgroundColor = .black
+        view.isUserInteractionEnabled = false
         view.playerLayer.videoGravity = .resizeAspect
         view.playerLayer.player = player
         onReady(view.playerLayer)
