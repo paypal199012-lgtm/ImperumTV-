@@ -1,6 +1,7 @@
 name: IPTVPlayer
 options:
   bundleIdPrefix: com.example
+  preGenCommand: sh make-icon.sh
   deploymentTarget:
     iOS: "16.0"
 settings:
@@ -17,6 +18,8 @@ targets:
       - path: .
         includes:
           - "*.swift"
+      - path: Assets.xcassets
+        optional: true
     info:
       path: Info.plist
       properties:
@@ -39,4 +42,5 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.iptvplayer
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1,2"
