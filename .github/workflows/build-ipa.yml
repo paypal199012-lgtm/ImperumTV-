@@ -19,7 +19,14 @@ jobs:
         run: pod install
       - name: App bauen
         run: |
-          xcodebuild -workspace IPTVPlayer.xcworkspace -scheme IPTVPlayer -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          xcodebuild -workspace IPTVPlayer.xcworkspace -scheme IPTVPlayer -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" SWIFT_ENABLE_EXPLICIT_MODULES=NO _EXPERIMENTAL_SWIFT_EXPLICIT_MODULES=NO build > build.log 2>&1
+      - name: Fehler anzeigen
+        if: failure()
+        run: |
+          echo "===== FEHLER ====="
+          grep -iE "error|fatal|failed|cannot|no such" build.log | grep -v "^ *$" | sort -u | head -60
+          echo "===== LETZTE ZEILEN ====="
+          tail -40 build.log
       - name: IPA packen
         run: |
           mkdir Payload
