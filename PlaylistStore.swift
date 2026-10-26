@@ -24,12 +24,6 @@ final class AppStore: ObservableObject {
     @Published private(set) var expiry: Date?
     @Published private(set) var kind = ""
     @Published var showSetup = false
-    @Published private(set) var remoteStatus: String?
-
-    /// Feste Kennung dieses Geräts für die Playlist-Website
-    let deviceMAC: String
-    let deviceKey: String
-    private var deviceRegistered = false
 
     private var epgCache: [Int: [EPGEntry]] = [:]
     private let defaults = UserDefaults.standard
@@ -39,10 +33,6 @@ final class AppStore: ObservableObject {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         cacheURL = dir.appendingPathComponent("channels.json")
-
-        let identity = RemoteSetup.loadIdentity()
-        deviceMAC = identity.mac
-        deviceKey = identity.key
 
         serverInput = defaults.string(forKey: "server") ?? ""
         username = defaults.string(forKey: "username") ?? ""
@@ -275,73 +265,11 @@ final class AppStore: ObservableObject {
         kind = ""
         password = ""
         Keychain.save("", for: "password")
-        for key in ["server", "username", "kind", "m3uLink", "info", "expiry", "remoteStamp"] {
+        for key in ["server", "username", "kind", "m3uLink", "info", "expiry"] {
             defaults.removeObject(forKey: key)
         }
         try? FileManager.default.removeItem(at: cacheURL)
         showSetup = false
-    }
-
-    // MARK: - Playlist von der Website
-
-    /// Prüft, ob auf der Website eine neue Playlist für diesen Code eingetragen wurde
-    func checkRemote(force: Bool = false) async {
-        guard RemoteSetup.isConfigured, !isLoading else { return }
-
-        if !deviceRegistered {
-            do {
-                try await RemoteSetup.register(mac: deviceMAC, key: deviceKey)
-                deviceRegistered = true
-            } catch {
-                if force { remoteStatus = "Website nicht erreichbar: \(error.localizedDescription)" }
-                return
-            }
-        }
-
-        let playlist: RemoteSetup.RemotePlaylist?
-        do {
-            playlist = try await RemoteSetup.fetch(mac: deviceMAC, key: deviceKey)
-        } catch {
-            if force { remoteStatus = "Website nicht erreichbar: \(error.localizedDescription)" }
-            return
-        }
-
-        guard let p = playlist else { return }
-        let stamp = p.updated_at ?? ""
-        if stamp.isEmpty {
-            if force { remoteStatus = "Für dieses Gerät ist noch keine Playlist eingetragen." }
-            return
-        }
-        if !force && stamp == defaults.string(forKey: "remoteStamp") { return }
-
-        let server = p.server ?? ""
-        let user = p.username ?? ""
-        let pass = p.password ?? ""
-        let link = p.m3u_url ?? ""
-
-        if !server.isEmpty && !user.isEmpty && !pass.isEmpty {
-            serverInput = server
-            username = user
-            password = pass
-            await login()
-        } else if !link.isEmpty {
-            if Account.parse(link: link) != nil {
-                serverInput = link
-                await login()
-            } else {
-                await loadM3U(link: link)
-            }
-        } else {
-            if force { remoteStatus = "Für dieses Gerät ist noch keine Playlist eingetragen." }
-            return
-        }
-
-        if errorMessage == nil {
-            defaults.set(stamp, forKey: "remoteStamp")
-            remoteStatus = "Playlist von der Website übernommen."
-        } else {
-            remoteStatus = "Playlist von der Website konnte nicht geladen werden."
-        }
     }
 
     // MARK: - Filme und Serien
