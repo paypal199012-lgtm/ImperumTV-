@@ -5,6 +5,12 @@ import MobileVLCKit
 
 // MARK: - Wiedergabe
 
+/// Eine Tonspur oder ein Untertitel zur Auswahl
+struct TrackOption: Identifiable, Hashable {
+    let id: String
+    let name: String
+}
+
 /// Spielt mit dem iPhone-Player (AVPlayer) ab und wechselt bei Formaten,
 /// die das iPhone nicht kann (z. B. MKV, AVI), automatisch auf VLC.
 final class PlayerModel: NSObject, ObservableObject {
@@ -19,6 +25,16 @@ final class PlayerModel: NSObject, ObservableObject {
     @Published var isBuffering = true
     @Published var currentTime: Double = 0
     @Published var duration: Double = 0
+    @Published var audioTracks: [TrackOption] = []
+    @Published var subtitleTracks: [TrackOption] = []
+    @Published var selectedAudio: String?
+    @Published var selectedSubtitle: String?
+
+    private var avAudioGroup: AVMediaSelectionGroup?
+    private var avSubtitleGroup: AVMediaSelectionGroup?
+    private var avOptions: [String: AVMediaSelectionOption] = [:]
+    private var audioPrefApplied = false
+    private var subPrefApplied = false
 
     private var statusObserver: NSKeyValueObservation?
     private var timeObserver: Any?
@@ -78,6 +94,7 @@ final class PlayerModel: NSObject, ObservableObject {
     private func playNative(_ url: URL, userAgent: String) {
         stopVLC()
         usesVLC = false
+        resetTracks()
 
         let asset = AVURLAsset(
             url: url,
@@ -85,6 +102,10 @@ final class PlayerModel: NSObject, ObservableObject {
         )
         let item = AVPlayerItem(asset: asset)
         statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+            if item.status == .readyToPlay {
+                self?.loadAVTracks(for: item)
+                return
+            }
             guard item.status == .failed else { return }
             DispatchQueue.main.async {
                 // Kann das iPhone das Format nicht, übernimmt VLC
@@ -104,6 +125,7 @@ final class PlayerModel: NSObject, ObservableObject {
         isPiPPossible = false
         errorMessage = nil
         isBuffering = true
+        resetTracks()
 
         let media = VLCMedia(url: url)
         media.addOption(":http-user-agent=\(userAgent)")
@@ -140,6 +162,162 @@ final class PlayerModel: NSObject, ObservableObject {
         default:
             isBuffering = false
             isPlaying = true
+        }
+
+        if ms > 0 { refreshVLCTracks() }
+    }
+
+    // MARK: Tonspuren und Untertitel
+
+    private func resetTracks() {
+        audioTracks = []
+        subtitleTracks = []
+        selectedAudio = nil
+        selectedSubtitle = nil
+        avAudioGroup = nil
+        avSubtitleGroup = nil
+        avOptions = [:]
+        audioPrefApplied = false
+        subPrefApplied = false
+    }
+
+    /// Liest die Ton- und Untertitelspuren beim iPhone-Player
+    private func loadAVTracks(for item: AVPlayerItem) {
+        Task { [weak self] in
+            let asset = item.asset
+            let audio = (try? await asset.loadMediaSelectionGroup(for: .audible)) ?? nil
+            let legible = (try? await asset.loadMediaSelectionGroup(for: .legible)) ?? nil
+            await MainActor.run {
+                guard let self = self, self.player.currentItem === item else { return }
+                self.applyAVGroups(item: item, audio: audio, legible: legible)
+            }
+        }
+    }
+
+    private func applyAVGroups(item: AVPlayerItem, audio: AVMediaSelectionGroup?, legible: AVMediaSelectionGroup?) {
+        avAudioGroup = audio
+        avSubtitleGroup = legible
+        avOptions = [:]
+
+        var audioList: [TrackOption] = []
+        if let group = audio {
+            for (i, option) in group.options.enumerated() {
+                let id = "a\(i)"
+                avOptions[id] = option
+                audioList.append(TrackOption(id: id, name: Self.trackName(option, index: i)))
+            }
+            if let current = item.currentMediaSelection.selectedMediaOption(in: group) {
+                selectedAudio = avOptions.first(where: { $0.value == current })?.key
+            }
+        }
+
+        var subList = [TrackOption(id: "off", name: "Aus")]
+        selectedSubtitle = "off"
+        if let group = legible {
+            for (i, option) in group.options.enumerated() {
+                let id = "s\(i)"
+                avOptions[id] = option
+                subList.append(TrackOption(id: id, name: Self.trackName(option, index: i)))
+            }
+            if let current = item.currentMediaSelection.selectedMediaOption(in: group),
+               let key = avOptions.first(where: { $0.value == current })?.key {
+                selectedSubtitle = key
+            }
+        }
+
+        audioTracks = audioList
+        subtitleTracks = subList
+        applyPreferencesIfNeeded()
+    }
+
+    private static func trackName(_ option: AVMediaSelectionOption, index: Int) -> String {
+        var name = option.displayName
+        if name.isEmpty {
+            name = option.locale.flatMap { Locale.current.localizedString(forIdentifier: $0.identifier) } ?? "Spur \(index + 1)"
+        }
+        if option.hasMediaCharacteristic(.containsOnlyForcedSubtitles) {
+            name += " (nur Einblendungen)"
+        }
+        return name
+    }
+
+    /// Liest die Ton- und Untertitelspuren beim VLC-Player
+    private func refreshVLCTracks() {
+        var audioList: [TrackOption] = []
+        for (name, index) in zip(vlcPlayer.audioTrackNames, vlcPlayer.audioTrackIndexes) {
+            guard let idx = (index as? NSNumber)?.int32Value, idx >= 0 else { continue }
+            audioList.append(TrackOption(id: String(idx), name: (name as? String) ?? "Spur \(idx)"))
+        }
+
+        var subList = [TrackOption(id: "-1", name: "Aus")]
+        for (name, index) in zip(vlcPlayer.videoSubTitlesNames, vlcPlayer.videoSubTitlesIndexes) {
+            guard let idx = (index as? NSNumber)?.int32Value, idx >= 0 else { continue }
+            subList.append(TrackOption(id: String(idx), name: (name as? String) ?? "Untertitel \(idx)"))
+        }
+
+        if audioList != audioTracks { audioTracks = audioList }
+        if subList != subtitleTracks { subtitleTracks = subList }
+
+        let currentAudio = String(vlcPlayer.currentAudioTrackIndex)
+        if selectedAudio != currentAudio { selectedAudio = currentAudio }
+        let currentSub = String(vlcPlayer.currentVideoSubTitleIndex)
+        if selectedSubtitle != currentSub { selectedSubtitle = currentSub }
+
+        applyPreferencesIfNeeded()
+    }
+
+    func selectAudio(_ id: String, remember: Bool = true) {
+        if usesVLC {
+            if let idx = Int32(id) { vlcPlayer.currentAudioTrackIndex = idx }
+        } else if let group = avAudioGroup, let option = avOptions[id] {
+            player.currentItem?.select(option, in: group)
+        }
+        selectedAudio = id
+        if remember, let name = audioTracks.first(where: { $0.id == id })?.name {
+            UserDefaults.standard.set(name, forKey: "prefAudio")
+        }
+    }
+
+    func selectSubtitle(_ id: String, remember: Bool = true) {
+        if usesVLC {
+            vlcPlayer.currentVideoSubTitleIndex = Int32(id) ?? -1
+        } else if let group = avSubtitleGroup {
+            player.currentItem?.select(id == "off" ? nil : avOptions[id], in: group)
+        }
+        selectedSubtitle = id
+        if remember, let name = subtitleTracks.first(where: { $0.id == id })?.name {
+            UserDefaults.standard.set(name, forKey: "prefSubtitle")
+        }
+    }
+
+    /// Nimmt automatisch die zuletzt gewählte Sprache (z. B. Deutsch), wenn vorhanden
+    private func applyPreferencesIfNeeded() {
+        let defaults = UserDefaults.standard
+        if !audioPrefApplied, !audioTracks.isEmpty {
+            audioPrefApplied = true
+            if let pref = defaults.string(forKey: "prefAudio"),
+               let track = Self.match(pref, in: audioTracks),
+               track.id != selectedAudio {
+                selectAudio(track.id, remember: false)
+            }
+        }
+        if !subPrefApplied, subtitleTracks.count > 1 {
+            subPrefApplied = true
+            if let pref = defaults.string(forKey: "prefSubtitle") {
+                let target = pref == "Aus" ? subtitleTracks.first : Self.match(pref, in: Array(subtitleTracks.dropFirst()))
+                if let track = target, track.id != selectedSubtitle {
+                    selectSubtitle(track.id, remember: false)
+                }
+            }
+        }
+    }
+
+    private static func match(_ name: String, in tracks: [TrackOption]) -> TrackOption? {
+        let wanted = name.lowercased()
+        if let exact = tracks.first(where: { $0.name.lowercased() == wanted }) { return exact }
+        return tracks.first { track in
+            let n = track.name.lowercased()
+            return n.contains(wanted) || wanted.contains(n)
         }
     }
 
@@ -291,6 +469,7 @@ struct PlayerScreen: View {
     @State private var controlsVisible = true
     @State private var hideTask: Task<Void, Never>?
     @State private var scrubValue: Double?
+    @State private var showTracks = false
 
     init(channels: [Channel], startIndex: Int, isLive: Bool = false) {
         self.channels = channels
@@ -346,6 +525,9 @@ struct PlayerScreen: View {
                 .background(RoundedRectangle(cornerRadius: 16).fill(Color.black.opacity(0.7)))
                 .padding(24)
             }
+        }
+        .sheet(isPresented: $showTracks, onDismiss: { scheduleHide() }) {
+            TrackSheet(model: model)
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(true)
@@ -418,6 +600,15 @@ struct PlayerScreen: View {
                 }
             }
             Spacer()
+            Button {
+                hideTask?.cancel()
+                showTracks = true
+            } label: {
+                Image(systemName: "captions.bubble")
+                    .font(.title3)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(Color.black.opacity(0.45)))
+            }
             if model.isPiPPossible {
                 Button {
                     model.togglePiP()
@@ -561,5 +752,74 @@ struct PlayerScreen: View {
         let m = (total % 3600) / 60
         let s = total % 60
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
+    }
+}
+
+// MARK: - Auswahl von Sprache und Untertiteln
+
+struct TrackSheet: View {
+    @ObservedObject var model: PlayerModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    if model.audioTracks.isEmpty {
+                        Text("Keine weiteren Sprachen verfügbar")
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(model.audioTracks) { track in
+                        row(track.name, selected: track.id == model.selectedAudio) {
+                            model.selectAudio(track.id)
+                        }
+                    }
+                } header: {
+                    Label("Sprache (Tonspur)", systemImage: "speaker.wave.2")
+                }
+
+                Section {
+                    if model.subtitleTracks.count <= 1 {
+                        Text("Keine Untertitel verfügbar")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(model.subtitleTracks) { track in
+                            row(track.name, selected: track.id == model.selectedSubtitle) {
+                                model.selectSubtitle(track.id)
+                            }
+                        }
+                    }
+                } header: {
+                    Label("Untertitel (CC)", systemImage: "captions.bubble")
+                } footer: {
+                    Text("Deine Auswahl wird gemerkt und beim nächsten Sender oder Film automatisch genommen, wenn es sie dort gibt.")
+                }
+            }
+            .navigationTitle("Sprache und Untertitel")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fertig") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .tint(Theme.gold)
+    }
+
+    private func row(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .foregroundStyle(.primary)
+                Spacer()
+                if selected {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Theme.gold)
+                        .fontWeight(.semibold)
+                }
+            }
+            .contentShape(Rectangle())
+        }
     }
 }
