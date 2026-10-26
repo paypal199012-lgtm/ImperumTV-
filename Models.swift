@@ -11,6 +11,55 @@ struct Channel: Identifiable, Hashable, Codable {
     var key: String { url.absoluteString }
 }
 
+struct SeriesItem: Identifiable, Hashable {
+    let id: Int
+    let name: String
+    let cover: URL?
+    let group: String?
+}
+
+struct Episode: Identifiable, Hashable {
+    let id: String
+    let season: Int
+    let number: Int
+    let title: String
+    let url: URL
+    let image: URL?
+
+    var asChannel: Channel {
+        Channel(id: Int(id) ?? number, name: title, url: url, logo: image, group: nil)
+    }
+}
+
+struct EPGEntry: Identifiable, Hashable {
+    let id = UUID()
+    let title: String
+    let start: Date?
+    let end: Date?
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
+    var timeRange: String {
+        guard let start = start else { return "" }
+        let s = Self.timeFormatter.string(from: start)
+        guard let end = end else { return s }
+        return "\(s)–\(Self.timeFormatter.string(from: end))"
+    }
+
+    var progress: Double {
+        guard let s = start, let e = end, e > s else { return 0 }
+        return min(max(Date().timeIntervalSince(s) / e.timeIntervalSince(s), 0), 1)
+    }
+}
+
+enum Route: Hashable {
+    case live, epg, vod, series, favorites, search, account, settings
+}
+
 struct Account: Equatable {
     var server: String
     var username: String

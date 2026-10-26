@@ -7,7 +7,7 @@ final class PlayerModel: ObservableObject {
 
     private var statusObserver: NSKeyValueObservation?
     private var currentURL: URL?
-    private var currentUserAgent = "IPTVPlayer/2.0"
+    private var currentUserAgent = "IPTVPlayer/3.0"
 
     func play(_ url: URL, userAgent: String) {
         currentURL = url
@@ -52,10 +52,13 @@ struct PlayerScreen: View {
     @StateObject private var model = PlayerModel()
 
     let channels: [Channel]
+    let isLive: Bool
     @State private var index: Int
+    @State private var nowTitle: String?
 
-    init(channels: [Channel], startIndex: Int) {
+    init(channels: [Channel], startIndex: Int, isLive: Bool = false) {
         self.channels = channels
+        self.isLive = isLive
         _index = State(initialValue: startIndex)
     }
 
@@ -76,14 +79,22 @@ struct PlayerScreen: View {
                             .padding(10)
                             .background(.black.opacity(0.45), in: Circle())
                     }
-                    Text(channel.name)
-                        .font(.headline)
-                        .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(channel.name)
+                            .font(.headline)
+                            .lineLimit(1)
+                        if let nowTitle = nowTitle {
+                            Text("Jetzt: \(nowTitle)")
+                                .font(.caption)
+                                .foregroundStyle(Theme.goldLight)
+                                .lineLimit(1)
+                        }
+                    }
                     Spacer()
                     Button { store.toggleFavorite(channel) } label: {
                         Image(systemName: store.isFavorite(channel) ? "star.fill" : "star")
                             .font(.title3)
-                            .foregroundStyle(store.isFavorite(channel) ? Color.yellow : Color.white)
+                            .foregroundStyle(store.isFavorite(channel) ? Theme.gold : Color.white)
                             .padding(10)
                             .background(.black.opacity(0.45), in: Circle())
                     }
@@ -108,6 +119,7 @@ struct PlayerScreen: View {
                         .foregroundStyle(.white)
                     Button("Erneut versuchen") { model.retry() }
                         .buttonStyle(.borderedProminent)
+                        .tint(Theme.gold)
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -118,6 +130,12 @@ struct PlayerScreen: View {
         .onAppear { model.play(channel.url, userAgent: store.userAgentValue) }
         .onChange(of: index) { _ in
             model.play(channel.url, userAgent: store.userAgentValue)
+        }
+        .task(id: index) {
+            nowTitle = nil
+            if isLive && store.isXtream {
+                nowTitle = await store.shortEPG(streamId: channel.id).first?.title
+            }
         }
         .onDisappear { model.stop() }
     }

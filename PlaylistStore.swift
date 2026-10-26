@@ -7,15 +7,25 @@ final class AppStore: ObservableObject {
     @Published var serverInput = ""
     @Published var username = ""
     @Published var password = ""
-    @Published var userAgent = ""
+    @Published var userAgent = "" {
+        didSet { UserDefaults.standard.set(userAgent, forKey: "userAgent") }
+    }
 
     @Published private(set) var channels: [Channel] = []
+    @Published private(set) var movies: [Channel] = []
+    @Published private(set) var seriesList: [SeriesItem] = []
     @Published private(set) var favorites: Set<String> = []
     @Published private(set) var isLoading = false
+    @Published private(set) var moviesLoading = false
+    @Published private(set) var seriesLoading = false
     @Published private(set) var errorMessage: String?
+    @Published private(set) var sectionError: String?
     @Published private(set) var infoMessage: String?
+    @Published private(set) var expiry: Date?
+    @Published private(set) var kind = ""
     @Published var showSetup = false
 
+    private var epgCache: [Int: [EPGEntry]] = [:]
     private let defaults = UserDefaults.standard
     private let cacheURL: URL
 
@@ -30,20 +40,49 @@ final class AppStore: ObservableObject {
         userAgent = defaults.string(forKey: "userAgent") ?? ""
         favorites = Set(defaults.stringArray(forKey: "favorites") ?? [])
         infoMessage = defaults.string(forKey: "info")
+        kind = defaults.string(forKey: "kind") ?? ""
+        let exp = defaults.double(forKey: "expiry")
+        expiry = exp > 0 ? Date(timeIntervalSince1970: exp) : nil
 
         Task { await restoreCache() }
     }
 
     // MARK: - Abgeleitete Werte
 
+    var isXtream: Bool { kind == "xtream" }
+
     var userAgentValue: String {
         let trimmed = userAgent.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "IPTVPlayer/2.0" : trimmed
+        return trimmed.isEmpty ? "IPTVPlayer/3.0" : trimmed
     }
 
-    var groups: [String] {
-        Array(Set(channels.compactMap(\.group))).sorted()
+    var expiryText: String? {
+        guard let expiry = expiry else { return nil }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateStyle = .long
+        f.timeStyle = .short
+        return f.string(from: expiry)
     }
+
+    private var currentAPI: XtreamAPI? {
+        guard isXtream, !serverInput.isEmpty, !username.isEmpty, !password.isEmpty else { return nil }
+        return XtreamAPI(
+            account: Account(server: serverInput, username: username, password: password),
+            userAgent: userAgentValue
+        )
+    }
+
+    static func nameMap(_ categories: [CategoryDTO]) -> [String: String] {
+        Dictionary(categories.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    static func url(_ s: String?) -> URL? {
+        guard let s = s, !s.isEmpty else { return nil }
+        return URL(string: s)
+    }
+
+    // MARK: - Favoriten
 
     func isFavorite(_ channel: Channel) -> Bool {
         favorites.contains(channel.key)
@@ -58,7 +97,7 @@ final class AppStore: ObservableObject {
         defaults.set(Array(favorites), forKey: "favorites")
     }
 
-    // MARK: - Laden
+    // MARK: - Anmeldung und Live-TV
 
     /// Anmeldung per Xtream-Zugangsdaten (oder kompletter Anbieter-Link)
     func login() async {
@@ -92,19 +131,17 @@ final class AppStore: ObservableObject {
 
         do {
             let api = XtreamAPI(account: account, userAgent: userAgentValue)
-            let info = try await api.authenticate()
-            let categories = try await api.liveCategories()
+            let auth = try await api.authenticate()
+            let names = Self.nameMap(try await api.categories("get_live_categories"))
             let streams = try await api.liveStreams()
 
-            let names = Dictionary(categories.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
-            let list: [Channel] = streams.compactMap { s in
+            let list = streams.compactMap { s -> Channel? in
                 guard let url = api.streamURL(id: s.streamId) else { return nil }
-                let logo = s.icon.flatMap { $0.isEmpty ? nil : URL(string: $0) }
                 return Channel(
                     id: s.streamId,
                     name: s.name.isEmpty ? "Sender \(s.streamId)" : s.name,
                     url: url,
-                    logo: logo,
+                    logo: Self.url(s.icon),
                     group: s.categoryId.flatMap { names[$0] }
                 )
             }
@@ -116,11 +153,17 @@ final class AppStore: ObservableObject {
 
             defaults.set(account.server, forKey: "server")
             defaults.set(account.username, forKey: "username")
-            defaults.set(userAgent, forKey: "userAgent")
             defaults.set("xtream", forKey: "kind")
-            defaults.set(info, forKey: "info")
+            defaults.set("Status: \(auth.status)", forKey: "info")
+            defaults.set(auth.expiry?.timeIntervalSince1970 ?? 0, forKey: "expiry")
             Keychain.save(account.password, for: "password")
-            infoMessage = info
+
+            kind = "xtream"
+            expiry = auth.expiry
+            infoMessage = "Status: \(auth.status)"
+            movies = []
+            seriesList = []
+            epgCache = [:]
             apply(list)
         } catch {
             errorMessage = error.localizedDescription
@@ -158,7 +201,7 @@ final class AppStore: ObservableObject {
         }
     }
 
-    private func loadM3UText(kind: String, link: String, fetch: () async throws -> String) async {
+    private func loadM3UText(kind newKind: String, link: String, fetch: () async throws -> String) async {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
@@ -173,11 +216,15 @@ final class AppStore: ObservableObject {
                 errorMessage = "Keine Kanäle gefunden. Ist das eine gültige M3U-Playlist?"
                 return
             }
-            defaults.set(kind, forKey: "kind")
+            defaults.set(newKind, forKey: "kind")
             defaults.set(link, forKey: "m3uLink")
-            defaults.set(userAgent, forKey: "userAgent")
             defaults.removeObject(forKey: "info")
+            defaults.removeObject(forKey: "expiry")
+            kind = newKind
             infoMessage = nil
+            expiry = nil
+            movies = []
+            seriesList = []
             apply(parsed)
         } catch {
             errorMessage = error.localizedDescription
@@ -185,24 +232,96 @@ final class AppStore: ObservableObject {
     }
 
     func refresh() async {
-        if defaults.string(forKey: "kind") == "m3u", let link = defaults.string(forKey: "m3uLink") {
+        epgCache = [:]
+        if kind == "m3u", let link = defaults.string(forKey: "m3uLink") {
             await loadM3U(link: link)
-        } else {
+        } else if isXtream {
             await login()
         }
     }
 
     func logout() {
         channels = []
+        movies = []
+        seriesList = []
+        epgCache = [:]
         infoMessage = nil
         errorMessage = nil
+        expiry = nil
+        kind = ""
         password = ""
         Keychain.save("", for: "password")
-        for key in ["server", "username", "kind", "m3uLink", "info"] {
+        for key in ["server", "username", "kind", "m3uLink", "info", "expiry"] {
             defaults.removeObject(forKey: key)
         }
         try? FileManager.default.removeItem(at: cacheURL)
         showSetup = false
+    }
+
+    // MARK: - Filme und Serien
+
+    func loadMoviesIfNeeded(force: Bool = false) async {
+        guard let api = currentAPI, !moviesLoading, force || movies.isEmpty else { return }
+        moviesLoading = true
+        sectionError = nil
+        defer { moviesLoading = false }
+
+        do {
+            let names = Self.nameMap(try await api.categories("get_vod_categories"))
+            let streams = try await api.vodStreams()
+            movies = streams.compactMap { s -> Channel? in
+                guard let url = api.movieURL(id: s.streamId, ext: s.ext) else { return nil }
+                return Channel(
+                    id: s.streamId,
+                    name: s.name.isEmpty ? "Film \(s.streamId)" : s.name,
+                    url: url,
+                    logo: Self.url(s.icon),
+                    group: s.categoryId.flatMap { names[$0] }
+                )
+            }
+            if movies.isEmpty { sectionError = "Dein Anbieter liefert keine Filme." }
+        } catch {
+            sectionError = error.localizedDescription
+        }
+    }
+
+    func loadSeriesIfNeeded(force: Bool = false) async {
+        guard let api = currentAPI, !seriesLoading, force || seriesList.isEmpty else { return }
+        seriesLoading = true
+        sectionError = nil
+        defer { seriesLoading = false }
+
+        do {
+            let names = Self.nameMap(try await api.categories("get_series_categories"))
+            let list = try await api.series()
+            seriesList = list.map { s in
+                SeriesItem(
+                    id: s.seriesId,
+                    name: s.name.isEmpty ? "Serie \(s.seriesId)" : s.name,
+                    cover: Self.url(s.cover),
+                    group: s.categoryId.flatMap { names[$0] }
+                )
+            }
+            if seriesList.isEmpty { sectionError = "Dein Anbieter liefert keine Serien." }
+        } catch {
+            sectionError = error.localizedDescription
+        }
+    }
+
+    func seriesEpisodes(_ seriesId: Int) async throws -> [Episode] {
+        guard let api = currentAPI else { throw APIError.unexpected("") }
+        return try await api.seriesEpisodes(seriesId: seriesId)
+    }
+
+    /// Aktuelle und nächste Sendungen eines Live-Senders (zwischengespeichert)
+    func shortEPG(streamId: Int) async -> [EPGEntry] {
+        if let cached = epgCache[streamId] { return cached }
+        guard let api = currentAPI else { return [] }
+        let list = (try? await api.shortEPG(streamId: streamId)) ?? []
+        let now = Date()
+        let upcoming = list.filter { ($0.end ?? .distantFuture) > now }
+        epgCache[streamId] = upcoming
+        return upcoming
     }
 
     // MARK: - Zwischenspeicher
