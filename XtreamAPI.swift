@@ -216,6 +216,11 @@ struct XtreamAPI {
     }
 
     func seriesEpisodes(seriesId: Int) async throws -> [Episode] {
+        try await seriesDetails(seriesId: seriesId).episodes
+    }
+
+    /// Folgen und Beschreibung einer Serie
+    func seriesDetails(seriesId: Int) async throws -> (episodes: [Episode], info: MediaInfo) {
         let data = try await request(action: "get_series_info", extra: ["series_id": String(seriesId)])
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             throw APIError.unexpected(Self.snippet(data))
@@ -250,7 +255,55 @@ struct XtreamAPI {
                 result.append(Episode(id: id, season: season, number: number, title: title, url: url, image: image))
             }
         }
-        return result.sorted { ($0.season, $0.number) < ($1.season, $1.number) }
+        let sorted = result.sorted { ($0.season, $0.number) < ($1.season, $1.number) }
+        return (sorted, Self.parseInfo(json["info"] as? [String: Any]))
+    }
+
+    /// Beschreibung, Genre, Jahr usw. eines Films
+    func vodInfo(vodId: Int) async throws -> MediaInfo {
+        let data = try await request(action: "get_vod_info", extra: ["vod_id": String(vodId)])
+        let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        return Self.parseInfo(json?["info"] as? [String: Any])
+    }
+
+    static func parseInfo(_ dict: [String: Any]?) -> MediaInfo {
+        var info = MediaInfo()
+        guard let d = dict else { return info }
+
+        func text(_ keys: [String]) -> String? {
+            for key in keys {
+                guard let value = d[key], !(value is NSNull) else { continue }
+                let s = "\(value)".trimmingCharacters(in: .whitespacesAndNewlines)
+                if !s.isEmpty && s != "0" && s.lowercased() != "null" && s != "N/A" { return s }
+            }
+            return nil
+        }
+
+        info.plot = text(["plot", "description"])
+        info.genre = text(["genre"])
+        if let date = text(["releasedate", "releaseDate", "release_date", "year"]) {
+            info.year = String(date.prefix(4))
+        }
+        info.rating = text(["rating"])
+        info.duration = text(["duration"]).map(Self.formatDuration)
+        info.cast = text(["cast", "actors"])
+        info.director = text(["director"])
+        if let list = d["backdrop_path"] as? [Any], let first = list.first as? String, !first.isEmpty {
+            info.backdrop = URL(string: first)
+        } else if let single = d["backdrop_path"] as? String, !single.isEmpty {
+            info.backdrop = URL(string: single)
+        }
+        info.cover = text(["movie_image", "cover_big", "cover"]).flatMap { URL(string: $0) }
+        return info
+    }
+
+    /// "01:52:00" -> "1 Std. 52 Min."
+    static func formatDuration(_ raw: String) -> String {
+        let parts = raw.split(separator: ":").compactMap { Int($0) }
+        guard parts.count == 3 else { return raw }
+        let (h, m) = (parts[0], parts[1])
+        if h > 0 { return "\(h) Std. \(m) Min." }
+        return "\(m) Min."
     }
 
     func shortEPG(streamId: Int) async throws -> [EPGEntry] {

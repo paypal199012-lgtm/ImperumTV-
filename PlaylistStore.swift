@@ -97,6 +97,20 @@ final class AppStore: ObservableObject {
         defaults.set(Array(favorites), forKey: "favorites")
     }
 
+    func isFavoriteSeries(_ series: SeriesItem) -> Bool {
+        favorites.contains("series:\(series.id)")
+    }
+
+    func toggleFavoriteSeries(_ series: SeriesItem) {
+        let key = "series:\(series.id)"
+        if favorites.contains(key) {
+            favorites.remove(key)
+        } else {
+            favorites.insert(key)
+        }
+        defaults.set(Array(favorites), forKey: "favorites")
+    }
+
     // MARK: - Anmeldung und Live-TV
 
     /// Anmeldung per Xtream-Zugangsdaten (oder kompletter Anbieter-Link)
@@ -306,6 +320,16 @@ final class AppStore: ObservableObject {
         } catch {
             sectionError = error.localizedDescription
         }
+    }
+
+    func seriesDetails(_ seriesId: Int) async throws -> (episodes: [Episode], info: MediaInfo) {
+        guard let api = currentAPI else { throw APIError.unexpected("") }
+        return try await api.seriesDetails(seriesId: seriesId)
+    }
+
+    func movieInfo(_ vodId: Int) async -> MediaInfo? {
+        guard let api = currentAPI else { return nil }
+        return try? await api.vodInfo(vodId: vodId)
     }
 
     func seriesEpisodes(_ seriesId: Int) async throws -> [Episode] {

@@ -56,6 +56,23 @@ struct EPGEntry: Identifiable, Hashable {
     }
 }
 
+/// Zusatzinfos zu Filmen und Serien
+struct MediaInfo {
+    var plot: String?
+    var genre: String?
+    var year: String?
+    var rating: String?
+    var duration: String?
+    var cast: String?
+    var director: String?
+    var backdrop: URL?
+    var cover: URL?
+
+    var metaLine: String {
+        [year, duration, genre].compactMap { $0 }.joined(separator: " · ")
+    }
+}
+
 enum Route: Hashable {
     case live, epg, vod, series, favorites, search, account, settings, multi
 }

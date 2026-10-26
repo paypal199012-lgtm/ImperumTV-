@@ -16,6 +16,9 @@ struct RootView: View {
                         .navigationDestination(for: SeriesItem.self) { series in
                             SeriesDetailView(series: series)
                         }
+                        .navigationDestination(for: Channel.self) { movie in
+                            MovieDetailView(movie: movie)
+                        }
                 }
             }
         }
@@ -53,7 +56,7 @@ struct HomeView: View {
 
     var body: some View {
         GeometryReader { geo in
-            if verticalSizeClass == .compact {
+            if geo.size.width > geo.size.height {
                 landscapeLayout(geo.size)
             } else {
                 portraitLayout(geo.size)

@@ -7,11 +7,8 @@ struct LiveTVView: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     var body: some View {
-        if verticalSizeClass == .compact {
-            LiveThreePaneView()
-        } else {
-            ChannelListView(title: "Live-TV", items: store.channels, isLive: true)
-        }
+        // Die App läuft nur im Querformat, deshalb immer drei Spalten
+        LiveThreePaneView()
     }
 }
 

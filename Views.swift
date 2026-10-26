@@ -275,9 +275,10 @@ struct FavoritesView: View {
     var body: some View {
         let live = store.channels.filter { store.isFavorite($0) }
         let films = store.movies.filter { store.isFavorite($0) }
+        let shows = store.seriesList.filter { store.isFavoriteSeries($0) }
         ScrollView {
             LazyVStack(spacing: 10) {
-                if live.isEmpty && films.isEmpty {
+                if live.isEmpty && films.isEmpty && shows.isEmpty {
                     Text("Noch keine Favoriten. Tippe bei einem Sender auf den Stern oder halte bei einem Film den Finger auf das Bild.")
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
@@ -297,6 +298,25 @@ struct FavoritesView: View {
                         ChannelCard(channel: film) {
                             request = PlayRequest(channels: films, index: index, isLive: false)
                         }
+                    }
+                }
+                if !shows.isEmpty {
+                    SectionTitle(text: "Serien")
+                    ForEach(shows) { show in
+                        NavigationLink(value: show) {
+                            HStack(spacing: 12) {
+                                ChannelLogo(url: show.cover)
+                                Text(show.name)
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(Theme.gold)
+                            }
+                            .padding(10)
+                            .background(RoundedRectangle(cornerRadius: 14).fill(Theme.panel))
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
