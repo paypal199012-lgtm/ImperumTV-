@@ -5,89 +5,104 @@ import UniformTypeIdentifiers
 
 struct SetupView: View {
     @EnvironmentObject private var store: AppStore
-    @State private var pickingFile = false
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("Server oder kompletter Link", text: $store.serverInput)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    TextField("Benutzername", text: $store.username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    SecureField("Passwort", text: $store.password)
+        ScrollView {
+            VStack(spacing: 22) {
+                VStack(spacing: 6) {
+                    Image(systemName: "crown.fill")
+                        .font(.title)
+                        .foregroundStyle(Theme.gold)
+                    Text("ImperumTV")
+                        .font(.largeTitle.weight(.bold))
+                        .foregroundStyle(LinearGradient(colors: [Theme.goldLight, Theme.gold], startPoint: .top, endPoint: .bottom))
+                }
 
-                    Button {
-                        Task { await store.login() }
-                    } label: {
-                        Text("Anmelden").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(store.isLoading)
-                } header: {
-                    Text("Anmeldung")
-                } footer: {
-                    Text("Du kannst auch den kompletten Link deines Anbieters einfügen. Benutzername und Passwort werden dann automatisch ausgefüllt.")
+                if RemoteSetup.isConfigured {
+                    DeviceCodeBox()
+                        .padding(20)
+                        .frame(maxWidth: 520)
+                        .background(RoundedRectangle(cornerRadius: 16).fill(Theme.panel))
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.gold.opacity(0.35)))
+                } else {
+                    Text("Die Website ist noch nicht verbunden.")
+                        .foregroundStyle(.secondary)
                 }
 
                 if store.isLoading {
-                    HStack {
-                        Spacer()
-                        ProgressView("Lade Sender …")
-                        Spacer()
-                    }
+                    ProgressView("Lade Sender …")
+                        .tint(.white)
                 }
 
                 if let error = store.errorMessage {
                     Text(error)
+                        .font(.footnote)
                         .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
                         .textSelection(.enabled)
-                }
-
-                Section {
-                    TextField("Kennung (User-Agent)", text: $store.userAgent)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                } header: {
-                    Text("Erweitert")
-                } footer: {
-                    Text("Leer lassen. Nur ändern, wenn dein Anbieter eine bestimmte Kennung verlangt.")
-                }
-
-                Section {
-                    Button("Link als M3U-Playlist laden") {
-                        Task { await store.loadM3U(link: store.serverInput) }
-                    }
-                    .disabled(store.isLoading)
-
-                    Button("M3U-Datei auswählen") { pickingFile = true }
-                        .disabled(store.isLoading)
-                } header: {
-                    Text("Alternative: M3U")
+                        .frame(maxWidth: 520)
                 }
 
                 if !store.channels.isEmpty {
                     Button("Zurück zum Menü") { store.showSetup = false }
+                        .foregroundStyle(Theme.goldLight)
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(GoldBackground(dim: 0.45))
-            .navigationTitle("ImperumTV")
-            .onChange(of: store.serverInput) { value in
-                if let account = Account.parse(link: value) {
-                    store.serverInput = account.server
-                    store.username = account.username
-                    store.password = account.password
-                }
+            .padding(24)
+            .frame(maxWidth: .infinity)
+        }
+        .background(GoldBackground(dim: 0.45))
+        // Alle 5 Sekunden nachsehen, ob auf der Website etwas eingetragen wurde
+        .task {
+            guard RemoteSetup.isConfigured else { return }
+            while !Task.isCancelled {
+                await store.checkRemote()
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
             }
-            .fileImporter(isPresented: $pickingFile, allowedContentTypes: [.item]) { result in
-                if case .success(let url) = result {
-                    Task { await store.loadFile(url) }
-                }
+        }
+    }
+}
+
+/// Zeigt MAC-Adresse, Device Key und die Website-Adresse
+struct DeviceCodeBox: View {
+    @EnvironmentObject private var store: AppStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            row("MAC-Adresse", store.deviceMAC)
+            row("Device Key", store.deviceKey)
+
+            Text("Öffne \(RemoteSetup.websiteURL) und trage dort MAC-Adresse, Device Key und deine Playlist ein. Die App übernimmt sie dann von selbst.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            Button("Jetzt abrufen") {
+                Task { await store.checkRemote(force: true) }
             }
+            .foregroundStyle(Theme.goldLight)
+            .disabled(store.isLoading)
+
+            if let status = store.remoteStatus {
+                Text(status)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.goldLight)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func row(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(width: 120, alignment: .leading)
+            Text(value)
+                .font(.system(size: 26, weight: .bold, design: .monospaced))
+                .foregroundStyle(Theme.goldLight)
+                .textSelection(.enabled)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         }
     }
 }
@@ -202,11 +217,9 @@ struct NeedsXtreamView: View {
             Image(systemName: "lock.circle")
                 .font(.system(size: 44))
                 .foregroundStyle(Theme.gold)
-            Text("Filme, Serien und das TV-Programm gibt es nur mit der Anmeldung über Benutzername und Passwort.")
+            Text("Filme, Serien und das TV-Programm gibt es nur, wenn auf der Website Server, Benutzername und Passwort eingetragen sind.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.white)
-            Button("Anmeldung ändern") { store.showSetup = true }
-                .buttonStyle(.borderedProminent)
         }
         .padding(32)
     }
@@ -453,13 +466,20 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            if RemoteSetup.isConfigured {
+                Section {
+                    DeviceCodeBox()
+                } header: {
+                    Text("Gerät")
+                }
+            }
+
             Section {
                 Button("Alles neu laden") {
                     Task { await store.refresh() }
                 }
                 .disabled(store.isLoading)
 
-                Button("Anmeldung ändern") { store.showSetup = true }
             }
 
             if let error = store.errorMessage {
@@ -488,7 +508,7 @@ struct SettingsView: View {
             }
 
             Section {
-                Button("Abmelden", role: .destructive) { store.logout() }
+                Button("Playlist vom Gerät entfernen", role: .destructive) { store.logout() }
             }
         }
         .scrollContentBackground(.hidden)

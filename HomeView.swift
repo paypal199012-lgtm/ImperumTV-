@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -23,6 +24,13 @@ struct RootView: View {
             }
         }
         .tint(Theme.gold)
+        // Beim Start und beim Zurückkehren in die App nach neuer Playlist schauen
+        .task { await store.checkRemote() }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                Task { await store.checkRemote() }
+            }
+        }
     }
 
     @ViewBuilder

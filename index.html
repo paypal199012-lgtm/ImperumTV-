@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ImperumTV Playlist</title>
+<meta name="robots" content="noindex">
+<style>
+  :root {
+    --bg: #0f1216;
+    --panel: #181c22;
+    --panel-2: #20252d;
+    --line: #2c323b;
+    --text: #f2efe8;
+    --muted: #a7a39a;
+    --gold: #d9b066;
+    --gold-light: #f4dc9e;
+    --ok: #7fcf8f;
+    --err: #f08a7a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body {
+    min-height: 100vh;
+    background:
+      linear-gradient(160deg, transparent 30%, rgba(217,176,102,.18) 31%, rgba(217,176,102,.05) 48%, transparent 49%),
+      linear-gradient(20deg, transparent 62%, rgba(0,0,0,.35) 63%, rgba(0,0,0,.35) 70%, transparent 71%),
+      var(--bg);
+    display: flex; justify-content: center; padding: 32px 16px 48px;
+  }
+  main { width: 100%; max-width: 460px; }
+  header { text-align: center; margin-bottom: 22px; }
+  header img { width: 96px; height: 96px; border-radius: 22px; display: block; margin: 0 auto 12px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.45); }
+  h1 { font-size: 26px; margin: 0; letter-spacing: .5px;
+    background: linear-gradient(var(--gold-light), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  header p { margin: 6px 0 0; color: var(--muted); font-size: 15px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 16px 0 6px; }
+  label:first-of-type { margin-top: 0; }
+  input {
+    width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--text); font-size: 16px; outline: none;
+  }
+  input:focus { border-color: var(--gold); }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 20px; letter-spacing: 2px;
+    text-align: center; text-transform: uppercase; color: var(--gold-light); }
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 20px 0 4px;
+    background: var(--panel-2); padding: 4px; border-radius: 10px; }
+  .tabs button { border: 0; padding: 10px; border-radius: 8px; background: transparent; color: var(--muted);
+    font-size: 14px; cursor: pointer; }
+  .tabs button.active { background: var(--gold); color: #1a1408; font-weight: 600; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+  .submit { margin-top: 22px; width: 100%; border: 0; padding: 14px; border-radius: 12px;
+    background: linear-gradient(var(--gold-light), var(--gold)); color: #1a1408; font-size: 16px;
+    font-weight: 700; cursor: pointer; }
+  .submit:disabled { opacity: .6; cursor: default; }
+  .msg { margin-top: 14px; font-size: 14px; line-height: 1.45; min-height: 20px; }
+  .msg.ok { color: var(--ok); }
+  .msg.err { color: var(--err); }
+  .steps { margin-top: 22px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .steps b { color: var(--text); font-weight: 600; }
+  .hidden { display: none; }
+  footer { text-align: center; color: #6f6b63; font-size: 12px; margin-top: 22px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="AppIcon.png" alt="" onerror="this.style.display='none'">
+    <h1>ImperumTV</h1>
+    <p>Playlist auf dein Gerät senden</p>
+  </header>
+
+  <form class="card" id="form" autocomplete="off">
+    <label for="mac">MAC-Adresse (steht in der App)</label>
+    <input id="mac" class="mono" inputmode="text" maxlength="17" placeholder="XX:XX:XX:XX:XX:XX" required>
+    <label for="key">Device Key</label>
+    <input id="key" class="mono" inputmode="numeric" maxlength="6" placeholder="123456" required>
+
+    <div class="tabs" role="tablist">
+      <button type="button" id="tab-xtream" class="active">Zugangsdaten</button>
+      <button type="button" id="tab-m3u">M3U-Link</button>
+    </div>
+
+    <div id="pane-xtream">
+      <label for="server">Server</label>
+      <input id="server" inputmode="url" placeholder="http://server.de:8080">
+      <div class="hint">Du kannst hier auch den kompletten Link deines Anbieters einfügen, die Felder füllen sich dann selbst.</div>
+      <label for="username">Benutzername</label>
+      <input id="username">
+      <label for="password">Passwort</label>
+      <input id="password" type="password">
+    </div>
+
+    <div id="pane-m3u" class="hidden">
+      <label for="m3u">M3U-Link</label>
+      <input id="m3u" inputmode="url" placeholder="http://…/get.php?username=…&password=…">
+    </div>
+
+    <button class="submit" id="submit" type="submit">An Gerät senden</button>
+    <div class="msg" id="msg" role="status"></div>
+
+    <div class="steps">
+      <b>So geht's:</b> App öffnen, MAC-Adresse und Device Key ablesen (auf dem Startbildschirm der Einrichtung oder unter Einstellungen), hier eintragen und senden. Die App übernimmt die Playlist innerhalb weniger Sekunden.
+    </div>
+  </form>
+
+  <footer>Deine Zugangsdaten werden nur für dein Gerät gespeichert.</footer>
+</main>
+
+<script>
+  // Diese zwei Werte kommen aus deinem Supabase-Projekt (Project Settings > API)
+  const SUPABASE_URL = "DEINE_SUPABASE_URL";
+  const SUPABASE_KEY = "DEIN_SUPABASE_KEY";
+
+  const $ = (id) => document.getElementById(id);
+  let mode = "xtream";
+
+  function setMode(next) {
+    mode = next;
+    $("tab-xtream").classList.toggle("active", next === "xtream");
+    $("tab-m3u").classList.toggle("active", next === "m3u");
+    $("pane-xtream").classList.toggle("hidden", next !== "xtream");
+    $("pane-m3u").classList.toggle("hidden", next !== "m3u");
+    showMsg("");
+  }
+  $("tab-xtream").onclick = () => setMode("xtream");
+  $("tab-m3u").onclick = () => setMode("m3u");
+
+  // MAC-Adresse automatisch als XX:XX:XX:XX:XX:XX formatieren
+  $("mac").addEventListener("input", (e) => {
+    const hex = e.target.value.toUpperCase().replace(/[^0-9A-F]/g, "").slice(0, 12);
+    e.target.value = hex.match(/.{1,2}/g)?.join(":") ?? "";
+  });
+  // Device Key: nur Ziffern
+  $("key").addEventListener("input", (e) => {
+    e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6);
+  });
+
+  // Kompletten Anbieter-Link in Server, Benutzer und Passwort zerlegen
+  $("server").addEventListener("input", (e) => {
+    try {
+      const u = new URL(e.target.value.trim());
+      const user = u.searchParams.get("username");
+      const pass = u.searchParams.get("password");
+      if (user && pass) {
+        let path = u.pathname.replace(/\/get\.php$/, "").replace(/\/+$/, "");
+        $("server").value = u.protocol + "//" + u.host + path;
+        $("username").value = user;
+        $("password").value = pass;
+      }
+    } catch (_) { /* noch kein vollständiger Link */ }
+  });
+
+  function showMsg(text, kind) {
+    const m = $("msg");
+    m.textContent = text;
+    m.className = "msg" + (kind ? " " + kind : "");
+  }
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const mac = $("mac").value.trim().toUpperCase();
+    const key = $("key").value.trim();
+    if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) { showMsg("Die MAC-Adresse ist unvollständig. Sie hat 12 Zeichen, z. B. 1A:2B:3C:4D:5E:6F.", "err"); return; }
+    if (!/^[0-9]{6}$/.test(key)) { showMsg("Der Device Key hat 6 Ziffern.", "err"); return; }
+
+    const body = { p_mac: mac, p_key: key, p_m3u: "", p_server: "", p_username: "", p_password: "" };
+    if (mode === "xtream") {
+      body.p_server = $("server").value.trim();
+      body.p_username = $("username").value.trim();
+      body.p_password = $("password").value.trim();
+      if (!/^https?:\/\//i.test(body.p_server) || !body.p_username || !body.p_password) {
+        showMsg("Bitte Server (mit http:// oder https://), Benutzername und Passwort ausfüllen.", "err"); return;
+      }
+    } else {
+      body.p_m3u = $("m3u").value.trim();
+      if (!/^https?:\/\//i.test(body.p_m3u)) { showMsg("Bitte einen Link mit http:// oder https:// eingeben.", "err"); return; }
+    }
+
+    if (SUPABASE_URL.startsWith("DEINE")) { showMsg("Die Website ist noch nicht mit der Datenbank verbunden.", "err"); return; }
+
+    $("submit").disabled = true;
+    showMsg("Wird gesendet …");
+    try {
+      const headers = { "Content-Type": "application/json", "apikey": SUPABASE_KEY };
+      if (SUPABASE_KEY.startsWith("eyJ")) headers["Authorization"] = "Bearer " + SUPABASE_KEY;
+      const res = await fetch(SUPABASE_URL.replace(/\/+$/, "") + "/rest/v1/rpc/set_playlist", {
+        method: "POST", headers, body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const found = await res.json();
+      if (found === true) {
+        showMsg("Gesendet! Die App übernimmt die Playlist in wenigen Sekunden. Falls nicht, tippe in der App auf „Jetzt abrufen“.", "ok");
+      } else {
+        showMsg("MAC-Adresse oder Device Key stimmen nicht. Öffne die App einmal mit Internet, damit das Gerät angemeldet wird, und prüfe die Eingabe.", "err");
+      }
+    } catch (err) {
+      showMsg("Senden fehlgeschlagen (" + err.message + "). Prüfe deine Internetverbindung und versuche es erneut.", "err");
+    } finally {
+      $("submit").disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
