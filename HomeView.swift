@@ -49,71 +49,156 @@ struct HomeView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
-    private var tileColumns: [GridItem] {
-        let count = verticalSizeClass == .compact ? 4 : 2
-        return Array(repeating: GridItem(.flexible(), spacing: 18), count: count)
-    }
-
     var body: some View {
-        ScrollView {
-            VStack(spacing: 28) {
-                header
-
-                LazyVGrid(columns: tileColumns, spacing: 18) {
-                    bigTile(.live, "Live TV", "tv")
-                    bigTile(.epg, "EPG", "list.bullet.rectangle")
-                    bigTile(.vod, "Filme", "film")
-                    bigTile(.series, "Serien", "play.rectangle.on.rectangle")
-                }
-
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 10)], spacing: 10) {
-                    smallTile(.favorites, "Favoriten", "star.fill")
-                    smallTile(.search, "Suche", "magnifyingglass")
-                    smallTile(.account, "Konto", "person.crop.circle")
-                    smallTile(.settings, "Einstellungen", "gearshape.fill")
-                }
-
-                if let exp = store.expiryText {
-                    Text("Läuft ab: \(exp)")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.6), radius: 4)
-                }
+        GeometryReader { geo in
+            if verticalSizeClass == .compact {
+                landscapeLayout(geo.size)
+            } else {
+                portraitLayout(geo.size)
             }
-            .padding(20)
         }
         .background(GoldBackground())
         .toolbar(.hidden, for: .navigationBar)
     }
 
-    private var header: some View {
-        HStack {
-            HStack(spacing: 8) {
-                Image(systemName: "crown.fill")
-                    .foregroundStyle(Theme.gold)
-                Text("ImperumTV")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(LinearGradient(
-                        colors: [Theme.goldLight, Theme.gold],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ))
-            }
-            Spacer()
-            HStack(spacing: 12) {
-                NavigationLink(value: Route.search) {
-                    headerIcon("magnifyingglass")
-                }
-                Button {
-                    Task { await store.refresh() }
-                } label: {
-                    if store.isLoading {
-                        ProgressView()
-                            .frame(width: 38, height: 38)
-                    } else {
-                        headerIcon("arrow.clockwise")
+    // MARK: Hochformat
+
+    private func portraitLayout(_ size: CGSize) -> some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                header(compact: false)
+
+                Spacer(minLength: 24)
+
+                VStack(spacing: 28) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 18), count: 2), spacing: 18) {
+                        bigTile(.live, "Live TV", "tv")
+                        bigTile(.epg, "EPG", "list.bullet.rectangle")
+                        bigTile(.vod, "Filme", "film")
+                        bigTile(.series, "Serien", "play.rectangle.on.rectangle")
                     }
+
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 10)], spacing: 10) {
+                        smallTile(.favorites, "Favoriten", "star.fill")
+                        smallTile(.search, "Suche", "magnifyingglass")
+                        smallTile(.account, "Konto", "person.crop.circle")
+                        smallTile(.settings, "Einstellungen", "gearshape.fill")
+                    }
+
+                    expiryLabel
                 }
+                .frame(maxWidth: min(size.width - 40, 440))
+
+                Spacer(minLength: 16)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .frame(minHeight: size.height)
+        }
+    }
+
+    // MARK: Querformat (wie das Fernseher-Menü)
+
+    @ViewBuilder
+    private func landscapeLayout(_ size: CGSize) -> some View {
+        let spacing: CGFloat = 18
+        let smallHeight: CGFloat = 50
+        // Kreise so groß wie möglich, aber alles muss ohne Scrollen passen
+        let byHeight = size.height - 34 - 14 - smallHeight - 10 - 20 - 20
+        let byWidth = (size.width * 0.86 - spacing * 3) / 4
+        let diameter = max(80, min(byHeight, byWidth))
+
+        VStack(spacing: 0) {
+            header(compact: true)
+
+            Spacer(minLength: 4)
+
+            HStack(spacing: spacing) {
+                bigTile(.live, "Live TV", "tv").frame(width: diameter)
+                bigTile(.epg, "EPG", "list.bullet.rectangle").frame(width: diameter)
+                bigTile(.vod, "Filme", "film").frame(width: diameter)
+                bigTile(.series, "Serien", "play.rectangle.on.rectangle").frame(width: diameter)
+            }
+
+            HStack(spacing: 8) {
+                smallTile(.favorites, "Favoriten", "star.fill", height: smallHeight).frame(width: 78)
+                smallTile(.search, "Suche", "magnifyingglass", height: smallHeight).frame(width: 78)
+                smallTile(.account, "Konto", "person.crop.circle", height: smallHeight).frame(width: 78)
+                smallTile(.settings, "Einstellungen", "gearshape.fill", height: smallHeight).frame(width: 78)
+            }
+            .padding(.top, 14)
+
+            expiryLabel
+                .padding(.top, 10)
+
+            Spacer(minLength: 4)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 6)
+        .frame(width: size.width, height: size.height)
+    }
+
+    // MARK: Bausteine
+
+    @ViewBuilder
+    private var expiryLabel: some View {
+        if let exp = store.expiryText {
+            Text("Läuft ab: \(exp)")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.6), radius: 4)
+        }
+    }
+
+    private var title: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "crown.fill")
+                .foregroundStyle(Theme.gold)
+            Text("ImperumTV")
+                .font(.title2.weight(.bold))
+                .foregroundStyle(LinearGradient(
+                    colors: [Theme.goldLight, Theme.gold],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ))
+        }
+    }
+
+    private var headerButtons: some View {
+        HStack(spacing: 12) {
+            NavigationLink(value: Route.search) {
+                headerIcon("magnifyingglass")
+            }
+            Button {
+                Task { await store.refresh() }
+            } label: {
+                if store.isLoading {
+                    ProgressView()
+                        .frame(width: 34, height: 34)
+                } else {
+                    headerIcon("arrow.clockwise")
+                }
+            }
+        }
+    }
+
+    /// Im Querformat steht der Titel mittig, die Knöpfe rechts
+    @ViewBuilder
+    private func header(compact: Bool) -> some View {
+        if compact {
+            ZStack {
+                title
+                HStack {
+                    Spacer()
+                    headerButtons
+                }
+            }
+            .frame(height: 34)
+        } else {
+            HStack {
+                title
+                Spacer()
+                headerButtons
             }
         }
     }
@@ -122,7 +207,7 @@ struct HomeView: View {
         Image(systemName: name)
             .font(.title3)
             .foregroundStyle(.white)
-            .frame(width: 38, height: 38)
+            .frame(width: 34, height: 34)
             .background(Circle().fill(Color.black.opacity(0.4)))
     }
 
@@ -133,9 +218,9 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    private func smallTile(_ route: Route, _ title: String, _ icon: String) -> some View {
+    private func smallTile(_ route: Route, _ title: String, _ icon: String, height: CGFloat = 74) -> some View {
         NavigationLink(value: route) {
-            SquareTile(title: title, icon: icon)
+            SquareTile(title: title, icon: icon, height: height)
         }
         .buttonStyle(.plain)
     }

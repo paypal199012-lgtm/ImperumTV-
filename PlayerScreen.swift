@@ -1,11 +1,17 @@
 import SwiftUI
 import UIKit
 import AVKit
+import MobileVLCKit
 
 // MARK: - Wiedergabe
 
+/// Spielt mit dem iPhone-Player (AVPlayer) ab und wechselt bei Formaten,
+/// die das iPhone nicht kann (z. B. MKV, AVI), automatisch auf VLC.
 final class PlayerModel: NSObject, ObservableObject {
     let player = AVPlayer()
+    private(set) lazy var vlcPlayer = VLCMediaPlayer()
+
+    @Published var usesVLC = false
     @Published var isPiPPossible = false
     @Published var isPiPActive = false
     @Published var errorMessage: String?
@@ -16,10 +22,14 @@ final class PlayerModel: NSObject, ObservableObject {
 
     private var statusObserver: NSKeyValueObservation?
     private var timeObserver: Any?
+    private var vlcTimer: Timer?
     private var currentURL: URL?
     private var currentUserAgent = "IPTVPlayer/3.0"
     private var pipController: AVPictureInPictureController?
     private var pipPossibleObserver: NSKeyValueObservation?
+
+    /// Formate, die der iPhone-Player sicher kann
+    private static let nativeExtensions: Set<String> = ["m3u8", "mp4", "m4v", "mov", "ts", ""]
 
     override init() {
         super.init()
@@ -27,7 +37,7 @@ final class PlayerModel: NSObject, ObservableObject {
             forInterval: CMTime(seconds: 0.5, preferredTimescale: 600),
             queue: .main
         ) { [weak self] time in
-            guard let self = self else { return }
+            guard let self = self, !self.usesVLC else { return }
             self.currentTime = time.seconds.isFinite ? time.seconds : 0
             if let d = self.player.currentItem?.duration.seconds, d.isFinite, d > 0 {
                 self.duration = d
@@ -41,6 +51,7 @@ final class PlayerModel: NSObject, ObservableObject {
 
     deinit {
         if let observer = timeObserver { player.removeTimeObserver(observer) }
+        vlcTimer?.invalidate()
     }
 
     func play(_ url: URL, userAgent: String) {
@@ -48,6 +59,7 @@ final class PlayerModel: NSObject, ObservableObject {
         currentUserAgent = userAgent
         errorMessage = nil
         isBuffering = true
+        isPlaying = true
         currentTime = 0
         duration = 0
 
@@ -55,24 +67,89 @@ final class PlayerModel: NSObject, ObservableObject {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
 
+        let ext = url.pathExtension.lowercased()
+        if Self.nativeExtensions.contains(ext) {
+            playNative(url, userAgent: userAgent)
+        } else {
+            playVLC(url, userAgent: userAgent)
+        }
+    }
+
+    private func playNative(_ url: URL, userAgent: String) {
+        stopVLC()
+        usesVLC = false
+
         let asset = AVURLAsset(
             url: url,
             options: ["AVURLAssetHTTPHeaderFieldsKey": ["User-Agent": userAgent]]
         )
         let item = AVPlayerItem(asset: asset)
         statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
-            if item.status == .failed {
-                let reason = item.error?.localizedDescription ?? ""
-                DispatchQueue.main.async {
-                    self?.errorMessage = "Wiedergabe fehlgeschlagen. \(reason)"
-                }
+            guard item.status == .failed else { return }
+            DispatchQueue.main.async {
+                // Kann das iPhone das Format nicht, übernimmt VLC
+                guard let self = self, let url = self.currentURL else { return }
+                self.playVLC(url, userAgent: self.currentUserAgent)
             }
         }
         player.replaceCurrentItem(with: item)
         player.play()
     }
 
-    /// Bild-in-Bild vorbereiten, sobald das Videobild existiert
+    private func playVLC(_ url: URL, userAgent: String) {
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        statusObserver = nil
+        usesVLC = true
+        isPiPPossible = false
+        errorMessage = nil
+        isBuffering = true
+
+        let media = VLCMedia(url: url)
+        media.addOption(":http-user-agent=\(userAgent)")
+        media.addOption(":network-caching=1500")
+        vlcPlayer.media = media
+        vlcPlayer.play()
+
+        vlcTimer?.invalidate()
+        vlcTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.pollVLC()
+        }
+    }
+
+    private func pollVLC() {
+        let p = vlcPlayer
+        let ms = p.time.intValue
+        currentTime = Double(ms) / 1000
+        if let length = p.media?.length.intValue, length > 0 {
+            duration = Double(length) / 1000
+        } else {
+            duration = 0
+        }
+
+        switch p.state {
+        case .error:
+            isBuffering = false
+            errorMessage = "Wiedergabe fehlgeschlagen. Der Server liefert die Datei nicht oder das Format wird nicht unterstützt."
+        case .paused, .stopped, .ended:
+            isBuffering = false
+            isPlaying = false
+        case .opening, .buffering:
+            isBuffering = ms == 0
+            isPlaying = true
+        default:
+            isBuffering = false
+            isPlaying = true
+        }
+    }
+
+    private func stopVLC() {
+        vlcTimer?.invalidate()
+        vlcTimer = nil
+        if usesVLC { vlcPlayer.stop() }
+    }
+
+    /// Bild-in-Bild vorbereiten, sobald das Videobild existiert (nur iPhone-Player)
     func attach(layer: AVPlayerLayer) {
         guard pipController == nil, AVPictureInPictureController.isPictureInPictureSupported() else { return }
         guard let controller = AVPictureInPictureController(playerLayer: layer) else { return }
@@ -81,12 +158,15 @@ final class PlayerModel: NSObject, ObservableObject {
         controller.delegate = self
         pipController = controller
         pipPossibleObserver = controller.observe(\.isPictureInPicturePossible, options: [.initial, .new]) { [weak self] c, _ in
-            DispatchQueue.main.async { self?.isPiPPossible = c.isPictureInPicturePossible }
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.isPiPPossible = c.isPictureInPicturePossible && !self.usesVLC
+            }
         }
     }
 
     func togglePiP() {
-        guard let controller = pipController else { return }
+        guard let controller = pipController, !usesVLC else { return }
         if controller.isPictureInPictureActive {
             controller.stopPictureInPicture()
         } else {
@@ -95,6 +175,16 @@ final class PlayerModel: NSObject, ObservableObject {
     }
 
     func togglePlay() {
+        if usesVLC {
+            if vlcPlayer.isPlaying {
+                vlcPlayer.pause()
+                isPlaying = false
+            } else {
+                vlcPlayer.play()
+                isPlaying = true
+            }
+            return
+        }
         if player.timeControlStatus == .paused {
             player.play()
             isPlaying = true
@@ -105,8 +195,13 @@ final class PlayerModel: NSObject, ObservableObject {
     }
 
     func seek(to seconds: Double) {
-        player.seek(to: CMTime(seconds: max(0, seconds), preferredTimescale: 600))
-        currentTime = seconds
+        let target = max(0, seconds)
+        if usesVLC {
+            vlcPlayer.time = VLCTime(int: Int32(target * 1000))
+        } else {
+            player.seek(to: CMTime(seconds: target, preferredTimescale: 600))
+        }
+        currentTime = target
     }
 
     func skip(_ delta: Double) {
@@ -123,7 +218,22 @@ final class PlayerModel: NSObject, ObservableObject {
         player.pause()
         player.replaceCurrentItem(with: nil)
         statusObserver = nil
+        stopVLC()
     }
+}
+
+/// Videobild für den VLC-Player
+struct VLCVideoView: UIViewRepresentable {
+    let player: VLCMediaPlayer
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .black
+        player.drawable = view
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {}
 }
 
 extension PlayerModel: AVPictureInPictureControllerDelegate {
@@ -198,6 +308,12 @@ struct PlayerScreen: View {
                 model.attach(layer: layer)
             }
             .ignoresSafeArea()
+            .opacity(model.usesVLC ? 0 : 1)
+
+            if model.usesVLC {
+                VLCVideoView(player: model.vlcPlayer)
+                    .ignoresSafeArea()
+            }
 
             // Tippen aufs Bild blendet die Bedienelemente ein oder aus
             Color.clear
