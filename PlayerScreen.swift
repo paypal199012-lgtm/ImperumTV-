@@ -36,6 +36,11 @@ final class PlayerModel: NSObject, ObservableObject {
     private var audioPrefApplied = false
     private var subPrefApplied = false
 
+    // Erkennung von hängenden Streams (Standbild)
+    private var lastProgressValue: Double = -1
+    private var lastProgressDate = Date()
+    private var stallRetries = 0
+
     private var statusObserver: NSKeyValueObservation?
     private var timeObserver: Any?
     private var vlcTimer: Timer?
@@ -62,7 +67,57 @@ final class PlayerModel: NSObject, ObservableObject {
             }
             self.isBuffering = self.player.timeControlStatus == .waitingToPlayAtSpecifiedRate
             self.isPlaying = self.player.timeControlStatus != .paused
+            self.checkForStall()
         }
+    }
+
+    /// Läuft die Zeit trotz Wiedergabe 10 Sekunden nicht weiter, wird neu geladen
+    private func checkForStall() {
+        guard currentURL != nil, errorMessage == nil else { return }
+        let active = usesVLC ? vlcPlayer.state != .paused && vlcPlayer.state != .stopped && vlcPlayer.state != .ended
+                             : player.timeControlStatus != .paused
+        guard active else {
+            lastProgressDate = Date()
+            return
+        }
+        if abs(currentTime - lastProgressValue) > 0.2 {
+            lastProgressValue = currentTime
+            lastProgressDate = Date()
+        } else if Date().timeIntervalSince(lastProgressDate) > 10 {
+            handleStall()
+        }
+    }
+
+    private func handleStall() {
+        guard let url = currentURL else { return }
+        stallRetries += 1
+        lastProgressValue = -1
+        lastProgressDate = Date()
+
+        if usesVLC {
+            if stallRetries <= 3 {
+                // VLC neu starten
+                let resume = currentTime
+                vlcPlayer.stop()
+                playVLC(Self.vlcURL(for: url), userAgent: currentUserAgent)
+                if resume > 5 && duration > 0 { seek(to: resume) }
+            } else {
+                errorMessage = "Der Sender reagiert nicht. Versuche es gleich noch einmal oder wähle einen anderen Sender."
+            }
+        } else if stallRetries == 1 {
+            // Erst den iPhone-Player neu laden …
+            playNative(url, userAgent: currentUserAgent)
+        } else {
+            // … dann auf VLC wechseln
+            playVLC(Self.vlcURL(for: url), userAgent: currentUserAgent)
+        }
+    }
+
+    /// Für Live-Sender ist bei VLC der direkte .ts-Stream meist stabiler als .m3u8
+    private static func vlcURL(for url: URL) -> URL {
+        let s = url.absoluteString
+        guard s.contains("/live/"), url.pathExtension.lowercased() == "m3u8" else { return url }
+        return URL(string: String(s.dropLast(4)) + "ts") ?? url
     }
 
     deinit {
@@ -78,13 +133,20 @@ final class PlayerModel: NSObject, ObservableObject {
         isPlaying = true
         currentTime = 0
         duration = 0
+        stallRetries = 0
+        lastProgressValue = -1
+        lastProgressDate = Date()
 
         // Ton auch bei stummgeschaltetem iPhone abspielen
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
 
         let ext = url.pathExtension.lowercased()
-        if Self.nativeExtensions.contains(ext) {
+        let isLiveStream = url.absoluteString.contains("/live/")
+        let liveWithVLC = UserDefaults.standard.bool(forKey: "liveWithVLC")
+        if isLiveStream && liveWithVLC {
+            playVLC(Self.vlcURL(for: url), userAgent: userAgent)
+        } else if Self.nativeExtensions.contains(ext) {
             playNative(url, userAgent: userAgent)
         } else {
             playVLC(url, userAgent: userAgent)
@@ -101,6 +163,7 @@ final class PlayerModel: NSObject, ObservableObject {
             options: ["AVURLAssetHTTPHeaderFieldsKey": ["User-Agent": userAgent]]
         )
         let item = AVPlayerItem(asset: asset)
+        item.preferredForwardBufferDuration = 4
         statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
             if item.status == .readyToPlay {
                 self?.loadAVTracks(for: item)
@@ -110,7 +173,7 @@ final class PlayerModel: NSObject, ObservableObject {
             DispatchQueue.main.async {
                 // Kann das iPhone das Format nicht, übernimmt VLC
                 guard let self = self, let url = self.currentURL else { return }
-                self.playVLC(url, userAgent: self.currentUserAgent)
+                self.playVLC(Self.vlcURL(for: url), userAgent: self.currentUserAgent)
             }
         }
         player.replaceCurrentItem(with: item)
@@ -165,6 +228,7 @@ final class PlayerModel: NSObject, ObservableObject {
         }
 
         if ms > 0 { refreshVLCTracks() }
+        checkForStall()
     }
 
     // MARK: Tonspuren und Untertitel

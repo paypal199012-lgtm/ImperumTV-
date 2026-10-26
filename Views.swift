@@ -429,6 +429,7 @@ struct AccountView: View {
 
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
+    @AppStorage("liveWithVLC") private var liveWithVLC = false
 
     var body: some View {
         Form {
@@ -445,6 +446,15 @@ struct SettingsView: View {
                 Text(error)
                     .foregroundStyle(.red)
                     .textSelection(.enabled)
+            }
+
+            Section {
+                Toggle("Live-TV mit VLC abspielen", isOn: $liveWithVLC)
+                    .tint(Theme.gold)
+            } header: {
+                Text("Wiedergabe")
+            } footer: {
+                Text("Einschalten, wenn Sender beim Start oft hängen bleiben oder ein Standbild zeigen. Mit VLC gibt es bei Live-TV kein Bild-in-Bild.")
             }
 
             Section {
