@@ -1,11 +1,48 @@
 import Foundation
 
-struct Channel: Identifiable, Hashable {
+struct Channel: Identifiable, Hashable, Codable {
     let id: Int
     let name: String
     let url: URL
     let logo: URL?
     let group: String?
+
+    /// Eindeutiger Schlüssel für Favoriten
+    var key: String { url.absoluteString }
+}
+
+struct Account: Equatable {
+    var server: String
+    var username: String
+    var password: String
+
+    static func normalizeServer(_ raw: String) -> String {
+        var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.isEmpty { return s }
+        let lower = s.lowercased()
+        if !lower.hasPrefix("http://") && !lower.hasPrefix("https://") {
+            s = "http://" + s
+        }
+        while s.hasSuffix("/") { s.removeLast() }
+        return s
+    }
+
+    /// Erkennt einen kompletten Anbieter-Link (…/get.php?username=…&password=…)
+    static func parse(link: String) -> Account? {
+        let trimmed = link.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let comps = URLComponents(string: trimmed),
+              let host = comps.host,
+              let user = comps.queryItems?.first(where: { $0.name == "username" })?.value,
+              let pass = comps.queryItems?.first(where: { $0.name == "password" })?.value,
+              !user.isEmpty, !pass.isEmpty else { return nil }
+
+        var server = "\(comps.scheme ?? "http")://\(host)"
+        if let port = comps.port { server += ":\(port)" }
+        let basePath = comps.path.replacingOccurrences(of: "/get.php", with: "")
+        if basePath != "/" { server += basePath }
+        while server.hasSuffix("/") { server.removeLast() }
+        return Account(server: server, username: user, password: pass)
+    }
 }
 
 /// Liest M3U/M3U8-Playlists im Format #EXTINF:-1 tvg-logo="..." group-title="...",Name

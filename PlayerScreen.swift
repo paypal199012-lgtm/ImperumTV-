@@ -7,16 +7,22 @@ final class PlayerModel: ObservableObject {
 
     private var statusObserver: NSKeyValueObservation?
     private var currentURL: URL?
+    private var currentUserAgent = "IPTVPlayer/2.0"
 
-    func play(_ url: URL) {
+    func play(_ url: URL, userAgent: String) {
         currentURL = url
+        currentUserAgent = userAgent
         errorMessage = nil
 
         // Ton auch bei stummgeschaltetem iPhone abspielen
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
 
-        let item = AVPlayerItem(url: url)
+        let asset = AVURLAsset(
+            url: url,
+            options: ["AVURLAssetHTTPHeaderFieldsKey": ["User-Agent": userAgent]]
+        )
+        let item = AVPlayerItem(asset: asset)
         statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
             if item.status == .failed {
                 let reason = item.error?.localizedDescription ?? ""
@@ -30,7 +36,7 @@ final class PlayerModel: ObservableObject {
     }
 
     func retry() {
-        if let url = currentURL { play(url) }
+        if let url = currentURL { play(url, userAgent: currentUserAgent) }
     }
 
     func stop() {
@@ -41,28 +47,56 @@ final class PlayerModel: ObservableObject {
 }
 
 struct PlayerScreen: View {
-    let channel: Channel
-    let onClose: () -> Void
-
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var model = PlayerModel()
 
+    let channels: [Channel]
+    @State private var index: Int
+
+    init(channels: [Channel], startIndex: Int) {
+        self.channels = channels
+        _index = State(initialValue: startIndex)
+    }
+
+    private var channel: Channel { channels[index] }
+
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack {
             Color.black.ignoresSafeArea()
 
             VideoPlayer(player: model.player)
                 .ignoresSafeArea()
 
-            HStack(spacing: 12) {
-                Button(action: onClose) {
-                    Image(systemName: "chevron.left")
-                        .font(.title3.weight(.semibold))
-                        .padding(10)
-                        .background(.black.opacity(0.45), in: Circle())
+            VStack {
+                HStack(spacing: 12) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.title3.weight(.semibold))
+                            .padding(10)
+                            .background(.black.opacity(0.45), in: Circle())
+                    }
+                    Text(channel.name)
+                        .font(.headline)
+                        .lineLimit(1)
+                    Spacer()
+                    Button { store.toggleFavorite(channel) } label: {
+                        Image(systemName: store.isFavorite(channel) ? "star.fill" : "star")
+                            .font(.title3)
+                            .foregroundStyle(store.isFavorite(channel) ? Color.yellow : Color.white)
+                            .padding(10)
+                            .background(.black.opacity(0.45), in: Circle())
+                    }
                 }
-                Text(channel.name)
-                    .font(.headline)
-                    .lineLimit(1)
+                Spacer()
+                if channels.count > 1 {
+                    HStack {
+                        stepButton(systemName: "backward.end.fill", delta: -1)
+                        Spacer()
+                        stepButton(systemName: "forward.end.fill", delta: 1)
+                    }
+                    .padding(.bottom, 56)
+                }
             }
             .foregroundStyle(.white)
             .padding()
@@ -80,7 +114,22 @@ struct PlayerScreen: View {
             }
         }
         .preferredColorScheme(.dark)
-        .onAppear { model.play(channel.url) }
+        .statusBarHidden(true)
+        .onAppear { model.play(channel.url, userAgent: store.userAgentValue) }
+        .onChange(of: index) { _ in
+            model.play(channel.url, userAgent: store.userAgentValue)
+        }
         .onDisappear { model.stop() }
+    }
+
+    private func stepButton(systemName: String, delta: Int) -> some View {
+        Button {
+            index = (index + delta + channels.count) % channels.count
+        } label: {
+            Image(systemName: systemName)
+                .font(.title3)
+                .padding(14)
+                .background(.black.opacity(0.45), in: Circle())
+        }
     }
 }
