@@ -15,9 +15,11 @@ jobs:
           xcode-version: latest-stable
       - run: brew install xcodegen
       - run: xcodegen generate
+      - name: VLC einbinden
+        run: pod install
       - name: App bauen
         run: |
-          xcodebuild -project IPTVPlayer.xcodeproj -scheme IPTVPlayer -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          xcodebuild -workspace IPTVPlayer.xcworkspace -scheme IPTVPlayer -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
       - name: IPA packen
         run: |
           mkdir Payload
