@@ -75,7 +75,7 @@ struct SetupView: View {
             }
             .scrollContentBackground(.hidden)
             .background(GoldBackground(dim: 0.45))
-            .navigationTitle("IPTV Player")
+            .navigationTitle("ImperumTV")
             .onChange(of: store.serverInput) { value in
                 if let account = Account.parse(link: value) {
                     store.serverInput = account.server

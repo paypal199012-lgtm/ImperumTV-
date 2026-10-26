@@ -91,7 +91,7 @@ struct HomeView: View {
             HStack(spacing: 8) {
                 Image(systemName: "crown.fill")
                     .foregroundStyle(Theme.gold)
-                Text("IPTV Player")
+                Text("ImperumTV")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(LinearGradient(
                         colors: [Theme.goldLight, Theme.gold],
