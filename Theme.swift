@@ -89,11 +89,12 @@ struct CircleTile: View {
 struct SquareTile: View {
     let title: String
     let icon: String
+    var height: CGFloat = 74
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: height < 60 ? 3 : 6) {
             Image(systemName: icon)
-                .font(.system(size: 24))
+                .font(.system(size: height < 60 ? 18 : 24))
             Text(title.uppercased())
                 .font(.system(size: 10, weight: .semibold))
                 .lineLimit(1)
@@ -101,7 +102,7 @@ struct SquareTile: View {
         }
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity)
-        .frame(height: 74)
+        .frame(height: height)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.42)))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.45), lineWidth: 1))
         .contentShape(Rectangle())
