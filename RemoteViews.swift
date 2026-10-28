@@ -318,8 +318,8 @@ struct LockView: View {
                             .foregroundStyle(.white.opacity(0.9))
                         VStack(alignment: .leading, spacing: 6) {
                             step(1, "Tippe auf „Jetzt aktivieren“. Die Website öffnet sich mit deinen Gerätedaten.")
-                            step(2, "Bestätige das Kästchen und bezahle sicher über Stripe.")
-                            step(3, "Komm zurück in die App. Nach wenigen Sekunden geht es von selbst weiter.")
+                            step(2, "Bezahle \(RemoteConfig.price) per PayPal und tippe auf der Website auf „Ich habe bezahlt“.")
+                            step(3, "Sobald die Zahlung bestätigt ist, geht es hier von selbst weiter (meist innerhalb von 24 Stunden).")
                         }
                         Text("Deine Wiedergabelisten bleiben gespeichert.")
                             .font(.caption)
@@ -398,7 +398,7 @@ struct LockView: View {
             if !online {
                 note = store.remoteError
             } else if !store.isLicenseActive {
-                note = "Noch keine Zahlung angekommen. Das dauert meist nur wenige Sekunden."
+                note = "Noch nicht freigeschaltet. PayPal-Zahlungen werden von Hand geprüft, meist innerhalb von 24 Stunden."
             }
         }
     }
