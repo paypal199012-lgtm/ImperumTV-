@@ -25,6 +25,18 @@ final class AppStore: ObservableObject {
     @Published private(set) var kind = ""
     @Published var showSetup = false
 
+    // Website: MAC-Adresse, Geräte-Schlüssel, Wiedergabelisten, Testphase
+    let deviceMAC: String
+    let deviceKey: String
+    @Published private(set) var remoteLists: [RemotePlaylist]?
+    @Published private(set) var remoteError: String?
+    @Published private(set) var registered = false
+    @Published private(set) var license: LicenseState?
+    @Published private(set) var started = false
+    @Published private(set) var connectingId: String?
+    @Published private(set) var playlistId: String?
+    private var watcher: Task<Void, Never>?
+
     private var epgCache: [Int: [EPGEntry]] = [:]
     private let defaults = UserDefaults.standard
     private let cacheURL: URL
@@ -33,6 +45,12 @@ final class AppStore: ObservableObject {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         cacheURL = dir.appendingPathComponent("channels.json")
+
+        let identity = DeviceIdentity.load()
+        deviceMAC = identity.mac
+        deviceKey = identity.key
+        license = LicenseState.loadSaved()
+        playlistId = defaults.string(forKey: "playlistId")
 
         serverInput = defaults.string(forKey: "server") ?? ""
         username = defaults.string(forKey: "username") ?? ""
@@ -80,6 +98,125 @@ final class AppStore: ObservableObject {
     static func url(_ s: String?) -> URL? {
         guard let s = s, !s.isEmpty else { return nil }
         return URL(string: s)
+    }
+
+    // MARK: - Website: Gerät, Wiedergabelisten, Testphase
+
+    var macText: String { deviceMAC.lowercased() }
+
+    /// Link für den QR-Code und „Website öffnen“ (MAC-Adresse und Schlüssel sind schon ausgefüllt)
+    var deviceLink: URL? {
+        URL(string: RemoteConfig.website + "?mac=\(macText)&key=\(deviceKey)")
+    }
+
+    var websiteURL: URL? { URL(string: RemoteConfig.website) }
+
+    /// Noch nie geprüft (z. B. neues Gerät ohne Internet) zählt als aktiv
+    var isLicenseActive: Bool { license?.isActive ?? true }
+
+    var isTrial: Bool { license?.isTrial ?? false }
+
+    var licenseText: String {
+        if let license = license { return license.text }
+        if registered { return "Dein Gerät ist angemeldet." }
+        return remoteError == nil ? "Gerät wird angemeldet …" : "Gerät noch nicht verbunden."
+    }
+
+    /// Lädt Testphase und Wiedergabelisten von der Website
+    @discardableResult
+    func loadRemote() async -> Bool {
+        let wasActive = isLicenseActive
+        do {
+            if !registered {
+                do {
+                    try await RemoteAPI.register(mac: deviceMAC, key: deviceKey)
+                    registered = true
+                } catch {
+                    // Wird beim nächsten Mal erneut versucht
+                }
+            }
+            if let state = try await RemoteAPI.status(mac: deviceMAC, key: deviceKey) {
+                license = state
+                state.save()
+            }
+            let lists = try await RemoteAPI.playlists(mac: deviceMAC, key: deviceKey)
+            if lists != remoteLists { remoteLists = lists }
+            remoteError = nil
+            if !wasActive && isLicenseActive {
+                // Gerade bezahlt oder freigeschaltet: mit der letzten Liste weitermachen
+                Task { await self.resumeAfterActivation() }
+            }
+            return true
+        } catch {
+            remoteError = error.localizedDescription
+            if remoteLists == nil { remoteLists = [] }
+            return false
+        }
+    }
+
+    /// Mit einer Wiedergabeliste von der Website verbinden
+    func connect(_ playlist: RemotePlaylist) async {
+        guard isLicenseActive else { return }
+        guard let account = playlist.account else {
+            errorMessage = "Diese Wiedergabeliste wird nicht unterstützt. Nötig sind Server, Benutzername und Passwort oder ein Link mit get.php?username=…&password=…"
+            return
+        }
+        let previous = (serverInput, username, password)
+        serverInput = account.server
+        username = account.username
+        password = account.password
+        connectingId = playlist.id
+        await login()
+        connectingId = nil
+        if errorMessage == nil {
+            playlistId = playlist.id
+            defaults.set(playlist.id, forKey: "playlistId")
+        } else {
+            (serverInput, username, password) = previous
+        }
+    }
+
+    private var storedAccount: Account {
+        Account(server: serverInput, username: username, password: password)
+    }
+
+    /// Beim Start: Website fragen, dann die zuletzt genutzte Liste öffnen
+    func startup() async {
+        guard !started else { return }
+        let online = await loadRemote()
+        if online && isLicenseActive {
+            let lists = remoteLists ?? []
+            if let id = playlistId, let playlist = lists.first(where: { $0.id == id }), let account = playlist.account {
+                if channels.isEmpty || account != storedAccount || !isXtream {
+                    await connect(playlist)
+                }
+            } else if playlistId != nil && !lists.isEmpty {
+                errorMessage = "Die zuletzt genutzte Wiedergabeliste gibt es nicht mehr. Bitte wähle eine aus."
+                showSetup = true
+            } else if playlistId == nil {
+                // Noch keine Liste von der Website gewählt (auch nach dem Update von der alten Version)
+                showSetup = true
+            }
+        }
+        started = true
+
+        // Läuft die Testphase während der Nutzung ab: alle 10 Minuten nachsehen
+        watcher?.cancel()
+        watcher = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 600_000_000_000)
+                guard let self = self, !Task.isCancelled else { return }
+                await self.loadRemote()
+            }
+        }
+    }
+
+    private func resumeAfterActivation() async {
+        guard let id = playlistId, let playlist = (remoteLists ?? []).first(where: { $0.id == id }) else {
+            showSetup = true
+            return
+        }
+        if channels.isEmpty { await connect(playlist) }
     }
 
     // MARK: - Favoriten

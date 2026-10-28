@@ -1,0 +1,49 @@
+name: Build IPA
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: VLC einbinden
+        run: pod install
+      - name: App bauen
+        run: |
+          xcodebuild -workspace IPTVPlayer.xcworkspace -scheme IPTVPlayer -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" SWIFT_ENABLE_EXPLICIT_MODULES=NO _EXPERIMENTAL_SWIFT_EXPLICIT_MODULES=NO build > build.log 2>&1
+      - name: Fehler anzeigen
+        if: failure()
+        run: |
+          echo "===== FEHLER ====="
+          grep -iE "error|fatal|failed|cannot|no such" build.log | grep -v "^ *$" | sort -u | head -60
+          echo "===== LETZTE ZEILEN ====="
+          tail -40 build.log
+      - name: IPA packen
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/IPTVPlayer.app Payload/
+          zip -r IPTVPlayer.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IPTVPlayer-ipa
+          path: IPTVPlayer.ipa
+      - name: Als Download veröffentlichen
+        run: cp IPTVPlayer.ipa ImperumTV.ipa
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-v2.0.${{ github.run_number }}
+          name: ImperumTV iPhone 2.0.${{ github.run_number }}
+          files: ImperumTV.ipa
+          make_latest: true

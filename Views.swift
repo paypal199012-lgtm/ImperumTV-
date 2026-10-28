@@ -1,97 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-// MARK: - Anmeldung
-
-struct SetupView: View {
-    @EnvironmentObject private var store: AppStore
-    @State private var pickingFile = false
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("Server oder kompletter Link", text: $store.serverInput)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    TextField("Benutzername", text: $store.username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    SecureField("Passwort", text: $store.password)
-
-                    Button {
-                        Task { await store.login() }
-                    } label: {
-                        Text("Anmelden").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(store.isLoading)
-                } header: {
-                    Text("Anmeldung")
-                } footer: {
-                    Text("Du kannst auch den kompletten Link deines Anbieters einfügen. Benutzername und Passwort werden dann automatisch ausgefüllt.")
-                }
-
-                if store.isLoading {
-                    HStack {
-                        Spacer()
-                        ProgressView("Lade Sender …")
-                        Spacer()
-                    }
-                }
-
-                if let error = store.errorMessage {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .textSelection(.enabled)
-                }
-
-                Section {
-                    TextField("Kennung (User-Agent)", text: $store.userAgent)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                } header: {
-                    Text("Erweitert")
-                } footer: {
-                    Text("Leer lassen. Nur ändern, wenn dein Anbieter eine bestimmte Kennung verlangt.")
-                }
-
-                Section {
-                    Button("Link als M3U-Playlist laden") {
-                        Task { await store.loadM3U(link: store.serverInput) }
-                    }
-                    .disabled(store.isLoading)
-
-                    Button("M3U-Datei auswählen") { pickingFile = true }
-                        .disabled(store.isLoading)
-                } header: {
-                    Text("Alternative: M3U")
-                }
-
-                if !store.channels.isEmpty {
-                    Button("Zurück zum Menü") { store.showSetup = false }
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(GoldBackground(dim: 0.45))
-            .navigationTitle("ImperumTV")
-            .onChange(of: store.serverInput) { value in
-                if let account = Account.parse(link: value) {
-                    store.serverInput = account.server
-                    store.username = account.username
-                    store.password = account.password
-                }
-            }
-            .fileImporter(isPresented: $pickingFile, allowedContentTypes: [.item]) { result in
-                if case .success(let url) = result {
-                    Task { await store.loadFile(url) }
-                }
-            }
-        }
-    }
-}
-
 // MARK: - Gemeinsame Bausteine
 
 struct PlayRequest: Identifiable {
@@ -202,10 +111,10 @@ struct NeedsXtreamView: View {
             Image(systemName: "lock.circle")
                 .font(.system(size: 44))
                 .foregroundStyle(Theme.gold)
-            Text("Filme, Serien und das TV-Programm gibt es nur mit der Anmeldung über Benutzername und Passwort.")
+            Text("Filme, Serien und das TV-Programm gibt es nur mit einem Xtream-Zugang (Server, Benutzername und Passwort).")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.white)
-            Button("Anmeldung ändern") { store.showSetup = true }
+            Button("Wiedergabelisten") { store.showSetup = true }
                 .buttonStyle(.borderedProminent)
         }
         .padding(32)
@@ -434,6 +343,15 @@ struct AccountView: View {
                 }
             }
 
+            Section("Gerät") {
+                LabeledContent("Lizenz", value: store.license?.activated == true ? "Aktiviert (unbegrenzt)" : store.licenseText)
+                LabeledContent("MAC-Adresse", value: store.macText)
+                LabeledContent("Geräte-Schlüssel", value: store.deviceKey)
+                if let link = store.deviceLink {
+                    Link("Website öffnen", destination: link)
+                }
+            }
+
             Section("Inhalte") {
                 LabeledContent("Live-Sender", value: "\(store.channels.count)")
                 LabeledContent("Filme", value: store.movies.isEmpty ? "–" : "\(store.movies.count)")
@@ -459,7 +377,7 @@ struct SettingsView: View {
                 }
                 .disabled(store.isLoading)
 
-                Button("Anmeldung ändern") { store.showSetup = true }
+                Button("Wiedergabelisten") { store.showSetup = true }
             }
 
             if let error = store.errorMessage {
@@ -487,9 +405,6 @@ struct SettingsView: View {
                 Text("Leer lassen. Nur ändern, wenn dein Anbieter eine bestimmte Kennung verlangt.")
             }
 
-            Section {
-                Button("Abmelden", role: .destructive) { store.logout() }
-            }
         }
         .scrollContentBackground(.hidden)
         .background(GoldBackground(dim: 0.6))

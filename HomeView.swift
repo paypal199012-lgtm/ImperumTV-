@@ -5,8 +5,12 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if store.channels.isEmpty || store.showSetup {
-                SetupView()
+            if !store.isLicenseActive {
+                LockView()
+            } else if !store.started && store.channels.isEmpty {
+                StartingView()
+            } else if store.channels.isEmpty || store.showSetup {
+                PlaylistsView()
             } else {
                 NavigationStack {
                     HomeView()
@@ -23,6 +27,7 @@ struct RootView: View {
             }
         }
         .tint(Theme.gold)
+        .task { await store.startup() }
     }
 
     @ViewBuilder
@@ -89,6 +94,7 @@ struct HomeView: View {
                         smallTile(.search, "Suche", "magnifyingglass")
                         smallTile(.account, "Konto", "person.crop.circle")
                         smallTile(.settings, "Einstellungen", "gearshape.fill")
+                        listsTile()
                     }
 
                     expiryLabel
@@ -110,7 +116,7 @@ struct HomeView: View {
         let spacing: CGFloat = 18
         let smallHeight: CGFloat = 50
         // Kreise so groß wie möglich, aber alles muss ohne Scrollen passen
-        let byHeight = size.height - 34 - 14 - smallHeight - 10 - 20 - 20
+        let byHeight = size.height - 34 - 14 - smallHeight - 10 - 20 - 20 - (store.isTrial ? 18 : 0)
         let byWidth = (size.width * 0.86 - spacing * 3) / 4
         let diameter = max(80, min(byHeight, byWidth))
 
@@ -132,6 +138,7 @@ struct HomeView: View {
                 smallTile(.search, "Suche", "magnifyingglass", height: smallHeight).frame(width: 78)
                 smallTile(.account, "Konto", "person.crop.circle", height: smallHeight).frame(width: 78)
                 smallTile(.settings, "Einstellungen", "gearshape.fill", height: smallHeight).frame(width: 78)
+                listsTile(height: smallHeight).frame(width: 78)
             }
             .padding(.top, 14)
 
@@ -149,11 +156,21 @@ struct HomeView: View {
 
     @ViewBuilder
     private var expiryLabel: some View {
-        if let exp = store.expiryText {
-            Text("Läuft ab: \(exp)")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.6), radius: 4)
+        VStack(spacing: 4) {
+            if let exp = store.expiryText {
+                Text("Läuft ab: \(exp)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.6), radius: 4)
+            }
+            if store.isTrial, let link = store.deviceLink {
+                Link(destination: link) {
+                    Text("\(store.licenseText) · danach \(RemoteConfig.price) einmalig aktivieren")
+                        .font(.caption)
+                        .foregroundStyle(Theme.goldLight)
+                        .shadow(color: .black.opacity(0.6), radius: 4)
+                }
+            }
         }
     }
 
@@ -221,6 +238,16 @@ struct HomeView: View {
     private func bigTile(_ route: Route, _ title: String, _ icon: String) -> some View {
         NavigationLink(value: route) {
             CircleTile(title: title, icon: icon)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Kachel „Listen“: zurück zu den Wiedergabelisten (andere Liste wählen)
+    private func listsTile(height: CGFloat = 74) -> some View {
+        Button {
+            store.showSetup = true
+        } label: {
+            SquareTile(title: "Listen", icon: "list.bullet.rectangle.portrait", height: height)
         }
         .buttonStyle(.plain)
     }
