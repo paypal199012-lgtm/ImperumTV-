@@ -150,14 +150,25 @@ struct MovieGridView: View {
     @State private var group: String?
     @State private var favoritesOnly = false
 
+    /// Aktuelles Jahr, z. B. 2026
+    private var currentYear: Int { Calendar.current.component(.year, from: Date()) }
+    /// Name der Sonder-Kategorie mit den Filmen aus diesem Jahr
+    private var yearCategory: String { "Filme \(currentYear)" }
+
     private var groups: [String] {
-        Array(Set(store.movies.compactMap(\.group))).sorted()
+        [yearCategory] + Array(Set(store.movies.compactMap(\.group))).sorted()
     }
 
     private var filtered: [Channel] {
         store.movies.filter { movie in
-            (!favoritesOnly || store.isFavorite(movie))
-                && (group == nil || movie.group == group)
+            let inGroup: Bool
+            if group == yearCategory {
+                inGroup = movie.year == currentYear
+            } else {
+                inGroup = group == nil || movie.group == group
+            }
+            return (!favoritesOnly || store.isFavorite(movie))
+                && inGroup
                 && (query.isEmpty || movie.name.localizedCaseInsensitiveContains(query))
         }
     }
@@ -201,7 +212,9 @@ struct MovieGridView: View {
                         .padding(.top, 30)
                 }
                 if list.isEmpty && !store.movies.isEmpty {
-                    Text(favoritesOnly ? "Noch keine Film-Favoriten. Halte den Finger auf ein Poster." : "Keine Filme gefunden.")
+                    Text(favoritesOnly ? "Noch keine Film-Favoriten. Halte den Finger auf ein Poster."
+                         : group == yearCategory ? "Dein Anbieter hat keine Filme mit dem Jahr \(currentYear) gekennzeichnet."
+                         : "Keine Filme gefunden.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.top, 30)

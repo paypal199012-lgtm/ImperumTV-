@@ -290,7 +290,8 @@ final class AppStore: ObservableObject {
                     name: s.name.isEmpty ? "Film \(s.streamId)" : s.name,
                     url: url,
                     logo: Self.url(s.icon),
-                    group: s.categoryId.flatMap { names[$0] }
+                    group: s.categoryId.flatMap { names[$0] },
+                    year: s.year
                 )
             }
             if movies.isEmpty { sectionError = "Dein Anbieter liefert keine Filme." }

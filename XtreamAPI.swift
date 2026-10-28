@@ -93,6 +93,7 @@ struct VodStreamDTO: Decodable {
     let icon: String?
     let categoryId: String?
     let ext: String
+    let year: Int?
 
     enum CodingKeys: String, CodingKey {
         case streamId = "stream_id"
@@ -100,6 +101,9 @@ struct VodStreamDTO: Decodable {
         case icon = "stream_icon"
         case categoryId = "category_id"
         case ext = "container_extension"
+        case year
+        case releaseDate = "release_date"
+        case releaseDate2 = "releaseDate"
     }
 
     init(from decoder: Decoder) throws {
@@ -109,6 +113,30 @@ struct VodStreamDTO: Decodable {
         icon = c.optionalString(.icon)
         categoryId = c.optionalString(.categoryId)
         ext = c.optionalString(.ext) ?? "mp4"
+
+        // Jahr: erst aus den Feldern des Anbieters, sonst aus dem Namen, z. B. "Titel (2026)"
+        let fromFields = [c.optionalString(.year), c.optionalString(.releaseDate), c.optionalString(.releaseDate2)]
+            .compactMap { $0 }
+            .compactMap { VodStreamDTO.firstYear(in: $0) }
+            .first
+        year = fromFields ?? VodStreamDTO.yearFromName(name)
+    }
+
+    /// Erste vierstellige Jahreszahl (1900–2099) in einem Text
+    static func firstYear(in text: String) -> Int? {
+        guard let range = text.range(of: "(19|20)[0-9]{2}", options: .regularExpression) else { return nil }
+        return Int(text[range])
+    }
+
+    /// Jahr aus dem Filmnamen, z. B. "Titel (2026)", "Titel [2026]" oder "Titel - 2026"
+    static func yearFromName(_ name: String) -> Int? {
+        let patterns = ["[(\\[](19|20)[0-9]{2}[)\\]]", "[ ._-](19|20)[0-9]{2}$"]
+        for pattern in patterns {
+            if let range = name.range(of: pattern, options: .regularExpression) {
+                return firstYear(in: String(name[range]))
+            }
+        }
+        return nil
     }
 }
 

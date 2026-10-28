@@ -6,6 +6,8 @@ struct Channel: Identifiable, Hashable, Codable {
     let url: URL
     let logo: URL?
     let group: String?
+    /// Erscheinungsjahr (nur bei Filmen, falls bekannt)
+    var year: Int? = nil
 
     /// Eindeutiger Schlüssel für Favoriten
     var key: String { url.absoluteString }
