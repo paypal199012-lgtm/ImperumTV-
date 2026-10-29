@@ -15,6 +15,8 @@ struct LiveTVView: View {
 struct LiveThreePaneView: View {
     @EnvironmentObject private var store: AppStore
     @StateObject private var preview = PlayerModel()
+    @ObservedObject private var parental = Parental.shared
+    @State private var pinRequest: PinRequest?
 
     @State private var group: String?
     @State private var favoritesOnly = false
@@ -28,7 +30,7 @@ struct LiveThreePaneView: View {
     }
 
     private var filtered: [Channel] {
-        store.channels.filter { channel in
+        parental.visible("live", store.channels).filter { channel in
             (!favoritesOnly || store.isFavorite(channel))
                 && (group == nil || channel.group == group)
                 && (query.isEmpty || channel.name.localizedCaseInsensitiveContains(query))
@@ -63,6 +65,9 @@ struct LiveThreePaneView: View {
             }
         }
         .onDisappear { preview.stop() }
+        .sheet(item: $pinRequest) { req in
+            PinSheet(request: req)
+        }
         .fullScreenCover(item: $request, onDismiss: resumePreview) { req in
             PlayerScreen(channels: req.channels, startIndex: req.index, isLive: true)
                 .environmentObject(store)
@@ -95,9 +100,17 @@ struct LiveThreePaneView: View {
                     group = nil
                 }
                 ForEach(groups, id: \.self) { name in
-                    categoryRow(name, icon: nil, selected: group == name && !favoritesOnly) {
-                        group = name
-                        favoritesOnly = false
+                    categoryRow(name, icon: parental.isProtected("live", name) ? "lock.fill" : nil,
+                                selected: group == name && !favoritesOnly) {
+                        if parental.isLocked("live", name) {
+                            pinRequest = PinRequest(title: "PIN für „\(name)“") {
+                                group = name
+                                favoritesOnly = false
+                            }
+                        } else {
+                            group = name
+                            favoritesOnly = false
+                        }
                     }
                 }
             }

@@ -53,6 +53,8 @@ final class AppStore: ObservableObject {
         let identity = DeviceIdentity.load()
         deviceMAC = identity.mac
         deviceKey = identity.key
+        Parental.shared.deviceMAC = identity.mac
+        Parental.shared.deviceKey = identity.key
         license = LicenseState.loadSaved()
         playlistId = defaults.string(forKey: "playlistId")
 
@@ -147,6 +149,7 @@ final class AppStore: ObservableObject {
             if let state = try await RemoteAPI.status(mac: deviceMAC, key: deviceKey) {
                 license = state
                 state.save()
+                Parental.shared.onStatus(state.parentalReset)
             }
             let lists = try await RemoteAPI.playlists(mac: deviceMAC, key: deviceKey)
             if lists != remoteLists { remoteLists = lists }

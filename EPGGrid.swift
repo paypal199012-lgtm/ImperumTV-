@@ -25,6 +25,8 @@ private struct EPGPick: Identifiable {
 
 struct EPGGridView: View {
     @EnvironmentObject private var store: AppStore
+    @ObservedObject private var parental = Parental.shared
+    @State private var pinRequest: PinRequest?
     @State private var group: String?
     @State private var windowStart = EPGGridView.floorHalfHour(Date())
     @State private var pick: EPGPick?
@@ -41,7 +43,7 @@ struct EPGGridView: View {
     }
 
     private var list: [Channel] {
-        store.channels.filter { group == nil || $0.group == group }
+        parental.visible("live", store.channels).filter { group == nil || $0.group == group }
     }
 
     static func floorHalfHour(_ date: Date) -> Date {
@@ -124,6 +126,7 @@ struct EPGGridView: View {
             PlayerScreen(channels: req.channels, startIndex: req.index, isLive: true)
                 .environmentObject(store)
         }
+        .background(EmptyView().sheet(item: $pinRequest) { req in PinSheet(request: req) })
     }
 
     // MARK: Bausteine
@@ -134,7 +137,13 @@ struct EPGGridView: View {
                 Menu {
                     Button("Alle Kategorien") { group = nil }
                     ForEach(groups, id: \.self) { g in
-                        Button(g) { group = g }
+                        Button(parental.isProtected("live", g) ? "🔒 \(g)" : g) {
+                            if parental.isLocked("live", g) {
+                                pinRequest = PinRequest(title: "PIN für „\(g)“") { group = g }
+                            } else {
+                                group = g
+                            }
+                        }
                     }
                 } label: {
                     HStack(spacing: 6) {

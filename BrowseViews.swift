@@ -80,6 +80,10 @@ struct CategorySidebar: View {
     let groups: [String]
     @Binding var group: String?
     @Binding var favoritesOnly: Bool
+    /// "movie" oder "series": für die Kindersicherung
+    var kind: String? = nil
+    @ObservedObject private var parental = Parental.shared
+    @State private var pinRequest: PinRequest?
 
     var body: some View {
         ScrollView {
@@ -99,13 +103,24 @@ struct CategorySidebar: View {
                     group = nil
                 }
                 ForEach(groups, id: \.self) { name in
-                    row(name, icon: nil, selected: group == name && !favoritesOnly) {
-                        group = name
-                        favoritesOnly = false
+                    let protected = kind.map { parental.isProtected($0, name) } ?? false
+                    row(name, icon: protected ? "lock.fill" : nil, selected: group == name && !favoritesOnly) {
+                        if let k = kind, parental.isLocked(k, name) {
+                            pinRequest = PinRequest(title: "PIN für „\(name)“") {
+                                group = name
+                                favoritesOnly = false
+                            }
+                        } else {
+                            group = name
+                            favoritesOnly = false
+                        }
                     }
                 }
             }
             .padding(.vertical, 6)
+        }
+        .sheet(item: $pinRequest) { req in
+            PinSheet(request: req)
         }
     }
 
@@ -168,6 +183,7 @@ private struct ColumnDivider: View {
 
 struct MovieGridView: View {
     @EnvironmentObject private var store: AppStore
+    @ObservedObject private var parental = Parental.shared
     @State private var query = ""
     @State private var group: String?
     @State private var favoritesOnly = false
@@ -183,13 +199,13 @@ struct MovieGridView: View {
 
     private var filtered: [Channel] {
         if group == resumeCategory && !favoritesOnly {
-            let byId = Dictionary(store.movies.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            let byId = Dictionary(parental.visible("movie", store.movies).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             return store.resumeEntries.compactMap { e -> Channel? in
                 guard !e.isEpisode, e.pos >= 30, let id = Int(e.itemId), let movie = byId[id] else { return nil }
                 return (query.isEmpty || movie.name.localizedCaseInsensitiveContains(query)) ? movie : nil
             }
         }
-        return store.movies.filter { movie in
+        return parental.visible("movie", store.movies).filter { movie in
             let inGroup: Bool
             if group == yearCategory {
                 inGroup = movie.year == currentYear
@@ -211,7 +227,7 @@ struct MovieGridView: View {
             } else {
                 GeometryReader { geo in
                     HStack(spacing: 0) {
-                        CategorySidebar(groups: groups, group: $group, favoritesOnly: $favoritesOnly)
+                        CategorySidebar(groups: groups, group: $group, favoritesOnly: $favoritesOnly, kind: "movie")
                             .frame(width: geo.size.width * 0.24)
                         ColumnDivider()
                         grid
@@ -411,6 +427,7 @@ struct MovieDetailView: View {
 
 struct SeriesGridView: View {
     @EnvironmentObject private var store: AppStore
+    @ObservedObject private var parental = Parental.shared
     @State private var query = ""
     @State private var group: String?
     @State private var favoritesOnly = false
@@ -421,13 +438,13 @@ struct SeriesGridView: View {
 
     private var filtered: [SeriesItem] {
         if group == resumeCategory && !favoritesOnly {
-            let byId = Dictionary(store.seriesList.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            let byId = Dictionary(parental.visibleSeries(store.seriesList).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             return store.resumeEntries.compactMap { e -> SeriesItem? in
                 guard e.isEpisode, let sid = e.seriesId, let show = byId[sid] else { return nil }
                 return (query.isEmpty || show.name.localizedCaseInsensitiveContains(query)) ? show : nil
             }
         }
-        return store.seriesList.filter { show in
+        return parental.visibleSeries(store.seriesList).filter { show in
             (!favoritesOnly || store.isFavoriteSeries(show))
                 && (group == nil || show.group == group)
                 && (query.isEmpty || show.name.localizedCaseInsensitiveContains(query))
@@ -443,7 +460,7 @@ struct SeriesGridView: View {
             } else {
                 GeometryReader { geo in
                     HStack(spacing: 0) {
-                        CategorySidebar(groups: groups, group: $group, favoritesOnly: $favoritesOnly)
+                        CategorySidebar(groups: groups, group: $group, favoritesOnly: $favoritesOnly, kind: "series")
                             .frame(width: geo.size.width * 0.24)
                         ColumnDivider()
                         grid

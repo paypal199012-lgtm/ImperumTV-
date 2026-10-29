@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -28,6 +29,10 @@ struct RootView: View {
         }
         .tint(Theme.gold)
         .task { await store.startup() }
+        .onChange(of: scenePhase) { phase in
+            // App im Hintergrund: Kindersicherung wieder zu
+            if phase == .background { Parental.shared.lock() }
+        }
     }
 
     @ViewBuilder

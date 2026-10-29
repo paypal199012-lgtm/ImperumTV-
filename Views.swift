@@ -209,12 +209,13 @@ struct ChannelListView: View {
 
 struct FavoritesView: View {
     @EnvironmentObject private var store: AppStore
+    @ObservedObject private var parental = Parental.shared
     @State private var request: PlayRequest?
 
     var body: some View {
-        let live = store.channels.filter { store.isFavorite($0) }
-        let films = store.movies.filter { store.isFavorite($0) }
-        let shows = store.seriesList.filter { store.isFavoriteSeries($0) }
+        let live = parental.visible("live", store.channels).filter { store.isFavorite($0) }
+        let films = parental.visible("movie", store.movies).filter { store.isFavorite($0) }
+        let shows = parental.visibleSeries(store.seriesList).filter { store.isFavoriteSeries($0) }
         ScrollView {
             LazyVStack(spacing: 10) {
                 if live.isEmpty && films.isEmpty && shows.isEmpty {
@@ -277,14 +278,15 @@ struct FavoritesView: View {
 
 struct SearchView: View {
     @EnvironmentObject private var store: AppStore
+    @ObservedObject private var parental = Parental.shared
     @State private var query = ""
     @State private var request: PlayRequest?
 
     var body: some View {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let live: [Channel] = q.isEmpty ? [] : Array(store.channels.filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50))
-        let films: [Channel] = q.isEmpty ? [] : Array(store.movies.filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50))
-        let shows: [SeriesItem] = q.isEmpty ? [] : Array(store.seriesList.filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50))
+        let live: [Channel] = q.isEmpty ? [] : Array(parental.visible("live", store.channels).filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50))
+        let films: [Channel] = q.isEmpty ? [] : Array(parental.visible("movie", store.movies).filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50))
+        let shows: [SeriesItem] = q.isEmpty ? [] : Array(parental.visibleSeries(store.seriesList).filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50))
 
         ScrollView {
             LazyVStack(spacing: 10) {
@@ -401,6 +403,9 @@ struct AccountView: View {
 
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
+    @ObservedObject private var parental = Parental.shared
+    @State private var pinRequest: PinRequest?
+    @State private var showParental = false
     @AppStorage("liveWithVLC") private var liveWithVLC = false
     @AppStorage("vodWithVLC") private var vodWithVLC = false
 
@@ -433,6 +438,27 @@ struct SettingsView: View {
             }
 
             Section {
+                Button {
+                    if parental.enabled {
+                        pinRequest = PinRequest(title: "PIN eingeben") { showParental = true }
+                    } else {
+                        pinRequest = PinRequest(title: "Neue PIN", mode: .create) { showParental = true }
+                    }
+                } label: {
+                    HStack {
+                        Label("Kindersicherung", systemImage: parental.enabled ? "lock.fill" : "lock.open")
+                        Spacer()
+                        Text(parental.enabled ? "An" : "Aus")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("Kindersicherung")
+            } footer: {
+                Text("Mit einer PIN werden Erwachsenen-Kategorien und Kategorien deiner Wahl gesperrt.")
+            }
+
+            Section {
                 TextField("Kennung (User-Agent)", text: $store.userAgent)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -446,5 +472,11 @@ struct SettingsView: View {
         .scrollContentBackground(.hidden)
         .background(GoldBackground(dim: 0.6))
         .navigationTitle("Einstellungen")
+        .sheet(item: $pinRequest) { req in
+            PinSheet(request: req)
+        }
+        .navigationDestination(isPresented: $showParental) {
+            ParentalSettingsView()
+        }
     }
 }

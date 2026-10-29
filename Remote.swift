@@ -93,6 +93,8 @@ struct LicenseState: Codable, Equatable {
     /// Unterschied zwischen Server-Uhr und Geräte-Uhr (gegen falsch gestellte Uhren)
     var offset: TimeInterval
     var checked: Date
+    /// Wann der Admin die Kindersicherung zuletzt zurückgesetzt hat
+    var parentalReset: String? = nil
 
     var now: Date { Date().addingTimeInterval(offset) }
 
@@ -168,6 +170,7 @@ enum RemoteAPI {
         let trial_until: String?
         let server_time: String?
         let free_until: String?
+        let parental_reset_at: String?
     }
 
     private struct PlaylistRow: Decodable {
@@ -179,7 +182,7 @@ enum RemoteAPI {
         let m3u_url: String?
     }
 
-    static func rpc(_ name: String, _ body: [String: String]) async throws -> Data {
+    static func rpc(_ name: String, _ body: [String: Any]) async throws -> Data {
         var base = RemoteConfig.supabaseURL
         while base.hasSuffix("/") { base.removeLast() }
         guard let url = URL(string: base + "/rest/v1/rpc/" + name) else { throw RemoteError.offline }
@@ -228,7 +231,8 @@ enum RemoteAPI {
             trialUntil: parseDate(row.trial_until),
             freeUntil: parseDate(row.free_until),
             offset: serverNow.timeIntervalSince(Date()),
-            checked: Date()
+            checked: Date(),
+            parentalReset: row.parental_reset_at
         )
     }
 

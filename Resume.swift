@@ -9,7 +9,16 @@ extension AppStore {
     /// Einträge der aktuellen Liste, zuletzt geschaute zuerst
     var resumeEntries: [ResumeEntry] {
         let acc = resumeAccount
-        return resumeList.filter { $0.acc == acc }.sorted { $0.at > $1.at }
+        var list = resumeList.filter { $0.acc == acc }.sorted { $0.at > $1.at }
+        // Kindersicherung: gesperrte Filme und Serien nicht zeigen
+        let parental = Parental.shared
+        if parental.enabled && !parental.isUnlocked {
+            var hidden = Set<String>()
+            for m in movies where parental.isProtected("movie", m.group) { hidden.insert("movie:\(m.id)") }
+            for s in seriesList where parental.isProtected("series", s.group) { hidden.insert("series:\(s.id)") }
+            if !hidden.isEmpty { list = list.filter { !hidden.contains($0.key) } }
+        }
+        return list
     }
 
     func resumeEntry(for info: ResumeInfo) -> ResumeEntry? {
