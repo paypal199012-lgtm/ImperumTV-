@@ -72,6 +72,8 @@ private let posterColumns = [GridItem(.adaptive(minimum: 105), spacing: 12)]
 
 /// Sonder-Kategorie mit angefangenen Filmen bzw. Serien
 let resumeCategory = "▶ Weiter ansehen"
+/// Sonder-Kategorie mit den neuesten Titeln des Anbieters
+let newCategory = "Zuletzt hinzugefügt"
 
 
 // MARK: - Kategorien-Spalte (wie bei XCIPTV)
@@ -194,7 +196,7 @@ struct MovieGridView: View {
     private var yearCategory: String { "Filme \(currentYear)" }
 
     private var groups: [String] {
-        [resumeCategory, yearCategory] + Array(Set(store.movies.compactMap(\.group))).sorted()
+        [resumeCategory, newCategory, yearCategory] + Array(Set(store.movies.compactMap(\.group))).sorted()
     }
 
     private var filtered: [Channel] {
@@ -204,6 +206,14 @@ struct MovieGridView: View {
                 guard !e.isEpisode, e.pos >= 30, let id = Int(e.itemId), let movie = byId[id] else { return nil }
                 return (query.isEmpty || movie.name.localizedCaseInsensitiveContains(query)) ? movie : nil
             }
+        }
+        if group == newCategory && !favoritesOnly {
+            let all = parental.visible("movie", store.movies)
+            let dated = all.filter { ($0.added ?? 0) > 0 }
+            let newest = dated.count >= all.count / 2
+                ? Array(dated.sorted { ($0.added ?? 0) > ($1.added ?? 0) }.prefix(150))
+                : Array(all.suffix(150).reversed())
+            return newest.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }
         }
         return parental.visible("movie", store.movies).filter { movie in
             let inGroup: Bool
@@ -433,7 +443,7 @@ struct SeriesGridView: View {
     @State private var favoritesOnly = false
 
     private var groups: [String] {
-        [resumeCategory] + Array(Set(store.seriesList.compactMap(\.group))).sorted()
+        [resumeCategory, newCategory] + Array(Set(store.seriesList.compactMap(\.group))).sorted()
     }
 
     private var filtered: [SeriesItem] {
@@ -443,6 +453,14 @@ struct SeriesGridView: View {
                 guard e.isEpisode, let sid = e.seriesId, let show = byId[sid] else { return nil }
                 return (query.isEmpty || show.name.localizedCaseInsensitiveContains(query)) ? show : nil
             }
+        }
+        if group == newCategory && !favoritesOnly {
+            let all = parental.visibleSeries(store.seriesList)
+            let dated = all.filter { $0.added > 0 }
+            let newest = dated.count >= all.count / 2
+                ? Array(dated.sorted { $0.added > $1.added }.prefix(150))
+                : Array(all.suffix(150).reversed())
+            return newest.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }
         }
         return parental.visibleSeries(store.seriesList).filter { show in
             (!favoritesOnly || store.isFavoriteSeries(show))

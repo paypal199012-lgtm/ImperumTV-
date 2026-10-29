@@ -8,6 +8,8 @@ struct Channel: Identifiable, Hashable, Codable {
     let group: String?
     /// Erscheinungsjahr (nur bei Filmen, falls bekannt)
     var year: Int? = nil
+    /// Wann der Anbieter den Film hinzugefügt hat (für „Zuletzt hinzugefügt“)
+    var added: Int? = nil
 
     /// Eindeutiger Schlüssel für Favoriten
     var key: String { url.absoluteString }
@@ -18,6 +20,7 @@ struct SeriesItem: Identifiable, Hashable {
     let name: String
     let cover: URL?
     let group: String?
+    var added: Int = 0
 }
 
 struct Episode: Identifiable, Hashable {
@@ -77,7 +80,7 @@ struct MediaInfo {
 }
 
 enum Route: Hashable {
-    case live, epg, epgList, vod, series, favorites, search, account, settings, multi, resume
+    case live, epg, epgList, vod, series, favorites, search, account, settings, resume
 }
 
 /// Was gerade abgespielt wird, damit sich Filme und Folgen den Stand merken

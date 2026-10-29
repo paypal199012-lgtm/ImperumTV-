@@ -94,8 +94,11 @@ struct VodStreamDTO: Decodable {
     let categoryId: String?
     let ext: String
     let year: Int?
+    /// Wann der Anbieter den Film hinzugefügt hat (Unix-Zeit)
+    let added: Int
 
     enum CodingKeys: String, CodingKey {
+        case added
         case streamId = "stream_id"
         case name
         case icon = "stream_icon"
@@ -113,6 +116,7 @@ struct VodStreamDTO: Decodable {
         icon = c.optionalString(.icon)
         categoryId = c.optionalString(.categoryId)
         ext = c.optionalString(.ext) ?? "mp4"
+        added = c.optionalString(.added).flatMap { Int($0) } ?? 0
 
         // Jahr: erst aus den Feldern des Anbieters, sonst aus dem Namen, z. B. "Titel (2026)"
         let fromFields = [c.optionalString(.year), c.optionalString(.releaseDate), c.optionalString(.releaseDate2)]
@@ -145,12 +149,14 @@ struct SeriesDTO: Decodable {
     let name: String
     let cover: String?
     let categoryId: String?
+    let added: Int
 
     enum CodingKeys: String, CodingKey {
         case seriesId = "series_id"
         case name
         case cover
         case categoryId = "category_id"
+        case added = "last_modified"
     }
 
     init(from decoder: Decoder) throws {
@@ -159,6 +165,7 @@ struct SeriesDTO: Decodable {
         name = c.optionalString(.name) ?? ""
         cover = c.optionalString(.cover)
         categoryId = c.optionalString(.categoryId)
+        added = c.optionalString(.added).flatMap { Int($0) } ?? 0
     }
 }
 

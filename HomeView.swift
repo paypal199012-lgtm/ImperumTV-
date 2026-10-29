@@ -40,8 +40,6 @@ struct RootView: View {
         switch route {
         case .live:
             LiveTVView()
-        case .multi:
-            MultiView()
         case .epg:
             EPGGridView()
         case .epgList:
@@ -102,7 +100,6 @@ struct HomeView: View {
                             smallTile(.resume, "Weiter", "play.circle")
                         }
                         smallTile(.favorites, "Favoriten", "star.fill")
-                        smallTile(.multi, "Multi", "square.grid.2x2")
                         smallTile(.search, "Suche", "magnifyingglass")
                         smallTile(.account, "Konto", "person.crop.circle")
                         smallTile(.settings, "Einstellungen", "gearshape.fill")
@@ -150,7 +147,6 @@ struct HomeView: View {
                     smallTile(.resume, "Weiter", "play.circle", height: smallHeight).frame(width: 78)
                 }
                 smallTile(.favorites, "Favoriten", "star.fill", height: smallHeight).frame(width: 78)
-                smallTile(.multi, "Multi", "square.grid.2x2", height: smallHeight).frame(width: 78)
                 smallTile(.search, "Suche", "magnifyingglass", height: smallHeight).frame(width: 78)
                 smallTile(.account, "Konto", "person.crop.circle", height: smallHeight).frame(width: 78)
                 smallTile(.settings, "Einstellungen", "gearshape.fill", height: smallHeight).frame(width: 78)

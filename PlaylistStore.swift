@@ -440,7 +440,8 @@ final class AppStore: ObservableObject {
                     url: url,
                     logo: Self.url(s.icon),
                     group: s.categoryId.flatMap { names[$0] },
-                    year: s.year
+                    year: s.year,
+                    added: s.added
                 )
             }
             if movies.isEmpty { sectionError = "Dein Anbieter liefert keine Filme." }
@@ -463,7 +464,8 @@ final class AppStore: ObservableObject {
                     id: s.seriesId,
                     name: s.name.isEmpty ? "Serie \(s.seriesId)" : s.name,
                     cover: Self.url(s.cover),
-                    group: s.categoryId.flatMap { names[$0] }
+                    group: s.categoryId.flatMap { names[$0] },
+                    added: s.added
                 )
             }
             if seriesList.isEmpty { sectionError = "Dein Anbieter liefert keine Serien." }
