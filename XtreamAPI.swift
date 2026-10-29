@@ -334,8 +334,8 @@ struct XtreamAPI {
         return "\(m) Min."
     }
 
-    func shortEPG(streamId: Int) async throws -> [EPGEntry] {
-        let data = try await request(action: "get_short_epg", extra: ["stream_id": String(streamId), "limit": "4"])
+    func shortEPG(streamId: Int, limit: Int = 4) async throws -> [EPGEntry] {
+        let data = try await request(action: "get_short_epg", extra: ["stream_id": String(streamId), "limit": String(limit)])
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let list = json["epg_listings"] as? [[String: Any]] else { return [] }
 
@@ -344,7 +344,8 @@ struct XtreamAPI {
             guard !title.isEmpty else { return nil }
             let start = Double("\(item["start_timestamp"] ?? "")").map { Date(timeIntervalSince1970: $0) }
             let end = Double("\(item["stop_timestamp"] ?? "")").map { Date(timeIntervalSince1970: $0) }
-            return EPGEntry(title: title, start: start, end: end)
+            let desc = Self.decodeBase64((item["description"] as? String) ?? "")
+            return EPGEntry(title: title, start: start, end: end, desc: desc.isEmpty ? nil : desc)
         }
     }
 

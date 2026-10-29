@@ -29,6 +29,28 @@ final class PlayerModel: NSObject, ObservableObject {
     @Published var subtitleTracks: [TrackOption] = []
     @Published var selectedAudio: String?
     @Published var selectedSubtitle: String?
+    /// Zählt hoch, wenn ein Film/eine Folge zu Ende ist
+    @Published var endedCount = 0
+    /// Bildformat: fit = ganzes Bild, zoom = Bildschirm füllen, fill = strecken
+    @Published var aspect: String = UserDefaults.standard.string(forKey: "aspect") ?? "fit" {
+        didSet { UserDefaults.standard.set(aspect, forKey: "aspect") }
+    }
+    /// Bildgröße bei VLC (für das Bildformat)
+    @Published var vlcVideoSize: CGSize = .zero
+
+    var gravity: AVLayerVideoGravity {
+        switch aspect {
+        case "zoom": return .resizeAspectFill
+        case "fill": return .resize
+        default: return .resizeAspect
+        }
+    }
+
+    /// Stelle, zu der nach dem Laden gesprungen wird (Weiterschauen, Player-Wechsel)
+    private var pendingSeek: Double?
+    private var endObserver: NSObjectProtocol?
+    private var vlcEndSent = false
+    var isSeekPending: Bool { pendingSeek != nil }
 
     private var avAudioGroup: AVMediaSelectionGroup?
     private var avSubtitleGroup: AVMediaSelectionGroup?
@@ -137,10 +159,12 @@ final class PlayerModel: NSObject, ObservableObject {
 
     deinit {
         if let observer = timeObserver { player.removeTimeObserver(observer) }
+        if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
         vlcTimer?.invalidate()
     }
 
-    func play(_ url: URL, userAgent: String) {
+    func play(_ url: URL, userAgent: String, startAt: Double = 0) {
+        pendingSeek = startAt > 5 ? startAt : nil
         currentURL = url
         currentUserAgent = userAgent
         errorMessage = nil
@@ -159,8 +183,11 @@ final class PlayerModel: NSObject, ObservableObject {
         let ext = url.pathExtension.lowercased()
         let isLiveStream = url.absoluteString.contains("/live/")
         let liveWithVLC = UserDefaults.standard.bool(forKey: "liveWithVLC")
+        let vodWithVLC = UserDefaults.standard.bool(forKey: "vodWithVLC")
         if isLiveStream && liveWithVLC {
             playVLC(Self.vlcURL(for: url), userAgent: userAgent)
+        } else if !isLiveStream && vodWithVLC {
+            playVLC(url, userAgent: userAgent)
         } else if Self.nativeExtensions.contains(ext) {
             playNative(url, userAgent: userAgent)
         } else {
@@ -182,6 +209,7 @@ final class PlayerModel: NSObject, ObservableObject {
         statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
             if item.status == .readyToPlay {
                 self?.loadAVTracks(for: item)
+                DispatchQueue.main.async { self?.applyPendingSeekNative() }
                 return
             }
             guard item.status == .failed else { return }
@@ -191,9 +219,41 @@ final class PlayerModel: NSObject, ObservableObject {
                 self.playVLC(Self.vlcURL(for: url), userAgent: self.currentUserAgent)
             }
         }
+        if let old = endObserver { NotificationCenter.default.removeObserver(old) }
+        endObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main
+        ) { [weak self] _ in
+            self?.endedCount += 1
+        }
         player.replaceCurrentItem(with: item)
         player.play()
     }
+
+    private func applyPendingSeekNative() {
+        guard !usesVLC, let target = pendingSeek else { return }
+        pendingSeek = nil
+        player.seek(to: CMTime(seconds: target, preferredTimescale: 600))
+        currentTime = target
+    }
+
+    /// Mitten im Film zwischen iPhone-Player und VLC wechseln, an derselben Stelle
+    func switchEngine(toVLC: Bool) {
+        guard let url = currentURL, toVLC != usesVLC else { return }
+        let pos = currentTime
+        pendingSeek = pos > 5 ? pos : nil
+        stallRetries = 0
+        lastProgressValue = -1
+        lastProgressDate = Date()
+        errorMessage = nil
+        if toVLC {
+            playVLC(Self.vlcURL(for: url), userAgent: currentUserAgent)
+        } else {
+            playNative(url, userAgent: currentUserAgent)
+        }
+    }
+
+    /// Aktuelle Stream-Adresse (für andere Apps)
+    var streamURL: URL? { currentURL }
 
     private func playVLC(_ url: URL, userAgent: String) {
         player.pause()
@@ -204,6 +264,7 @@ final class PlayerModel: NSObject, ObservableObject {
         errorMessage = nil
         isBuffering = true
         resetTracks()
+        vlcEndSent = false
 
         let media = VLCMedia(url: url)
         media.addOption(":http-user-agent=\(userAgent)")
@@ -225,6 +286,18 @@ final class PlayerModel: NSObject, ObservableObject {
             duration = Double(length) / 1000
         } else {
             duration = 0
+        }
+
+        let size = p.videoSize
+        if size != vlcVideoSize { vlcVideoSize = size }
+        if ms > 0, let target = pendingSeek {
+            pendingSeek = nil
+            p.time = VLCTime(int: Int32(target * 1000))
+            currentTime = target
+        }
+        if p.state == .ended && !vlcEndSent {
+            vlcEndSent = true
+            endedCount += 1
         }
 
         switch p.state {
@@ -521,13 +594,14 @@ final class PlayerUIView: UIView {
 
 struct PlayerLayerView: UIViewRepresentable {
     let player: AVPlayer
+    var gravity: AVLayerVideoGravity = .resizeAspect
     var onReady: (AVPlayerLayer) -> Void = { _ in }
 
     func makeUIView(context: Context) -> PlayerUIView {
         let view = PlayerUIView()
         view.backgroundColor = .black
         view.isUserInteractionEnabled = false
-        view.playerLayer.videoGravity = .resizeAspect
+        view.playerLayer.videoGravity = gravity
         view.playerLayer.player = player
         onReady(view.playerLayer)
         return view
@@ -535,6 +609,7 @@ struct PlayerLayerView: UIViewRepresentable {
 
     func updateUIView(_ view: PlayerUIView, context: Context) {
         view.playerLayer.player = player
+        if view.playerLayer.videoGravity != gravity { view.playerLayer.videoGravity = gravity }
     }
 }
 
@@ -543,38 +618,60 @@ struct PlayerLayerView: UIViewRepresentable {
 struct PlayerScreen: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @StateObject private var model = PlayerModel()
 
     let channels: [Channel]
     let isLive: Bool
+    /// Angaben fürs Weiterschauen (gleiche Reihenfolge wie channels)
+    let resume: [ResumeInfo]?
     @State private var index: Int
+    @State private var startAt: Double?
     @State private var nowTitle: String?
     @State private var controlsVisible = true
     @State private var hideTask: Task<Void, Never>?
     @State private var scrubValue: Double?
     @State private var showTracks = false
+    @State private var showEngines = false
+    @State private var showAspect = false
+    @State private var lastSave = Date.distantPast
+    @State private var hint: String?
+    @State private var hintTask: Task<Void, Never>?
 
-    init(channels: [Channel], startIndex: Int, isLive: Bool = false) {
+    init(channels: [Channel], startIndex: Int, isLive: Bool = false, resume: [ResumeInfo]? = nil, startAt: Double? = nil) {
         self.channels = channels
         self.isLive = isLive
+        self.resume = (resume?.count == channels.count) ? resume : nil
         _index = State(initialValue: startIndex)
+        _startAt = State(initialValue: startAt)
     }
 
     private var channel: Channel { channels[index] }
+
+    private var currentInfo: ResumeInfo? {
+        guard !isLive, let list = resume, index < list.count else { return nil }
+        return list[index]
+    }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            PlayerLayerView(player: model.player) { layer in
+            PlayerLayerView(player: model.player, gravity: model.gravity) { layer in
                 model.attach(layer: layer)
             }
             .ignoresSafeArea()
             .opacity(model.usesVLC ? 0 : 1)
 
             if model.usesVLC {
-                VLCVideoView(player: model.vlcPlayer)
-                    .ignoresSafeArea()
+                GeometryReader { geo in
+                    let scale = vlcScale(geo.size)
+                    VLCVideoView(player: model.vlcPlayer)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .scaleEffect(x: scale.width, y: scale.height)
+                }
+                .clipped()
+                .ignoresSafeArea()
             }
 
             // Tippen aufs Bild blendet die Bedienelemente ein oder aus
@@ -609,19 +706,77 @@ struct PlayerScreen: View {
                 .padding(24)
             }
         }
+        .overlay(alignment: .top) {
+            if let hint = hint {
+                Text(hint)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Color.black.opacity(0.7)))
+                    .padding(.top, 60)
+                    .allowsHitTesting(false)
+            }
+        }
         .sheet(isPresented: $showTracks, onDismiss: { scheduleHide() }) {
             TrackSheet(model: model)
+        }
+        .confirmationDialog("Bildformat", isPresented: $showAspect, titleVisibility: .visible) {
+            ForEach(["fit", "zoom", "fill"], id: \.self) { mode in
+                Button(model.aspect == mode ? Self.aspectName(mode) + " ✓" : Self.aspectName(mode)) {
+                    model.aspect = mode
+                    showHint("Bildformat: \(Self.aspectName(mode))")
+                    scheduleHide()
+                }
+            }
+            Button("Abbrechen", role: .cancel) { scheduleHide() }
+        } message: {
+            Text("Gilt für alle Sender, Filme und Serien.")
+        }
+        .confirmationDialog("Player wählen", isPresented: $showEngines, titleVisibility: .visible) {
+            Button(model.usesVLC ? "iPhone-Player" : "iPhone-Player ✓") {
+                model.switchEngine(toVLC: false)
+                scheduleHide()
+            }
+            Button(model.usesVLC ? "VLC (in der App) ✓" : "VLC (in der App)") {
+                model.switchEngine(toVLC: true)
+                scheduleHide()
+            }
+            Button("In der VLC-App öffnen") { openExternal("vlc") }
+            Button("In Infuse öffnen") { openExternal("infuse") }
+            Button("Abbrechen", role: .cancel) { scheduleHide() }
+        } message: {
+            Text("VLC spielt fast jedes Format (MKV, AVI …). Der iPhone-Player kann Bild-in-Bild. Die Stelle bleibt beim Wechsel erhalten.")
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
         .onAppear {
-            model.play(channel.url, userAgent: store.userAgentValue)
+            let start = firstStart()
+            model.play(channel.url, userAgent: store.userAgentValue, startAt: start)
+            if start > 5 { showHint("Weiter ab \(timeText(start))") }
             scheduleHide()
         }
         .onChange(of: index) { _ in
-            model.play(channel.url, userAgent: store.userAgentValue)
+            let start = savedStart()
+            model.play(channel.url, userAgent: store.userAgentValue, startAt: start)
+            if start > 5 { showHint("Weiter ab \(timeText(start))") }
             showControls()
+        }
+        .onReceive(model.$currentTime) { _ in
+            if Date().timeIntervalSince(lastSave) > 10 { saveProgress() }
+        }
+        .onChange(of: model.endedCount) { _ in
+            saveProgress(ended: true)
+            if currentInfo?.kind == .episode && index < channels.count - 1 {
+                showHint("Nächste Folge: \(channels[index + 1].name)")
+                index += 1
+            } else if !isLive && currentInfo != nil {
+                dismiss()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            saveProgress()
         }
         .task(id: index) {
             nowTitle = nil
@@ -630,7 +785,9 @@ struct PlayerScreen: View {
             }
         }
         .onDisappear {
+            saveProgress()
             hideTask?.cancel()
+            hintTask?.cancel()
             model.stop()
         }
     }
@@ -680,9 +837,37 @@ struct PlayerScreen: View {
                         .font(.caption)
                         .foregroundStyle(Theme.goldLight)
                         .lineLimit(1)
+                } else if let info = currentInfo, info.kind == .episode {
+                    Text("\(info.seriesName ?? "") · Staffel \(info.season ?? 1) · Folge \(info.number ?? index + 1)")
+                        .font(.caption)
+                        .foregroundStyle(Theme.goldLight)
+                        .lineLimit(1)
                 }
             }
             Spacer()
+            Button {
+                hideTask?.cancel()
+                showEngines = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                    Text(model.usesVLC ? "VLC" : "iPhone")
+                        .font(.caption.weight(.semibold))
+                }
+                .font(.subheadline)
+                .padding(.horizontal, 12)
+                .frame(height: 44)
+                .background(Capsule().fill(Color.black.opacity(0.45)))
+            }
+            Button {
+                hideTask?.cancel()
+                showAspect = true
+            } label: {
+                Image(systemName: "aspectratio")
+                    .font(.title3)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(Color.black.opacity(0.45)))
+            }
             Button {
                 hideTask?.cancel()
                 showTracks = true
@@ -801,7 +986,91 @@ struct PlayerScreen: View {
     // MARK: Logik
 
     private func step(_ delta: Int) {
+        saveProgress()
         index = (index + delta + channels.count) % channels.count
+    }
+
+    static func aspectName(_ mode: String) -> String {
+        switch mode {
+        case "zoom": return "Bildschirm füllen (Zoom)"
+        case "fill": return "Strecken"
+        default: return "Original (ganzes Bild)"
+        }
+    }
+
+    /// Bei VLC das Bild für „Zoom“ bzw. „Strecken“ vergrößern (VLC zeigt sonst immer das ganze Bild)
+    private func vlcScale(_ view: CGSize) -> CGSize {
+        let video = model.vlcVideoSize
+        guard video.width > 0, video.height > 0, view.width > 0, view.height > 0 else { return CGSize(width: 1, height: 1) }
+        let fit = min(view.width / video.width, view.height / video.height)
+        let fittedW = video.width * fit, fittedH = video.height * fit
+        switch model.aspect {
+        case "zoom":
+            let s = max(view.width / fittedW, view.height / fittedH)
+            return CGSize(width: s, height: s)
+        case "fill":
+            return CGSize(width: view.width / fittedW, height: view.height / fittedH)
+        default:
+            return CGSize(width: 1, height: 1)
+        }
+    }
+
+    // MARK: Weiterschauen
+
+    /// Startpunkt beim Öffnen: übergebener Wert, sonst gespeicherter Stand
+    private func firstStart() -> Double {
+        if let s = startAt {
+            startAt = nil
+            return s
+        }
+        return savedStart()
+    }
+
+    private func savedStart() -> Double {
+        guard let info = currentInfo else { return 0 }
+        return store.resumePosition(for: info)
+    }
+
+    private func saveProgress(ended: Bool = false) {
+        lastSave = Date()
+        guard let info = currentInfo else { return }
+        if !ended && model.isSeekPending { return }
+        var next: (info: ResumeInfo, channel: Channel)?
+        if info.kind == .episode, let list = resume, index + 1 < channels.count {
+            next = (list[index + 1], channels[index + 1])
+        }
+        store.recordProgress(info: info, channel: channel, next: next,
+                             pos: model.currentTime, dur: model.duration, ended: ended)
+    }
+
+    private func showHint(_ text: String) {
+        hint = text
+        hintTask?.cancel()
+        hintTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 3_500_000_000)
+            guard !Task.isCancelled else { return }
+            hint = nil
+        }
+    }
+
+    /// Film in VLC oder Infuse öffnen (wenn installiert)
+    private func openExternal(_ app: String) {
+        guard let stream = model.streamURL,
+              let encoded = stream.absoluteString.addingPercentEncoding(withAllowedCharacters: .alphanumerics) else { return }
+        let link = app == "vlc"
+            ? "vlc-x-callback://x-callback-url/stream?url=\(encoded)"
+            : "infuse://x-callback-url/play?url=\(encoded)"
+        guard let url = URL(string: link) else { return }
+        saveProgress()
+        openURL(url) { accepted in
+            if accepted {
+                model.stop()
+                dismiss()
+            } else {
+                showHint(app == "vlc" ? "Die VLC-App ist nicht installiert (gratis im App Store)." : "Infuse ist nicht installiert.")
+                scheduleHide()
+            }
+        }
     }
 
     private func toggleControls() {
@@ -830,7 +1099,7 @@ struct PlayerScreen: View {
 
     private func timeString(_ seconds: Double) -> String {
         guard seconds.isFinite else { return "0:00" }
-        let total = Int(seconds)
+        let total = Int(max(0, seconds))
         let h = total / 3600
         let m = (total % 3600) / 60
         let s = total % 60

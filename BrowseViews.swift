@@ -6,6 +6,9 @@ struct PosterCard: View {
     let title: String
     let image: URL?
     var isFavorite = false
+    /// Fortschritt 0 … 1 (Weiterschauen)
+    var progress: Double? = nil
+    var subtitle: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -27,6 +30,14 @@ struct PosterCard: View {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.gold.opacity(0.3)))
+                .overlay(alignment: .bottom) {
+                    if let progress = progress {
+                        ProgressStrip(part: progress)
+                            .padding(.horizontal, 6)
+                            .padding(.bottom, 6)
+                            .shadow(color: .black.opacity(0.6), radius: 2)
+                    }
+                }
                 .overlay(alignment: .topTrailing) {
                     if isFavorite {
                         Image(systemName: "star.fill")
@@ -42,7 +53,14 @@ struct PosterCard: View {
                 Text(title)
                     .font(.caption)
                     .foregroundStyle(.white)
-                    .lineLimit(2)
+                    .lineLimit(subtitle == nil ? 2 : 1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if let subtitle = subtitle {
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.gold)
+                    .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -51,6 +69,10 @@ struct PosterCard: View {
 }
 
 private let posterColumns = [GridItem(.adaptive(minimum: 105), spacing: 12)]
+
+/// Sonder-Kategorie mit angefangenen Filmen bzw. Serien
+let resumeCategory = "▶ Weiter ansehen"
+
 
 // MARK: - Kategorien-Spalte (wie bei XCIPTV)
 
@@ -156,11 +178,18 @@ struct MovieGridView: View {
     private var yearCategory: String { "Filme \(currentYear)" }
 
     private var groups: [String] {
-        [yearCategory] + Array(Set(store.movies.compactMap(\.group))).sorted()
+        [resumeCategory, yearCategory] + Array(Set(store.movies.compactMap(\.group))).sorted()
     }
 
     private var filtered: [Channel] {
-        store.movies.filter { movie in
+        if group == resumeCategory && !favoritesOnly {
+            let byId = Dictionary(store.movies.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            return store.resumeEntries.compactMap { e -> Channel? in
+                guard !e.isEpisode, e.pos >= 30, let id = Int(e.itemId), let movie = byId[id] else { return nil }
+                return (query.isEmpty || movie.name.localizedCaseInsensitiveContains(query)) ? movie : nil
+            }
+        }
+        return store.movies.filter { movie in
             let inGroup: Bool
             if group == yearCategory {
                 inGroup = movie.year == currentYear
@@ -213,6 +242,7 @@ struct MovieGridView: View {
                 }
                 if list.isEmpty && !store.movies.isEmpty {
                     Text(favoritesOnly ? "Noch keine Film-Favoriten. Halte den Finger auf ein Poster."
+                         : group == resumeCategory ? "Hier erscheinen Filme, die du angefangen hast."
                          : group == yearCategory ? "Dein Anbieter hat keine Filme mit dem Jahr \(currentYear) gekennzeichnet."
                          : "Keine Filme gefunden.")
                         .font(.caption)
@@ -222,7 +252,8 @@ struct MovieGridView: View {
                 LazyVGrid(columns: posterColumns, spacing: 16) {
                     ForEach(list) { movie in
                         NavigationLink(value: movie) {
-                            PosterCard(title: movie.name, image: movie.logo, isFavorite: store.isFavorite(movie))
+                            PosterCard(title: movie.name, image: movie.logo, isFavorite: store.isFavorite(movie),
+                                       progress: store.resumeEntry(movieId: movie.id).flatMap { $0.pos >= 30 ? $0.part : nil })
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
@@ -278,15 +309,30 @@ struct MovieDetailView: View {
                         }
 
                         HStack(spacing: 12) {
+                            let saved = store.resumeEntry(movieId: movie.id).flatMap { $0.pos >= 30 ? $0 : nil }
                             Button {
-                                request = PlayRequest(channels: [movie], index: 0, isLive: false)
+                                request = PlayRequest(channels: [movie], index: 0, isLive: false,
+                                                      resume: [ResumeInfo.movie(movie)], startAt: saved?.pos ?? 0)
                             } label: {
-                                Label("Abspielen", systemImage: "play.fill")
+                                Label(saved.map { "Weiter ab \(timeText($0.pos))" } ?? "Abspielen", systemImage: "play.fill")
                                     .font(.headline)
                                     .foregroundStyle(.black)
                                     .padding(.horizontal, 22)
                                     .padding(.vertical, 10)
                                     .background(Capsule().fill(Theme.gold))
+                            }
+                            if saved != nil {
+                                Button {
+                                    request = PlayRequest(channels: [movie], index: 0, isLive: false,
+                                                          resume: [ResumeInfo.movie(movie)], startAt: 0)
+                                } label: {
+                                    Label("Von vorne", systemImage: "arrow.counterclockwise")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                        .background(Capsule().fill(Color.white.opacity(0.12)))
+                                }
                             }
 
                             Button {
@@ -315,7 +361,13 @@ struct MovieDetailView: View {
                             detailLine("Regie", director)
                         }
                         if let cast = info?.cast {
-                            detailLine("Besetzung", cast)
+                            let names = People.names(cast, max: 15)
+                            if names.isEmpty {
+                                detailLine("Besetzung", cast)
+                            } else {
+                                CastSection(names: names)
+                                    .padding(.top, 6)
+                            }
                         }
                     }
                     Spacer(minLength: 0)
@@ -330,7 +382,8 @@ struct MovieDetailView: View {
             loading = false
         }
         .fullScreenCover(item: $request) { req in
-            PlayerScreen(channels: req.channels, startIndex: req.index, isLive: false)
+            PlayerScreen(channels: req.channels, startIndex: req.index, isLive: false,
+                         resume: req.resume, startAt: req.startAt)
                 .environmentObject(store)
         }
     }
@@ -363,11 +416,18 @@ struct SeriesGridView: View {
     @State private var favoritesOnly = false
 
     private var groups: [String] {
-        Array(Set(store.seriesList.compactMap(\.group))).sorted()
+        [resumeCategory] + Array(Set(store.seriesList.compactMap(\.group))).sorted()
     }
 
     private var filtered: [SeriesItem] {
-        store.seriesList.filter { show in
+        if group == resumeCategory && !favoritesOnly {
+            let byId = Dictionary(store.seriesList.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            return store.resumeEntries.compactMap { e -> SeriesItem? in
+                guard e.isEpisode, let sid = e.seriesId, let show = byId[sid] else { return nil }
+                return (query.isEmpty || show.name.localizedCaseInsensitiveContains(query)) ? show : nil
+            }
+        }
+        return store.seriesList.filter { show in
             (!favoritesOnly || store.isFavoriteSeries(show))
                 && (group == nil || show.group == group)
                 && (query.isEmpty || show.name.localizedCaseInsensitiveContains(query))
@@ -413,7 +473,8 @@ struct SeriesGridView: View {
                         .padding(.top, 30)
                 }
                 if list.isEmpty && !store.seriesList.isEmpty {
-                    Text(favoritesOnly ? "Noch keine Serien-Favoriten. Halte den Finger auf ein Poster." : "Keine Serien gefunden.")
+                    Text(favoritesOnly ? "Noch keine Serien-Favoriten. Halte den Finger auf ein Poster."
+                         : group == resumeCategory ? "Hier erscheinen Serien, die du angefangen hast." : "Keine Serien gefunden.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.top, 30)
@@ -421,7 +482,10 @@ struct SeriesGridView: View {
                 LazyVGrid(columns: posterColumns, spacing: 16) {
                     ForEach(list) { show in
                         NavigationLink(value: show) {
-                            PosterCard(title: show.name, image: show.cover, isFavorite: store.isFavoriteSeries(show))
+                            let saved = store.resumeEntry(seriesId: show.id)
+                            PosterCard(title: show.name, image: show.cover, isFavorite: store.isFavoriteSeries(show),
+                                       progress: saved.flatMap { $0.next ? nil : $0.part },
+                                       subtitle: saved.map { "S\($0.season ?? 1) F\($0.number ?? 0) · \($0.leftText)" })
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
@@ -453,9 +517,24 @@ struct SeriesDetailView: View {
     @State private var errorText: String?
     @State private var season = 1
     @State private var request: PlayRequest?
+    @State private var askEpisode: Episode?
 
     private var seasons: [Int] {
         Array(Set(episodes.map(\.season))).sorted()
+    }
+
+    /// Alle Folgen abspielen (damit nach dem Ende automatisch die nächste kommt, auch über Staffeln hinweg)
+    private func play(_ episode: Episode, from start: Double?) {
+        guard let i = episodes.firstIndex(of: episode) else { return }
+        request = PlayRequest(channels: episodes.map(\.asChannel), index: i, isLive: false,
+                              resume: episodes.map { ResumeInfo.episode($0, series: series) }, startAt: start)
+    }
+
+    /// Nach dem Schauen die Staffel der zuletzt gesehenen Folge zeigen
+    private func jumpToLastSeason() {
+        if let last = store.resumeEntry(seriesId: series.id), let s = last.season, seasons.contains(s) {
+            season = s
+        }
     }
 
     var body: some View {
@@ -495,14 +574,36 @@ struct SeriesDetailView: View {
                                     .background(Capsule().fill(Color.white.opacity(0.12)))
                             }
                             .buttonStyle(.plain)
+                            if let last = store.resumeEntry(seriesId: series.id),
+                               let ep = episodes.first(where: { $0.id == last.itemId }) {
+                                Button {
+                                    play(ep, from: last.next ? 0 : last.pos)
+                                } label: {
+                                    Label(last.next ? "Nächste: S\(ep.season) F\(ep.number)"
+                                          : "Weiter: S\(ep.season) F\(ep.number) ab \(timeText(last.pos))",
+                                          systemImage: "play.fill")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(.black)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 8)
+                                        .background(Capsule().fill(Theme.gold))
+                                }
+                                .buttonStyle(.plain)
+                            }
                             if let plot = info?.plot {
                                 Text(plot)
                                     .font(.caption)
                                     .foregroundStyle(.white.opacity(0.85))
                             }
                             if let cast = info?.cast {
-                                (Text("Besetzung: ").foregroundColor(Theme.goldLight) + Text(cast).foregroundColor(.white.opacity(0.8)))
-                                    .font(.caption)
+                                let names = People.names(cast, max: 10)
+                                if names.isEmpty {
+                                    (Text("Besetzung: ").foregroundColor(Theme.goldLight) + Text(cast).foregroundColor(.white.opacity(0.8)))
+                                        .font(.caption)
+                                } else {
+                                    CastSection(names: names, compact: true)
+                                        .padding(.top, 4)
+                                }
                             }
                         }
                         .padding(16)
@@ -550,29 +651,15 @@ struct SeriesDetailView: View {
 
                         ScrollView {
                             LazyVStack(spacing: 8) {
-                                ForEach(Array(current.enumerated()), id: \.element.id) { index, episode in
-                                    Button {
-                                        request = PlayRequest(channels: current.map(\.asChannel), index: index, isLive: false)
-                                    } label: {
-                                        HStack(spacing: 12) {
-                                            Text("\(episode.number)")
-                                                .font(.headline)
-                                                .foregroundStyle(Theme.gold)
-                                                .frame(width: 32)
-                                            Text(episode.title)
-                                                .foregroundStyle(.white)
-                                                .lineLimit(2)
-                                                .multilineTextAlignment(.leading)
-                                            Spacer()
-                                            Image(systemName: "play.circle.fill")
-                                                .font(.title2)
-                                                .foregroundStyle(Theme.gold)
+                                ForEach(current) { episode in
+                                    EpisodeRow(episode: episode,
+                                               saved: store.resumeEntry(for: ResumeInfo.episode(episode, series: series))) { hasProgress in
+                                        if hasProgress {
+                                            askEpisode = episode
+                                        } else {
+                                            play(episode, from: 0)
                                         }
-                                        .padding(12)
-                                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.panel))
-                                        .contentShape(Rectangle())
                                     }
-                                    .buttonStyle(.plain)
                                 }
                             }
                         }
@@ -590,14 +677,26 @@ struct SeriesDetailView: View {
                 episodes = details.episodes
                 info = details.info
                 season = episodes.first?.season ?? 1
+                jumpToLastSeason()
                 if episodes.isEmpty { errorText = "Keine Folgen gefunden." }
             } catch {
                 errorText = error.localizedDescription
             }
             loading = false
         }
-        .fullScreenCover(item: $request) { req in
-            PlayerScreen(channels: req.channels, startIndex: req.index, isLive: false)
+        .confirmationDialog(askEpisode?.title ?? "", isPresented: Binding(
+            get: { askEpisode != nil },
+            set: { if !$0 { askEpisode = nil } }
+        ), titleVisibility: .visible, presenting: askEpisode) { ep in
+            Button("Fortsetzen ab \(timeText(store.resumePosition(for: ResumeInfo.episode(ep, series: series))))") {
+                play(ep, from: nil)
+            }
+            Button("Von vorne") { play(ep, from: 0) }
+            Button("Abbrechen", role: .cancel) {}
+        }
+        .fullScreenCover(item: $request, onDismiss: { jumpToLastSeason() }) { req in
+            PlayerScreen(channels: req.channels, startIndex: req.index, isLive: false,
+                         resume: req.resume, startAt: req.startAt)
                 .environmentObject(store)
         }
     }
@@ -613,6 +712,54 @@ struct SeriesDetailView: View {
             LinearGradient(colors: [.black.opacity(0.6), .black.opacity(0.92)], startPoint: .top, endPoint: .bottom)
         }
         .ignoresSafeArea()
+    }
+}
+
+/// Eine Folge in der Liste, mit Fortschritt beim Weiterschauen
+struct EpisodeRow: View {
+    let episode: Episode
+    let saved: ResumeEntry?
+    /// true = es gibt einen gespeicherten Stand
+    let onTap: (Bool) -> Void
+
+    private var part: Double? {
+        guard let s = saved, !s.next, s.pos >= 30 else { return nil }
+        return s.part
+    }
+
+    var body: some View {
+        Button {
+            onTap(part != nil)
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 12) {
+                    Text("\(episode.number)")
+                        .font(.headline)
+                        .foregroundStyle(Theme.gold)
+                        .frame(width: 32)
+                    Text(episode.title)
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Spacer()
+                    if let saved = saved, part != nil {
+                        Text(saved.leftText)
+                            .font(.caption2)
+                            .foregroundStyle(Theme.gold)
+                    }
+                    Image(systemName: "play.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(Theme.gold)
+                }
+                if let part = part {
+                    ProgressStrip(part: part)
+                }
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.panel))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -38,6 +38,7 @@ struct EPGEntry: Identifiable, Hashable {
     let title: String
     let start: Date?
     let end: Date?
+    var desc: String? = nil
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -76,7 +77,89 @@ struct MediaInfo {
 }
 
 enum Route: Hashable {
-    case live, epg, vod, series, favorites, search, account, settings, multi
+    case live, epg, epgList, vod, series, favorites, search, account, settings, multi, resume
+}
+
+/// Was gerade abgespielt wird, damit sich Filme und Folgen den Stand merken
+struct ResumeInfo: Hashable {
+    enum Kind: String { case movie, episode }
+    let kind: Kind
+    /// Film-ID bzw. Folgen-ID
+    let itemId: String
+    var seriesId: Int? = nil
+    var seriesName: String? = nil
+    var seriesCover: URL? = nil
+    var season: Int? = nil
+    var number: Int? = nil
+
+    static func movie(_ movie: Channel) -> ResumeInfo {
+        ResumeInfo(kind: .movie, itemId: String(movie.id))
+    }
+
+    static func episode(_ ep: Episode, series: SeriesItem) -> ResumeInfo {
+        ResumeInfo(kind: .episode, itemId: ep.id, seriesId: series.id, seriesName: series.name,
+                   seriesCover: series.cover, season: ep.season, number: ep.number)
+    }
+
+    /// Schlüssel: pro Film bzw. pro Serie ein Eintrag
+    var key: String {
+        if kind == .episode, let sid = seriesId { return "series:\(sid)" }
+        return "\(kind.rawValue):\(itemId)"
+    }
+}
+
+/// Gespeicherter Stand „Weiterschauen“
+struct ResumeEntry: Codable, Identifiable, Hashable {
+    var acc: String
+    var key: String
+    var kind: String
+    var itemId: String
+    var name: String
+    var logo: String?
+    var url: String
+    var pos: Double
+    var dur: Double
+    var at: Double
+    var next: Bool
+    var seriesId: Int?
+    var seriesName: String?
+    var season: Int?
+    var number: Int?
+
+    var id: String { key }
+    var isEpisode: Bool { kind == "episode" }
+
+    /// Fortschritt 0 … 1
+    var part: Double { dur > 0 ? min(max(pos / dur, 0), 1) : 0 }
+
+    var leftText: String {
+        if next { return "Nächste Folge" }
+        let minutes = max(1, Int(((dur - pos) / 60).rounded()))
+        return "Noch \(minutes) Min."
+    }
+
+    var title: String {
+        guard isEpisode else { return name }
+        return "\(seriesName ?? name) · S\(season ?? 1) F\(number ?? 0)"
+    }
+
+    var channel: Channel? {
+        guard let u = URL(string: url) else { return nil }
+        return Channel(id: Int(itemId) ?? 0, name: name, url: u, logo: logo.flatMap { URL(string: $0) }, group: nil)
+    }
+
+    var info: ResumeInfo {
+        ResumeInfo(kind: isEpisode ? .episode : .movie, itemId: itemId, seriesId: seriesId, seriesName: seriesName,
+                   seriesCover: logo.flatMap { URL(string: $0) }, season: season, number: number)
+    }
+}
+
+/// "1:05:09" bzw. "5:09"
+func timeText(_ seconds: Double) -> String {
+    guard seconds.isFinite, seconds > 0 else { return "0:00" }
+    let total = Int(seconds)
+    let h = total / 3600, m = (total % 3600) / 60, s = total % 60
+    return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
 }
 
 struct Account: Equatable {

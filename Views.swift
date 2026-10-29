@@ -8,6 +8,10 @@ struct PlayRequest: Identifiable {
     let channels: [Channel]
     let index: Int
     let isLive: Bool
+    /// Bei Filmen und Folgen: Angaben fürs Weiterschauen (gleiche Reihenfolge wie channels)
+    var resume: [ResumeInfo]? = nil
+    /// Startpunkt in Sekunden. nil = gespeicherten Stand nehmen, 0 = von vorne
+    var startAt: Double? = nil
 }
 
 struct CategoryMenu: View {
@@ -100,6 +104,31 @@ struct ChannelCard: View {
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 14).fill(Theme.panel))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.gold.opacity(0.25)))
+        .contextMenu {
+            Button {
+                store.toggleFavorite(channel)
+            } label: {
+                Label(store.isFavorite(channel) ? "Aus Favoriten entfernen" : "Zu Favoriten",
+                      systemImage: store.isFavorite(channel) ? "star.slash" : "star")
+            }
+        }
+    }
+}
+
+/// Langes Tippen auf eine Serie: Favorit hinzufügen oder entfernen
+struct SeriesFavoriteMenu: ViewModifier {
+    @EnvironmentObject private var store: AppStore
+    let show: SeriesItem
+
+    func body(content: Content) -> some View {
+        content.contextMenu {
+            Button {
+                store.toggleFavoriteSeries(show)
+            } label: {
+                Label(store.isFavoriteSeries(show) ? "Aus Favoriten entfernen" : "Zu Favoriten",
+                      systemImage: store.isFavoriteSeries(show) ? "star.slash" : "star")
+            }
+        }
     }
 }
 
@@ -169,7 +198,8 @@ struct ChannelListView: View {
         .searchable(text: $query, prompt: "Suchen")
         .navigationTitle(title)
         .fullScreenCover(item: $request) { req in
-            PlayerScreen(channels: req.channels, startIndex: req.index, isLive: req.isLive)
+            PlayerScreen(channels: req.channels, startIndex: req.index, isLive: req.isLive,
+                         resume: req.resume, startAt: req.startAt)
                 .environmentObject(store)
         }
     }
@@ -205,7 +235,7 @@ struct FavoritesView: View {
                     SectionTitle(text: "Filme")
                     ForEach(Array(films.enumerated()), id: \.element.id) { index, film in
                         ChannelCard(channel: film) {
-                            request = PlayRequest(channels: films, index: index, isLive: false)
+                            request = PlayRequest(channels: films, index: index, isLive: false, resume: films.map { ResumeInfo.movie($0) })
                         }
                     }
                 }
@@ -226,6 +256,7 @@ struct FavoritesView: View {
                             .background(RoundedRectangle(cornerRadius: 14).fill(Theme.panel))
                         }
                         .buttonStyle(.plain)
+                        .modifier(SeriesFavoriteMenu(show: show))
                     }
                 }
             }
@@ -235,7 +266,8 @@ struct FavoritesView: View {
         .background(GoldBackground(dim: 0.6))
         .navigationTitle("Favoriten")
         .fullScreenCover(item: $request) { req in
-            PlayerScreen(channels: req.channels, startIndex: req.index, isLive: req.isLive)
+            PlayerScreen(channels: req.channels, startIndex: req.index, isLive: req.isLive,
+                         resume: req.resume, startAt: req.startAt)
                 .environmentObject(store)
         }
     }
@@ -278,7 +310,7 @@ struct SearchView: View {
                     SectionTitle(text: "Filme")
                     ForEach(Array(films.enumerated()), id: \.element.id) { index, film in
                         ChannelCard(channel: film) {
-                            request = PlayRequest(channels: films, index: index, isLive: false)
+                            request = PlayRequest(channels: films, index: index, isLive: false, resume: films.map { ResumeInfo.movie($0) })
                         }
                     }
                 }
@@ -299,6 +331,7 @@ struct SearchView: View {
                             .background(RoundedRectangle(cornerRadius: 14).fill(Theme.panel))
                         }
                         .buttonStyle(.plain)
+                        .modifier(SeriesFavoriteMenu(show: show))
                     }
                 }
             }
@@ -315,7 +348,8 @@ struct SearchView: View {
             }
         }
         .fullScreenCover(item: $request) { req in
-            PlayerScreen(channels: req.channels, startIndex: req.index, isLive: req.isLive)
+            PlayerScreen(channels: req.channels, startIndex: req.index, isLive: req.isLive,
+                         resume: req.resume, startAt: req.startAt)
                 .environmentObject(store)
         }
     }
@@ -368,6 +402,7 @@ struct AccountView: View {
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
     @AppStorage("liveWithVLC") private var liveWithVLC = false
+    @AppStorage("vodWithVLC") private var vodWithVLC = false
 
     var body: some View {
         Form {
@@ -389,10 +424,12 @@ struct SettingsView: View {
             Section {
                 Toggle("Live-TV mit VLC abspielen", isOn: $liveWithVLC)
                     .tint(Theme.gold)
+                Toggle("Filme & Serien mit VLC abspielen", isOn: $vodWithVLC)
+                    .tint(Theme.gold)
             } header: {
                 Text("Wiedergabe")
             } footer: {
-                Text("Einschalten, wenn Sender beim Start oft hängen bleiben oder ein Standbild zeigen. Mit VLC gibt es bei Live-TV kein Bild-in-Bild.")
+                Text("Einschalten, wenn Sender beim Start oft hängen bleiben oder ein Standbild zeigen. Mit VLC gibt es kein Bild-in-Bild. Im Player kannst du jederzeit oben mit dem Pfeil-Knopf zwischen iPhone-Player und VLC wechseln.")
             }
 
             Section {

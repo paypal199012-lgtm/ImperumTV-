@@ -38,7 +38,11 @@ final class AppStore: ObservableObject {
     private var watcher: Task<Void, Never>?
 
     private var epgCache: [Int: [EPGEntry]] = [:]
-    private let defaults = UserDefaults.standard
+    /// Ausführliches Programm für das EPG-Raster (10 Minuten zwischengespeichert)
+    var fullEPGCache: [Int: (at: Date, list: [EPGEntry])] = [:]
+    /// „Weiterschauen“: gespeicherte Stände von Filmen und Serien
+    @Published var resumeList: [ResumeEntry] = []
+    let defaults = UserDefaults.standard
     private let cacheURL: URL
 
     init() {
@@ -62,6 +66,11 @@ final class AppStore: ObservableObject {
         let exp = defaults.double(forKey: "expiry")
         expiry = exp > 0 ? Date(timeIntervalSince1970: exp) : nil
 
+        if let data = defaults.data(forKey: "resume"),
+           let list = try? JSONDecoder().decode([ResumeEntry].self, from: data) {
+            resumeList = list
+        }
+
         Task { await restoreCache() }
     }
 
@@ -83,7 +92,7 @@ final class AppStore: ObservableObject {
         return f.string(from: expiry)
     }
 
-    private var currentAPI: XtreamAPI? {
+    var currentAPI: XtreamAPI? {
         guard isXtream, !serverInput.isEmpty, !username.isEmpty, !password.isEmpty else { return nil }
         return XtreamAPI(
             account: Account(server: serverInput, username: username, password: password),

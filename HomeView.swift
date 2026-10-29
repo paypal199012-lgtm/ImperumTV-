@@ -38,7 +38,11 @@ struct RootView: View {
         case .multi:
             MultiView()
         case .epg:
+            EPGGridView()
+        case .epgList:
             EPGListView()
+        case .resume:
+            ResumeView()
         case .vod:
             MovieGridView()
         case .series:
@@ -89,6 +93,9 @@ struct HomeView: View {
                     }
 
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 60), spacing: 8)], spacing: 8) {
+                        if !store.resumeEntries.isEmpty {
+                            smallTile(.resume, "Weiter", "play.circle")
+                        }
                         smallTile(.favorites, "Favoriten", "star.fill")
                         smallTile(.multi, "Multi", "square.grid.2x2")
                         smallTile(.search, "Suche", "magnifyingglass")
@@ -96,12 +103,13 @@ struct HomeView: View {
                         smallTile(.settings, "Einstellungen", "gearshape.fill")
                         listsTile()
                     }
-
-                    expiryLabel
                 }
                 .frame(maxWidth: min(size.width - 40, 440))
 
                 Spacer(minLength: 16)
+
+                // „Läuft ab“ ganz unten am Bildschirmrand
+                expiryLabel
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
@@ -116,7 +124,7 @@ struct HomeView: View {
         let spacing: CGFloat = 18
         let smallHeight: CGFloat = 50
         // Kreise so groß wie möglich, aber alles muss ohne Scrollen passen
-        let byHeight = size.height - 34 - 14 - smallHeight - 10 - 20 - 20 - (store.isTrial ? 18 : 0)
+        let byHeight = size.height - 36 - 14 - smallHeight - 10 - 20 - 20 - (store.isTrial ? 18 : 0)
         let byWidth = (size.width * 0.86 - spacing * 3) / 4
         let diameter = max(80, min(byHeight, byWidth))
 
@@ -133,6 +141,9 @@ struct HomeView: View {
             }
 
             HStack(spacing: 8) {
+                if !store.resumeEntries.isEmpty {
+                    smallTile(.resume, "Weiter", "play.circle", height: smallHeight).frame(width: 78)
+                }
                 smallTile(.favorites, "Favoriten", "star.fill", height: smallHeight).frame(width: 78)
                 smallTile(.multi, "Multi", "square.grid.2x2", height: smallHeight).frame(width: 78)
                 smallTile(.search, "Suche", "magnifyingglass", height: smallHeight).frame(width: 78)
@@ -142,10 +153,11 @@ struct HomeView: View {
             }
             .padding(.top, 14)
 
-            expiryLabel
-                .padding(.top, 10)
-
             Spacer(minLength: 4)
+
+            // „Läuft ab“ ganz unten am Bildschirmrand
+            expiryLabel
+                .padding(.bottom, 2)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 6)
@@ -174,18 +186,14 @@ struct HomeView: View {
         }
     }
 
+    /// Freigestelltes Logo (ohne Hintergrund), schwebt über der Startseite
     private var title: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "crown.fill")
-                .foregroundStyle(Theme.gold)
-            Text("ImperumTV")
-                .font(.title2.weight(.bold))
-                .foregroundStyle(LinearGradient(
-                    colors: [Theme.goldLight, Theme.gold],
-                    startPoint: .top,
-                    endPoint: .bottom
-                ))
-        }
+        Image("Logo")
+            .resizable()
+            .scaledToFit()
+            .frame(height: 34)
+            .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
+            .accessibilityLabel("ImperumTV")
     }
 
     private var headerButtons: some View {
@@ -217,7 +225,7 @@ struct HomeView: View {
                     headerButtons
                 }
             }
-            .frame(height: 34)
+            .frame(height: 36)
         } else {
             HStack {
                 title

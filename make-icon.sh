@@ -14,3 +14,13 @@ cat > Assets.xcassets/AppIcon.appiconset/Contents.json <<'JSON'
   "info" : { "author" : "xcode", "version" : 1 }
 }
 JSON
+
+# Freigestelltes Logo für die Startseite (ohne Hintergrund)
+mkdir -p Assets.xcassets/Logo.imageset
+cp logo-frei.png Assets.xcassets/Logo.imageset/logo-frei.png
+cat > Assets.xcassets/Logo.imageset/Contents.json <<'JSON'
+{
+  "images" : [ { "filename" : "logo-frei.png", "idiom" : "universal" } ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}
+JSON
