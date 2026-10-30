@@ -232,7 +232,14 @@ struct LiveThreePaneView: View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack {
                 Color.black
-                if selected != nil {
+                if preview.isPiPActive {
+                    // Läuft schon im kleinen Fenster: hier nicht doppelt zeigen
+                    VStack(spacing: 6) {
+                        Image(systemName: "pip").font(.title)
+                        Text("Läuft im Bild-in-Bild").font(.caption)
+                    }
+                    .foregroundStyle(Theme.goldLight)
+                } else if selected != nil {
                     Group {
                         if preview.usesVLC {
                             VLCVideoView(player: preview.vlcPlayer)

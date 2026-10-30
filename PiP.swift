@@ -33,10 +33,22 @@ final class PiPCenter: ObservableObject {
         active = session
     }
 
-    /// Ein anderer Player wird geöffnet: laufendes kleines Fenster beenden
+    /// Ein Player wird groß geöffnet:
+    /// derselbe Player → kleines Fenster schließen, Bild läuft groß weiter;
+    /// ein anderer Player → kleines Fenster samt Wiedergabe beenden
     func willOpen(_ model: PlayerModel) {
-        guard let s = active, s.model !== model, !restoring else { return }
-        stopActive()
+        guard let s = active, !restoring else { return }
+        if s.model === model {
+            restoring = true                 // beim Ende von PiP nicht anhalten
+            model.stopPiPOnly()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                guard let self = self, self.restoring, self.restoreDone == nil else { return }
+                self.restoring = false
+                if self.active?.model === model { self.active = nil }
+            }
+        } else {
+            stopActive()
+        }
     }
 
     func stopActive() {

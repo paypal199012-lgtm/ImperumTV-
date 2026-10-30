@@ -536,6 +536,13 @@ final class PlayerModel: NSObject, ObservableObject {
         }
     }
 
+    /// Nur das kleine Fenster schließen, Wiedergabe läuft weiter
+    func stopPiPOnly() {
+        if let controller = pipController, controller.isPictureInPictureActive {
+            controller.stopPictureInPicture()
+        }
+    }
+
     func togglePiP() {
         guard let controller = pipController, !usesVLC else { return }
         if controller.isPictureInPictureActive {
