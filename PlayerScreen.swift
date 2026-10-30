@@ -31,9 +31,40 @@ final class PlayerModel: NSObject, ObservableObject {
     @Published var selectedSubtitle: String?
     /// Zählt hoch, wenn ein Film/eine Folge zu Ende ist
     @Published var endedCount = 0
-    /// Bildformat: fit = ganzes Bild, zoom = Bildschirm füllen, fill = strecken
-    @Published var aspect: String = UserDefaults.standard.string(forKey: "aspect") ?? "fit" {
-        didSet { UserDefaults.standard.set(aspect, forKey: "aspect") }
+    /// Bildformat: fit = ganzes Bild, zoom = Bildschirm füllen, fill = strecken,
+    /// "16:9", "4:3", "21:9" = Bild in genau diesem Seitenverhältnis
+    @Published var aspect: String = "fit"
+    static let aspectModes = ["fit", "zoom", "fill", "16:9", "4:3", "21:9"]
+
+    /// Für welchen Sender/Film/welche Serie das Bildformat gilt (z. B. "live:123")
+    var aspectKey: String? {
+        didSet {
+            guard aspectKey != oldValue else { return }
+            aspect = Self.savedAspects()[aspectKey ?? ""] ?? "fit"
+        }
+    }
+
+    /// Bildformat wählen und nur für den aktuellen Sender/Film/die Serie merken
+    func setAspect(_ mode: String) {
+        aspect = mode
+        guard let key = aspectKey else { return }
+        var all = Self.savedAspects()
+        all[key] = mode == "fit" ? nil : mode
+        UserDefaults.standard.set(all, forKey: "aspects")
+    }
+
+    private static func savedAspects() -> [String: String] {
+        (UserDefaults.standard.dictionary(forKey: "aspects") as? [String: String]) ?? [:]
+    }
+
+    /// Seitenverhältnis bei festen Formaten (16:9, 4:3, 21:9), sonst nil
+    var aspectRatio: CGFloat? {
+        switch aspect {
+        case "16:9": return 16.0 / 9.0
+        case "4:3": return 4.0 / 3.0
+        case "21:9": return 21.0 / 9.0
+        default: return nil
+        }
     }
     /// Bildgröße bei VLC (für das Bildformat)
     @Published var vlcVideoSize: CGSize = .zero
@@ -41,7 +72,7 @@ final class PlayerModel: NSObject, ObservableObject {
     var gravity: AVLayerVideoGravity {
         switch aspect {
         case "zoom": return .resizeAspectFill
-        case "fill": return .resize
+        case "fill", "16:9", "4:3", "21:9": return .resize
         default: return .resizeAspect
         }
     }
@@ -632,7 +663,8 @@ struct PlayerScreen: View {
     let resume: [ResumeInfo]?
     @State private var index: Int
     @State private var startAt: Double?
-    @State private var nowTitle: String?
+    /// Programm des Senders (jetzt und danach)
+    @State private var epg: [EPGEntry] = []
     @State private var controlsVisible = true
     @State private var hideTask: Task<Void, Never>?
     @State private var scrubValue: Double?
@@ -675,28 +707,44 @@ struct PlayerScreen: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            PlayerLayerView(player: model.player, gravity: model.gravity) { layer in
-                model.attach(layer: layer)
+            // Videobild: bei 16:9, 4:3 und 21:9 in einem Rahmen mit genau diesem Seitenverhältnis
+            GeometryReader { geo in
+                let box = videoBox(geo.size)
+                ZStack {
+                    PlayerLayerView(player: model.player, gravity: model.gravity) { layer in
+                        model.attach(layer: layer)
+                    }
+                    .frame(width: box.width, height: box.height)
+                    .opacity(model.usesVLC ? 0 : 1)
+
+                    if model.usesVLC {
+                        let scale = vlcScale(box)
+                        VLCVideoView(player: model.vlcPlayer)
+                            .frame(width: box.width, height: box.height)
+                            .scaleEffect(x: scale.width, y: scale.height)
+                            .frame(width: box.width, height: box.height)
+                            .clipped()
+                    }
+                }
+                .frame(width: geo.size.width, height: geo.size.height)
+                .clipped()
             }
             .ignoresSafeArea()
-            .opacity(model.usesVLC ? 0 : 1)
 
-            if model.usesVLC {
-                GeometryReader { geo in
-                    let scale = vlcScale(geo.size)
-                    VLCVideoView(player: model.vlcPlayer)
-                        .frame(width: geo.size.width, height: geo.size.height)
-                        .scaleEffect(x: scale.width, y: scale.height)
-                }
-                .clipped()
-                .ignoresSafeArea()
-            }
-
-            // Tippen aufs Bild blendet die Bedienelemente ein oder aus
+            // Tippen aufs Bild blendet die Bedienelemente ein oder aus;
+            // bei Live TV wechselt Wischen nach oben/unten den Sender
             Color.clear
                 .contentShape(Rectangle())
                 .ignoresSafeArea()
                 .onTapGesture { toggleControls() }
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 40).onEnded { value in
+                        guard isLive, channels.count > 1,
+                              abs(value.translation.height) > abs(value.translation.width) * 1.5,
+                              abs(value.translation.height) > 60 else { return }
+                        step(value.translation.height < 0 ? 1 : -1)
+                    }
+                )
 
             if model.isBuffering && model.errorMessage == nil {
                 ProgressView()
@@ -727,7 +775,7 @@ struct PlayerScreen: View {
         .overlay(alignment: .bottomTrailing) {
             episodeExtras
                 .padding(.trailing, 24)
-                .padding(.bottom, controlsVisible ? 120 : 28)
+                .padding(.bottom, controlsVisible ? 150 : 28)
                 .animation(.easeInOut(duration: 0.2), value: controlsVisible)
         }
         .overlay(alignment: .top) {
@@ -746,16 +794,16 @@ struct PlayerScreen: View {
             TrackSheet(model: model)
         }
         .confirmationDialog("Bildformat", isPresented: $showAspect, titleVisibility: .visible) {
-            ForEach(["fit", "zoom", "fill"], id: \.self) { mode in
+            ForEach(PlayerModel.aspectModes, id: \.self) { mode in
                 Button(model.aspect == mode ? Self.aspectName(mode) + " ✓" : Self.aspectName(mode)) {
-                    model.aspect = mode
-                    showHint("Bildformat: \(Self.aspectName(mode))")
+                    model.setAspect(mode)
+                    showHint("Bildformat \(aspectScope): \(Self.aspectName(mode))")
                     scheduleHide()
                 }
             }
             Button("Abbrechen", role: .cancel) { scheduleHide() }
         } message: {
-            Text("Gilt für alle Sender, Filme und Serien.")
+            Text("Gilt nur \(aspectScope). Andere bleiben unverändert.")
         }
         .confirmationDialog("Player wählen", isPresented: $showEngines, titleVisibility: .visible) {
             Button(model.usesVLC ? "iPhone-Player" : "iPhone-Player ✓") {
@@ -776,6 +824,7 @@ struct PlayerScreen: View {
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
         .onAppear {
+            model.aspectKey = aspectKey
             // Aus der Vorschau: das Bild wird nur größer, kein neues Laden
             if handedOff && model.playingURL == channel.url && model.errorMessage == nil {
                 scheduleHide()
@@ -787,6 +836,7 @@ struct PlayerScreen: View {
             scheduleHide()
         }
         .onChange(of: index) { _ in
+            model.aspectKey = aspectKey
             stopCountdown()
             let start = savedStart()
             model.play(channel.url, userAgent: store.userAgentValue, startAt: start)
@@ -799,6 +849,12 @@ struct PlayerScreen: View {
                 if countdown == nil { startCountdown() }
             } else if countdown != nil {
                 stopCountdown()
+            }
+        }
+        .onChange(of: model.errorMessage) { message in
+            // Wiedergabefehler an den Admin melden (Website → Fehlerberichte)
+            if let message = message {
+                CrashReport.player(name: channel.name, url: channel.url, message: message)
             }
         }
         .onChange(of: model.endedCount) { _ in
@@ -814,9 +870,9 @@ struct PlayerScreen: View {
             saveProgress()
         }
         .task(id: index) {
-            nowTitle = nil
+            epg = []
             if isLive && store.isXtream {
-                nowTitle = await store.shortEPG(streamId: channel.id).first?.title
+                epg = await store.shortEPG(streamId: channel.id)
             }
         }
         .onDisappear {
@@ -826,30 +882,29 @@ struct PlayerScreen: View {
             hintTask?.cancel()
             // Übergebener Player läuft in der kleinen Vorschau weiter
             if !handedOff { model.stop() }
+            model.aspectKey = nil          // Vorschau zeigt wieder das ganze Bild
         }
     }
 
-    // MARK: Bedienelemente
+    // MARK: Bedienelemente (Info-Banner wie auf dem Fernseher)
 
     private var controls: some View {
         ZStack {
-            // Abdunkelung oben und unten, damit Text lesbar bleibt
+            // Leichte Abdunkelung oben für den Zurück-Knopf
             VStack(spacing: 0) {
-                LinearGradient(colors: [.black.opacity(0.75), .clear], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 130)
+                LinearGradient(colors: [.black.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 110)
                 Spacer()
-                LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 150)
             }
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
-            VStack {
+            VStack(spacing: 0) {
                 topBar
                 Spacer()
-                centerButtons
+                if !isLive { centerButtons }
                 Spacer()
-                bottomBar
+                banner
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
@@ -865,55 +920,8 @@ struct PlayerScreen: View {
                     .frame(width: 44, height: 44)
                     .background(Circle().fill(Color.black.opacity(0.45)))
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(channel.name)
-                    .font(.headline)
-                    .lineLimit(1)
-                if let nowTitle = nowTitle {
-                    Text("Jetzt: \(nowTitle)")
-                        .font(.caption)
-                        .foregroundStyle(Theme.goldLight)
-                        .lineLimit(1)
-                } else if let info = currentInfo, info.kind == .episode {
-                    Text("\(info.seriesName ?? "") · Staffel \(info.season ?? 1) · Folge \(info.number ?? index + 1)")
-                        .font(.caption)
-                        .foregroundStyle(Theme.goldLight)
-                        .lineLimit(1)
-                }
-            }
+            .accessibilityLabel("Zurück")
             Spacer()
-            Button {
-                hideTask?.cancel()
-                showEngines = true
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                    Text(model.usesVLC ? "VLC" : "iPhone")
-                        .font(.caption.weight(.semibold))
-                }
-                .font(.subheadline)
-                .padding(.horizontal, 12)
-                .frame(height: 44)
-                .background(Capsule().fill(Color.black.opacity(0.45)))
-            }
-            Button {
-                hideTask?.cancel()
-                showAspect = true
-            } label: {
-                Image(systemName: "aspectratio")
-                    .font(.title3)
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(Color.black.opacity(0.45)))
-            }
-            Button {
-                hideTask?.cancel()
-                showTracks = true
-            } label: {
-                Image(systemName: "captions.bubble")
-                    .font(.title3)
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(Color.black.opacity(0.45)))
-            }
             if model.isPiPPossible {
                 Button {
                     model.togglePiP()
@@ -923,89 +931,198 @@ struct PlayerScreen: View {
                         .frame(width: 44, height: 44)
                         .background(Circle().fill(Color.black.opacity(0.45)))
                 }
-            }
-            Button {
-                store.toggleFavorite(channel)
-                scheduleHide()
-            } label: {
-                Image(systemName: store.isFavorite(channel) ? "star.fill" : "star")
-                    .font(.title3)
-                    .foregroundStyle(store.isFavorite(channel) ? Theme.gold : Color.white)
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(Color.black.opacity(0.45)))
+                .accessibilityLabel("Bild in Bild")
             }
         }
     }
 
+    /// Filme und Serien: Pause und 10 Sekunden springen in der Mitte (bei Live keine Pause)
     private var centerButtons: some View {
         HStack(spacing: 28) {
-            if channels.count > 1 {
-                roundButton("backward.end.fill", size: 50) { step(-1) }
-            }
-            if !isLive && model.duration > 0 {
+            if model.duration > 0 {
                 roundButton("gobackward.10", size: 50) { model.skip(-10) }
             }
             roundButton(model.isPlaying ? "pause.fill" : "play.fill", size: 70) {
                 model.togglePlay()
             }
-            if !isLive && model.duration > 0 {
+            if model.duration > 0 {
                 roundButton("goforward.10", size: 50) { model.skip(10) }
-            }
-            if channels.count > 1 {
-                roundButton("forward.end.fill", size: 50) { step(1) }
             }
         }
     }
 
-    @ViewBuilder
-    private var bottomBar: some View {
-        if isLive || model.duration <= 0 {
-            HStack {
-                if isLive {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color.red).frame(width: 8, height: 8)
-                        Text("LIVE").font(.caption.weight(.bold))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.black.opacity(0.5)))
-                }
-                Spacer()
-                if channels.count > 1 {
-                    Text("\(index + 1) / \(channels.count)")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.8))
-                }
-            }
-        } else {
-            VStack(spacing: 4) {
-                Slider(
-                    value: Binding(
-                        get: { scrubValue ?? model.currentTime },
-                        set: { scrubValue = $0 }
-                    ),
-                    in: 0...max(model.duration, 1),
-                    onEditingChanged: { editing in
-                        if editing {
-                            hideTask?.cancel()
-                        } else {
-                            if let value = scrubValue { model.seek(to: value) }
-                            scrubValue = nil
-                            scheduleHide()
-                        }
-                    }
-                )
-                .tint(Theme.gold)
+    /// Schmales Banner unten: Logo, Sendung jetzt/danach mit Fortschritt, runde Knöpfe
+    private var banner: some View {
+        HStack(alignment: .center, spacing: 14) {
+            bannerLogo
+            bannerInfo
+                .frame(maxWidth: .infinity, alignment: .leading)
+            bannerButtons
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color.black.opacity(0.82)))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.gold.opacity(0.5), lineWidth: 1))
+    }
 
-                HStack {
-                    Text(timeString(scrubValue ?? model.currentTime))
-                    Spacer()
-                    Text("-" + timeString(max(model.duration - (scrubValue ?? model.currentTime), 0)))
-                }
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.white.opacity(0.85))
+    private var bannerLogo: some View {
+        let url = isLive ? channel.logo : (currentInfo?.seriesCover ?? channel.logo)
+        return ZStack {
+            RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.08))
+            if let url = url {
+                PosterImage(url: url, maxPixel: 200, fit: isLive, icon: isLive ? "tv" : "film")
+                    .padding(isLive ? 4 : 0)
+            } else {
+                Text(isLive ? "\(index + 1)" : "▶")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(Theme.goldLight)
             }
         }
+        .frame(width: isLive ? 72 : 38, height: isLive ? 46 : 56)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    @ViewBuilder
+    private var bannerInfo: some View {
+        if isLive {
+            TimelineView(.periodic(from: .now, by: 20)) { context in
+                liveInfo(now: context.date)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(channel.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                if let info = currentInfo, info.kind == .episode {
+                    Text("\(info.seriesName ?? "") · Staffel \(info.season ?? 1) · Folge \(info.number ?? index + 1)")
+                        .font(.caption)
+                        .foregroundStyle(Theme.goldLight)
+                        .lineLimit(1)
+                }
+                if model.duration > 0 {
+                    Slider(
+                        value: Binding(
+                            get: { scrubValue ?? model.currentTime },
+                            set: { scrubValue = $0 }
+                        ),
+                        in: 0...max(model.duration, 1),
+                        onEditingChanged: { editing in
+                            if editing {
+                                hideTask?.cancel()
+                            } else {
+                                if let value = scrubValue { model.seek(to: value) }
+                                scrubValue = nil
+                                scheduleHide()
+                            }
+                        }
+                    )
+                    .tint(Theme.gold)
+                    HStack {
+                        Text(timeString(scrubValue ?? model.currentTime))
+                        Spacer()
+                        Text("-" + timeString(max(model.duration - (scrubValue ?? model.currentTime), 0)))
+                    }
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.75))
+                }
+            }
+        }
+    }
+
+    private func liveInfo(now: Date) -> some View {
+        let current = epg.first { ($0.start ?? .distantPast) <= now && ($0.end ?? .distantFuture) > now }
+        let next = epg.first { ($0.start ?? .distantPast) > now }
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 8) {
+                Text("LIVE")
+                    .font(.caption2.weight(.heavy))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.red))
+                Text("\(index + 1) · \(channel.name)")
+                    .font(.headline)
+                    .lineLimit(1)
+            }
+            if let cur = current {
+                Text("Jetzt: \(cur.title)" + timeRange(cur))
+                    .font(.caption)
+                    .foregroundStyle(Theme.goldLight)
+                    .lineLimit(1)
+                if let s = cur.start, let e = cur.end, e > s {
+                    ProgressView(value: min(max(now.timeIntervalSince(s) / e.timeIntervalSince(s), 0), 1))
+                        .tint(Theme.gold)
+                }
+            }
+            if let nxt = next {
+                Text("Danach: \(nxt.title)" + (nxt.start.map { "  ab " + clock($0) } ?? ""))
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.65))
+                    .lineLimit(1)
+            } else {
+                Text("Kanal \(index + 1) / \(channels.count)" + (channels.count > 1 ? "  ·  nach oben/unten wischen wechselt den Sender" : ""))
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.65))
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private var bannerButtons: some View {
+        HStack(spacing: 8) {
+            if isLive {
+                if channels.count > 1 {
+                    bannerButton("chevron.left", "Kanal zurück") { step(-1) }
+                    bannerButton("chevron.right", "Kanal vor") { step(1) }
+                }
+            } else if isEpisode && hasNext {
+                bannerButton("forward.end.fill", "Nächste Folge") { goNext() }
+            }
+            bannerButton("arrow.triangle.2.circlepath", "Player wechseln", keepOpen: true) { showEngines = true }
+            bannerButton("aspectratio", "Bildformat", keepOpen: true) { showAspect = true }
+            // Filme/Serien: immer; Live: nur wenn der Sender eine Auswahl hat
+            if !isLive || model.audioTracks.count > 1 {
+                bannerButton("speaker.wave.2", "Sprache", keepOpen: true) { showTracks = true }
+            }
+            if !isLive || model.subtitleTracks.count > 1 {
+                bannerButton("captions.bubble", "Untertitel", keepOpen: true) { showTracks = true }
+            }
+            if !isEpisode {
+                let fav = store.isFavorite(channel)
+                bannerButton(fav ? "star.fill" : "star", "Favorit", tint: fav ? Theme.gold : .white) {
+                    store.toggleFavorite(channel)
+                }
+            }
+        }
+    }
+
+    private func bannerButton(_ icon: String, _ label: String, tint: Color = .white, keepOpen: Bool = false,
+                              action: @escaping () -> Void) -> some View {
+        Button {
+            if keepOpen { hideTask?.cancel() }
+            action()
+            if !keepOpen { scheduleHide() }
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 42, height: 42)
+                .background(Circle().fill(Color.white.opacity(0.13)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    private static let clockFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
+    private func clock(_ date: Date) -> String { Self.clockFormatter.string(from: date) }
+
+    private func timeRange(_ entry: EPGEntry) -> String {
+        guard let s = entry.start, let e = entry.end else { return "" }
+        return "   \(clock(s)) – \(clock(e))"
     }
 
     private func roundButton(_ systemName: String, size: CGFloat, action: @escaping () -> Void) -> some View {
@@ -1156,9 +1273,33 @@ struct PlayerScreen: View {
     static func aspectName(_ mode: String) -> String {
         switch mode {
         case "zoom": return "Bildschirm füllen (Zoom)"
-        case "fill": return "Strecken"
+        case "fill": return "Vollbild (strecken)"
+        case "16:9": return "16:9"
+        case "4:3": return "4:3"
+        case "21:9": return "21:9 (Kino)"
         default: return "Original (ganzes Bild)"
         }
+    }
+
+    /// Wofür das Bildformat gilt
+    private var aspectScope: String {
+        isLive ? "für diesen Sender" : (isEpisode ? "für diese Serie" : "für diesen Film")
+    }
+
+    /// Schlüssel, unter dem das Bildformat gespeichert wird
+    private var aspectKey: String {
+        if isLive { return "live:\(channel.id)" }
+        if let info = currentInfo, info.kind == .episode, let sid = info.seriesId { return "series:\(sid)" }
+        return "movie:\(channel.id)"
+    }
+
+    /// Fläche fürs Videobild: ganzer Bildschirm oder ein Rahmen in 16:9, 4:3 bzw. 21:9
+    private func videoBox(_ view: CGSize) -> CGSize {
+        guard let r = model.aspectRatio, view.width > 0, view.height > 0 else { return view }
+        if view.width / view.height > r {
+            return CGSize(width: view.height * r, height: view.height)
+        }
+        return CGSize(width: view.width, height: view.width / r)
     }
 
     /// Bei VLC das Bild für „Zoom“ bzw. „Strecken“ vergrößern (VLC zeigt sonst immer das ganze Bild)
@@ -1171,7 +1312,7 @@ struct PlayerScreen: View {
         case "zoom":
             let s = max(view.width / fittedW, view.height / fittedH)
             return CGSize(width: s, height: s)
-        case "fill":
+        case "fill", "16:9", "4:3", "21:9":
             return CGSize(width: view.width / fittedW, height: view.height / fittedH)
         default:
             return CGSize(width: 1, height: 1)

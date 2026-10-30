@@ -70,6 +70,9 @@ private let posterColumns = [GridItem(.adaptive(minimum: 105), spacing: 12)]
 let resumeCategory = "▶ Weiter ansehen"
 /// Sonder-Kategorie mit den neuesten Titeln des Anbieters
 let newCategory = "Zuletzt hinzugefügt"
+/// Schlüssel für die Zahl bei „Alle“ und „Favoriten“ (kann mit keinem Kategorienamen kollidieren)
+let countAll = "\u{1}alle"
+let countFavorites = "\u{1}favoriten"
 
 
 // MARK: - Kategorien-Spalte (wie bei XCIPTV)
@@ -80,6 +83,8 @@ struct CategorySidebar: View {
     @Binding var favoritesOnly: Bool
     /// "movie" oder "series": für die Kindersicherung
     var kind: String? = nil
+    /// Anzahl je Kategorie (Schlüssel: Kategoriename, dazu countAll/countFavorites)
+    var counts: [String: Int] = [:]
     @ObservedObject private var parental = Parental.shared
     @State private var pinRequest: PinRequest?
 
@@ -92,17 +97,17 @@ struct CategorySidebar: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
 
-                row("Alle", icon: "square.grid.2x2", selected: group == nil && !favoritesOnly) {
+                row("Alle", icon: "square.grid.2x2", count: counts[countAll], selected: group == nil && !favoritesOnly) {
                     group = nil
                     favoritesOnly = false
                 }
-                row("Favoriten", icon: "star.fill", selected: favoritesOnly) {
+                row("Favoriten", icon: "star.fill", count: counts[countFavorites], selected: favoritesOnly) {
                     favoritesOnly = true
                     group = nil
                 }
                 ForEach(groups, id: \.self) { name in
                     let protected = kind.map { parental.isProtected($0, name) } ?? false
-                    row(name, icon: protected ? "lock.fill" : nil, selected: group == name && !favoritesOnly) {
+                    row(name, icon: protected ? "lock.fill" : nil, count: counts[name], selected: group == name && !favoritesOnly) {
                         if let k = kind, parental.isLocked(k, name) {
                             pinRequest = PinRequest(title: "PIN für „\(name)“") {
                                 group = name
@@ -122,7 +127,7 @@ struct CategorySidebar: View {
         }
     }
 
-    private func row(_ title: String, icon: String?, selected: Bool, action: @escaping () -> Void) -> some View {
+    private func row(_ title: String, icon: String?, count: Int? = nil, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 6) {
                 if let icon = icon {
@@ -132,6 +137,11 @@ struct CategorySidebar: View {
                     .font(.subheadline)
                     .lineLimit(1)
                 Spacer(minLength: 0)
+                if let count = count {
+                    Text(count.formatted())
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(selected ? Theme.goldLight : Color.white.opacity(0.5))
+                }
             }
             .foregroundStyle(selected ? Theme.goldLight : Color.white)
             .padding(.horizontal, 10)
@@ -185,7 +195,20 @@ struct MovieGridView: View {
     @State private var query = ""
     @State private var group: String?
     @State private var favoritesOnly = false
+    @State private var counts: [String: Int] = [:]
     @AppStorage("sort.movies") private var sortRaw = SortMode.standard.rawValue
+
+    /// Zahl der Filme je Kategorie (einmal berechnet, nicht bei jedem Tippen)
+    private func countGroups() {
+        let all = parental.visible("movie", store.movies)
+        var c = Dictionary(grouping: all.compactMap(\.group), by: { $0 }).mapValues(\.count)
+        c[countAll] = all.count
+        c[countFavorites] = all.filter { store.isFavorite($0) }.count
+        c[yearCategory] = all.filter { $0.year == currentYear }.count
+        c[newCategory] = min(150, all.count)
+        c[resumeCategory] = store.resumeEntries.filter { !$0.isEpisode && $0.pos >= 30 }.count
+        counts = c
+    }
 
     /// Aktuelles Jahr, z. B. 2026
     private var currentYear: Int { Calendar.current.component(.year, from: Date()) }
@@ -242,7 +265,7 @@ struct MovieGridView: View {
             } else {
                 GeometryReader { geo in
                     HStack(spacing: 0) {
-                        CategorySidebar(groups: groups, group: $group, favoritesOnly: $favoritesOnly, kind: "movie")
+                        CategorySidebar(groups: groups, group: $group, favoritesOnly: $favoritesOnly, kind: "movie", counts: counts)
                             .frame(width: geo.size.width * 0.24)
                         ColumnDivider()
                         grid
@@ -258,6 +281,9 @@ struct MovieGridView: View {
             ToolbarItem(placement: .navigationBarTrailing) { SortMenu(raw: $sortRaw) }
         }
         .task { await store.loadMoviesIfNeeded() }
+        .task(id: store.movies.count) { countGroups() }
+        .onAppear { countGroups() }
+        .onChange(of: favoritesOnly) { _ in countGroups() }
     }
 
     private var grid: some View {
@@ -455,7 +481,19 @@ struct SeriesGridView: View {
     @State private var query = ""
     @State private var group: String?
     @State private var favoritesOnly = false
+    @State private var counts: [String: Int] = [:]
     @AppStorage("sort.series") private var sortRaw = SortMode.standard.rawValue
+
+    /// Zahl der Serien je Kategorie (einmal berechnet, nicht bei jedem Tippen)
+    private func countGroups() {
+        let all = parental.visibleSeries(store.seriesList)
+        var c = Dictionary(grouping: all.compactMap(\.group), by: { $0 }).mapValues(\.count)
+        c[countAll] = all.count
+        c[countFavorites] = all.filter { store.isFavoriteSeries($0) }.count
+        c[newCategory] = min(150, all.count)
+        c[resumeCategory] = Set(store.resumeEntries.filter { $0.isEpisode }.compactMap { $0.seriesId }).count
+        counts = c
+    }
 
     private var groups: [String] {
         [resumeCategory, newCategory] + Array(Set(store.seriesList.compactMap(\.group))).sorted()
@@ -501,7 +539,7 @@ struct SeriesGridView: View {
             } else {
                 GeometryReader { geo in
                     HStack(spacing: 0) {
-                        CategorySidebar(groups: groups, group: $group, favoritesOnly: $favoritesOnly, kind: "series")
+                        CategorySidebar(groups: groups, group: $group, favoritesOnly: $favoritesOnly, kind: "series", counts: counts)
                             .frame(width: geo.size.width * 0.24)
                         ColumnDivider()
                         grid
@@ -517,6 +555,9 @@ struct SeriesGridView: View {
             ToolbarItem(placement: .navigationBarTrailing) { SortMenu(raw: $sortRaw) }
         }
         .task { await store.loadSeriesIfNeeded() }
+        .task(id: store.seriesList.count) { countGroups() }
+        .onAppear { countGroups() }
+        .onChange(of: favoritesOnly) { _ in countGroups() }
     }
 
     private var grid: some View {
