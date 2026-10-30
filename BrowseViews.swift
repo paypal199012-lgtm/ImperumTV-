@@ -760,7 +760,8 @@ struct SeriesDetailView: View {
                             LazyVStack(spacing: 8) {
                                 ForEach(current) { episode in
                                     EpisodeRow(episode: episode,
-                                               saved: store.resumeEntry(for: ResumeInfo.episode(episode, series: series))) { hasProgress in
+                                               saved: store.resumeEntry(for: ResumeInfo.episode(episode, series: series)),
+                                               seen: store.seenState(for: episode)) { hasProgress in
                                         if hasProgress {
                                             askEpisode = episode
                                         } else {
@@ -822,16 +823,26 @@ struct SeriesDetailView: View {
     }
 }
 
-/// Eine Folge in der Liste, mit Fortschritt beim Weiterschauen
+/// Eine Folge in der Liste: gesehen (Haken), angefangen (Balken) oder als Nächstes dran
 struct EpisodeRow: View {
     let episode: Episode
     let saved: ResumeEntry?
+    var seen: SeenState? = nil
     /// true = es gibt einen gespeicherten Stand
     let onTap: (Bool) -> Void
 
+    /// Angefangen laut „Weiter ansehen“
     private var part: Double? {
         guard let s = saved, !s.next, s.pos >= 30 else { return nil }
         return s.part
+    }
+
+    private var isDone: Bool { part == nil && (seen?.d ?? false) }
+    private var isNext: Bool { part == nil && !isDone && (saved?.next ?? false) }
+    /// Angefangen, aber nicht mehr in „Weiter ansehen“
+    private var seenPart: Double? {
+        guard part == nil, !isDone, !isNext, let s = seen, s.p >= 3 else { return nil }
+        return Double(s.p) / 100
     }
 
     var body: some View {
@@ -842,28 +853,55 @@ struct EpisodeRow: View {
                 HStack(spacing: 12) {
                     Text("\(episode.number)")
                         .font(.headline)
-                        .foregroundStyle(Theme.gold)
+                        .foregroundStyle(isDone ? Theme.gold.opacity(0.6) : Theme.gold)
                         .frame(width: 32)
                     Text(episode.title)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(isDone ? Color.white.opacity(0.55) : Color.white)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                     Spacer()
-                    if let saved = saved, part != nil {
+                    if isDone {
+                        Label("Gesehen", systemImage: "checkmark")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(Theme.goldLight)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(Theme.gold.opacity(0.22)))
+                    } else if isNext {
+                        Label("Als Nächstes", systemImage: "play.fill")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(Theme.gold))
+                    } else if let saved = saved, part != nil {
                         Text(saved.leftText)
                             .font(.caption2)
                             .foregroundStyle(Theme.gold)
+                    } else if seenPart != nil {
+                        Text("Angefangen")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.gold)
                     }
-                    Image(systemName: "play.circle.fill")
+                    Image(systemName: isDone ? "arrow.counterclockwise.circle.fill" : "play.circle.fill")
                         .font(.title2)
-                        .foregroundStyle(Theme.gold)
+                        .foregroundStyle(isDone ? Theme.gold.opacity(0.6) : Theme.gold)
                 }
-                if let part = part {
-                    ProgressStrip(part: part)
+                if let p = part ?? seenPart {
+                    ProgressStrip(part: p)
                 }
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12).fill(Theme.panel))
+            .overlay(alignment: .leading) {
+                if part != nil || seenPart != nil || isNext {
+                    Rectangle()
+                        .fill(isNext ? Theme.goldLight : Theme.gold)
+                        .frame(width: 4)
+                        .clipShape(RoundedRectangle(cornerRadius: 2))
+                        .padding(.vertical, 6)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

@@ -84,6 +84,14 @@ extension AppStore {
     func recordProgress(info: ResumeInfo, channel: Channel, next: (info: ResumeInfo, channel: Channel)?,
                         pos: Double, dur: Double, ended: Bool) {
         let done = ended || (dur > 60 && (pos >= dur * 0.95 || dur - pos < 60))
+        // Pro Folge merken: gesehen oder angefangen (für die Haken in der Folgenliste)
+        if info.kind == .episode {
+            if done {
+                SeenStore.mark(resumeAccount, info.itemId, part: 1, done: true)
+            } else if dur > 60 && pos >= 30 {
+                SeenStore.mark(resumeAccount, info.itemId, part: pos / dur, done: false)
+            }
+        }
         if done {
             if let n = next {
                 putResume(makeEntry(n.info, n.channel, pos: 0, dur: 0, next: true))
@@ -92,6 +100,58 @@ extension AppStore {
             }
         } else if dur > 60 && pos >= 30 {
             putResume(makeEntry(info, channel, pos: pos, dur: dur, next: false))
+        }
+    }
+
+    /// Gesehen/angefangen-Stand einer Folge
+    func seenState(for episode: Episode) -> SeenState? {
+        SeenStore.get(resumeAccount, episode.id)
+    }
+}
+
+// MARK: - Gesehene Folgen
+
+/// p = Prozent geschaut, d = bis zum Ende gesehen
+struct SeenState: Codable, Hashable {
+    var p: Int
+    var d: Bool
+    var at: Double
+}
+
+enum SeenStore {
+    private static let storageKey = "seenEpisodes"
+    private static let maxEntries = 4000
+    private static var cache: [String: SeenState]?
+
+    private static func all() -> [String: SeenState] {
+        if let c = cache { return c }
+        let data = UserDefaults.standard.data(forKey: storageKey)
+        let value = data.flatMap { try? JSONDecoder().decode([String: SeenState].self, from: $0) } ?? [:]
+        cache = value
+        return value
+    }
+
+    static func get(_ account: String, _ id: String) -> SeenState? {
+        all()[account + "|" + id]
+    }
+
+    static func mark(_ account: String, _ id: String, part: Double, done: Bool) {
+        var dict = all()
+        let key = account + "|" + id
+        let now = Date().timeIntervalSince1970
+        if var old = dict[key], old.d, !done {
+            old.at = now                      // einmal gesehen bleibt gesehen
+            dict[key] = old
+        } else {
+            dict[key] = SeenState(p: Int((min(max(part, 0), 1) * 100).rounded()), d: done, at: now)
+        }
+        if dict.count > maxEntries {
+            let oldest = dict.sorted { $0.value.at < $1.value.at }.prefix(dict.count - maxEntries)
+            for (k, _) in oldest { dict[k] = nil }
+        }
+        cache = dict
+        if let data = try? JSONEncoder().encode(dict) {
+            UserDefaults.standard.set(data, forKey: storageKey)
         }
     }
 }
