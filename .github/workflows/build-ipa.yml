@@ -1,5 +1,8 @@
 name: Build IPA
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   push:
@@ -36,3 +39,11 @@ jobs:
         with:
           name: IPTVPlayer-ipa
           path: IPTVPlayer.ipa
+      - name: Als Download veröffentlichen
+        run: cp IPTVPlayer.ipa ImperumTV.ipa
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-v2.0.${{ github.run_number }}
+          name: ImperumTV iPhone 2.0.${{ github.run_number }}
+          files: ImperumTV.ipa
+          make_latest: true
