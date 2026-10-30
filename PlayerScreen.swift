@@ -515,7 +515,14 @@ final class PlayerModel: NSObject, ObservableObject {
 
     /// Bild-in-Bild vorbereiten, sobald das Videobild existiert (nur iPhone-Player)
     func attach(layer: AVPlayerLayer) {
-        guard pipController == nil, AVPictureInPictureController.isPictureInPictureSupported() else { return }
+        guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
+        // Neuer großer Player (z. B. nach „Zurück zur App“): PiP auf dieses Bild umstellen
+        if let controller = pipController {
+            if controller.playerLayer !== layer {
+                controller.contentSource = AVPictureInPictureController.ContentSource(playerLayer: layer)
+            }
+            return
+        }
         guard let controller = AVPictureInPictureController(playerLayer: layer) else { return }
         // Startet automatisch, wenn man beim Schauen nach Hause wischt
         controller.canStartPictureInPictureAutomaticallyFromInline = true
@@ -609,14 +616,20 @@ extension PlayerModel: AVPictureInPictureControllerDelegate {
     }
 
     func pictureInPictureControllerDidStopPictureInPicture(_ controller: AVPictureInPictureController) {
-        DispatchQueue.main.async { self.isPiPActive = false }
+        DispatchQueue.main.async {
+            self.isPiPActive = false
+            PiPCenter.shared.ended(self)
+        }
     }
 
+    /// „Zurück zur App“ im kleinen Fenster: Player wieder groß öffnen
     func pictureInPictureController(
         _ controller: AVPictureInPictureController,
         restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void
     ) {
-        completionHandler(true)
+        DispatchQueue.main.async {
+            PiPCenter.shared.requestRestore(for: self, completion: completionHandler)
+        }
     }
 }
 
@@ -656,6 +669,8 @@ struct PlayerScreen: View {
     @StateObject private var model: PlayerModel
     /// Player kommt aus der Live-Vorschau: weiterlaufen lassen, nicht neu laden
     private let handedOff: Bool
+    /// Beim Schließen anhalten, obwohl der Player übergeben wurde (nach „Zurück zur App“ aus PiP)
+    private let stopOnClose: Bool
 
     let channels: [Channel]
     let isLive: Bool
@@ -686,9 +701,10 @@ struct PlayerScreen: View {
     private static let introSeconds: Double = 20
 
     init(channels: [Channel], startIndex: Int, isLive: Bool = false, resume: [ResumeInfo]? = nil, startAt: Double? = nil,
-         handoff: PlayerModel? = nil) {
+         handoff: PlayerModel? = nil, stopOnClose: Bool = false) {
         _model = StateObject(wrappedValue: handoff ?? PlayerModel())
         handedOff = handoff != nil
+        self.stopOnClose = stopOnClose
         self.channels = channels
         self.isLive = isLive
         self.resume = (resume?.count == channels.count) ? resume : nil
@@ -825,6 +841,8 @@ struct PlayerScreen: View {
         .persistentSystemOverlays(.hidden)
         .onAppear {
             model.aspectKey = aspectKey
+            PiPCenter.shared.willOpen(model)       // anderes kleines Fenster beenden
+            PiPCenter.shared.finishRestore()       // aus PiP zurückgeholt: kleines Fenster fliegt hinein
             // Aus der Vorschau: das Bild wird nur größer, kein neues Laden
             if handedOff && model.playingURL == channel.url && model.errorMessage == nil {
                 scheduleHide()
@@ -850,6 +868,13 @@ struct PlayerScreen: View {
             } else if countdown != nil {
                 stopCountdown()
             }
+        }
+        .onChange(of: model.isPiPActive) { active in
+            // Bild-in-Bild gestartet: großen Player schließen, kleines Fenster läuft weiter
+            guard active else { return }
+            saveProgress()
+            PiPCenter.shared.started(.init(model: model, channels: channels, index: index, isLive: isLive, resume: resume))
+            dismiss()
         }
         .onChange(of: model.errorMessage) { message in
             // Wiedergabefehler an den Admin melden (Website → Fehlerberichte)
@@ -881,7 +906,11 @@ struct PlayerScreen: View {
             hideTask?.cancel()
             hintTask?.cancel()
             // Übergebener Player läuft in der kleinen Vorschau weiter
-            if !handedOff { model.stop() }
+            if model.isPiPActive {
+                // Läuft im kleinen Fenster weiter
+            } else if !handedOff || stopOnClose {
+                model.stop()
+            }
             model.aspectKey = nil          // Vorschau zeigt wieder das ganze Bild
         }
     }

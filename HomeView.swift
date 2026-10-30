@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var store: AppStore
+    @ObservedObject private var pip = PiPCenter.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -34,6 +35,12 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: store.sync == nil)
+        // Aus Bild-in-Bild zurückgeholt: Player wieder groß
+        .fullScreenCover(item: $pip.restore) { session in
+            PlayerScreen(channels: session.channels, startIndex: session.index, isLive: session.isLive,
+                         resume: session.resume, handoff: session.model, stopOnClose: true)
+                .environmentObject(store)
+        }
         .tint(Theme.gold)
         .task { await store.startup() }
         .onChange(of: scenePhase) { phase in

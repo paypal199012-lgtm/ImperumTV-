@@ -68,7 +68,7 @@ struct LiveThreePaneView: View {
                 epg = await store.shortEPG(streamId: channel.id)
             }
         }
-        .onDisappear { if !handingOff { preview.stop() } }
+        .onDisappear { if !handingOff && !preview.isPiPActive { preview.stop() } }   // Bild-in-Bild läuft weiter
         .sheet(item: $pinRequest) { req in
             PinSheet(request: req)
         }
