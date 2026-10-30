@@ -96,9 +96,13 @@ struct VodStreamDTO: Decodable {
     let year: Int?
     /// Wann der Anbieter den Film hinzugefügt hat (Unix-Zeit)
     let added: Int
+    /// Bewertung 0–10 (0 = keine)
+    let rating: Double
 
     enum CodingKeys: String, CodingKey {
         case added
+        case rating
+        case rating5 = "rating_5based"
         case streamId = "stream_id"
         case name
         case icon = "stream_icon"
@@ -117,6 +121,7 @@ struct VodStreamDTO: Decodable {
         categoryId = c.optionalString(.categoryId)
         ext = c.optionalString(.ext) ?? "mp4"
         added = c.optionalString(.added).flatMap { Int($0) } ?? 0
+        rating = VodStreamDTO.parseRating(c.optionalString(.rating), c.optionalString(.rating5))
 
         // Jahr: erst aus den Feldern des Anbieters, sonst aus dem Namen, z. B. "Titel (2026)"
         let fromFields = [c.optionalString(.year), c.optionalString(.releaseDate), c.optionalString(.releaseDate2)]
@@ -124,6 +129,25 @@ struct VodStreamDTO: Decodable {
             .compactMap { VodStreamDTO.firstYear(in: $0) }
             .first
         year = fromFields ?? VodStreamDTO.yearFromName(name)
+    }
+
+    /// Bewertung als Zahl 0–10 (Anbieter liefern „7.5“, „75“ oder nur rating_5based)
+    static func parseRating(_ raw: String?, _ raw5: String?) -> Double {
+        var v = Double(raw?.replacingOccurrences(of: ",", with: ".") ?? "") ?? 0
+        if v > 10 && v <= 100 { v /= 10 }
+        if !(v > 0) || v > 10 { v = (Double(raw5?.replacingOccurrences(of: ",", with: ".") ?? "") ?? 0) * 2 }
+        if !(v > 0) || v > 10 { return 0 }
+        return (v * 10).rounded() / 10
+    }
+
+    /// YouTube-Kennung aus ID oder Link
+    static func trailerId(_ raw: String?) -> String? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else { return nil }
+        if let r = raw.range(of: "(v=|youtu\\.be/|embed/|shorts/)[A-Za-z0-9_-]{11}", options: .regularExpression) {
+            return String(raw[r].suffix(11))
+        }
+        if raw.range(of: "^[A-Za-z0-9_-]{11}$", options: .regularExpression) != nil { return raw }
+        return nil
     }
 
     /// Erste vierstellige Jahreszahl (1900–2099) in einem Text
@@ -150,6 +174,8 @@ struct SeriesDTO: Decodable {
     let cover: String?
     let categoryId: String?
     let added: Int
+    let rating: Double
+    let year: Int?
 
     enum CodingKeys: String, CodingKey {
         case seriesId = "series_id"
@@ -157,6 +183,11 @@ struct SeriesDTO: Decodable {
         case cover
         case categoryId = "category_id"
         case added = "last_modified"
+        case rating
+        case rating5 = "rating_5based"
+        case releaseDate
+        case releaseDate2 = "release_date"
+        case year
     }
 
     init(from decoder: Decoder) throws {
@@ -166,6 +197,12 @@ struct SeriesDTO: Decodable {
         cover = c.optionalString(.cover)
         categoryId = c.optionalString(.categoryId)
         added = c.optionalString(.added).flatMap { Int($0) } ?? 0
+        rating = VodStreamDTO.parseRating(c.optionalString(.rating), c.optionalString(.rating5))
+        let fromFields = [c.optionalString(.releaseDate), c.optionalString(.releaseDate2), c.optionalString(.year)]
+            .compactMap { $0 }
+            .compactMap { VodStreamDTO.firstYear(in: $0) }
+            .first
+        year = fromFields ?? VodStreamDTO.yearFromName(name)
     }
 }
 
@@ -320,6 +357,8 @@ struct XtreamAPI {
             info.year = String(date.prefix(4))
         }
         info.rating = text(["rating"])
+        info.score = VodStreamDTO.parseRating(info.rating, text(["rating_5based"]))
+        info.trailer = VodStreamDTO.trailerId(text(["youtube_trailer", "trailer", "youtube"]))
         info.duration = text(["duration"]).map(Self.formatDuration)
         info.cast = text(["cast", "actors"])
         info.director = text(["director"])

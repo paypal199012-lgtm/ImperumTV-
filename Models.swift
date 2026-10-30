@@ -10,6 +10,8 @@ struct Channel: Identifiable, Hashable, Codable {
     var year: Int? = nil
     /// Wann der Anbieter den Film hinzugefügt hat (für „Zuletzt hinzugefügt“)
     var added: Int? = nil
+    /// Bewertung 0–10 (nur Filme, falls bekannt)
+    var rating: Double? = nil
 
     /// Eindeutiger Schlüssel für Favoriten
     var key: String { url.absoluteString }
@@ -21,6 +23,8 @@ struct SeriesItem: Identifiable, Hashable {
     let cover: URL?
     let group: String?
     var added: Int = 0
+    var year: Int? = nil
+    var rating: Double = 0
 }
 
 struct Episode: Identifiable, Hashable {
@@ -73,6 +77,10 @@ struct MediaInfo {
     var director: String?
     var backdrop: URL?
     var cover: URL?
+    /// Bewertung als Zahl 0–10
+    var score: Double = 0
+    /// YouTube-Kennung des Trailers
+    var trailer: String?
 
     var metaLine: String {
         [year, duration, genre].compactMap { $0 }.joined(separator: " · ")

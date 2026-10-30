@@ -9,24 +9,15 @@ struct PosterCard: View {
     /// Fortschritt 0 … 1 (Weiterschauen)
     var progress: Double? = nil
     var subtitle: String? = nil
+    /// Bewertung 0–10, wird oben links gezeigt
+    var rating: Double? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Color.clear
                 .aspectRatio(2.0 / 3.0, contentMode: .fit)
                 .overlay {
-                    AsyncImage(url: image) { phase in
-                        if let img = phase.image {
-                            img.resizable().scaledToFill()
-                        } else {
-                            ZStack {
-                                Theme.panel
-                                Image(systemName: "film")
-                                    .font(.title)
-                                    .foregroundStyle(Theme.gold.opacity(0.7))
-                            }
-                        }
-                    }
+                    PosterImage(url: image)
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.gold.opacity(0.3)))
@@ -36,6 +27,11 @@ struct PosterCard: View {
                             .padding(.horizontal, 6)
                             .padding(.bottom, 6)
                             .shadow(color: .black.opacity(0.6), radius: 2)
+                    }
+                }
+                .overlay(alignment: .topLeading) {
+                    if let rating = rating, rating > 0 {
+                        RatingBadge(value: rating)
                     }
                 }
                 .overlay(alignment: .topTrailing) {
@@ -189,6 +185,7 @@ struct MovieGridView: View {
     @State private var query = ""
     @State private var group: String?
     @State private var favoritesOnly = false
+    @AppStorage("sort.movies") private var sortRaw = SortMode.standard.rawValue
 
     /// Aktuelles Jahr, z. B. 2026
     private var currentYear: Int { Calendar.current.component(.year, from: Date()) }
@@ -199,7 +196,15 @@ struct MovieGridView: View {
         [resumeCategory, newCategory, yearCategory] + Array(Set(store.movies.compactMap(\.group))).sorted()
     }
 
+    /// Gefiltert und sortiert (angefangene Filme bleiben in der Reihenfolge „zuletzt geschaut“)
     private var filtered: [Channel] {
+        let list = unsorted
+        if group == resumeCategory && !favoritesOnly { return list }
+        return Sorter.sort(list, SortMode(rawValue: sortRaw) ?? .standard,
+                           name: { $0.name }, added: { $0.added ?? 0 }, rating: { $0.rating ?? 0 }, year: { $0.year ?? 0 })
+    }
+
+    private var unsorted: [Channel] {
         if group == resumeCategory && !favoritesOnly {
             let byId = Dictionary(parental.visible("movie", store.movies).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             return store.resumeEntries.compactMap { e -> Channel? in
@@ -249,6 +254,9 @@ struct MovieGridView: View {
         .background(GoldBackground(dim: 0.78))
         .navigationTitle(group ?? (favoritesOnly ? "Favoriten" : "Filme"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) { SortMenu(raw: $sortRaw) }
+        }
         .task { await store.loadMoviesIfNeeded() }
     }
 
@@ -279,7 +287,8 @@ struct MovieGridView: View {
                     ForEach(list) { movie in
                         NavigationLink(value: movie) {
                             PosterCard(title: movie.name, image: movie.logo, isFavorite: store.isFavorite(movie),
-                                       progress: store.resumeEntry(movieId: movie.id).flatMap { $0.pos >= 30 ? $0.part : nil })
+                                       progress: store.resumeEntry(movieId: movie.id).flatMap { $0.pos >= 30 ? $0.part : nil },
+                                       rating: movie.rating)
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
@@ -328,8 +337,9 @@ struct MovieDetailView: View {
                                 .foregroundStyle(Theme.goldLight)
                         }
 
-                        if let rating = info?.rating {
-                            Label(rating, systemImage: "star.fill")
+                        let score = (info?.score ?? 0) > 0 ? (info?.score ?? 0) : (movie.rating ?? 0)
+                        if score > 0 {
+                            Label("\(ratingText(score)) / 10", systemImage: "star.fill")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Theme.gold)
                         }
@@ -373,6 +383,10 @@ struct MovieDetailView: View {
                         }
                         .buttonStyle(.plain)
                         .padding(.vertical, 4)
+
+                        if let trailer = info?.trailer {
+                            TrailerButton(id: trailer)
+                        }
 
                         if loading {
                             ProgressView().tint(.white)
@@ -441,12 +455,21 @@ struct SeriesGridView: View {
     @State private var query = ""
     @State private var group: String?
     @State private var favoritesOnly = false
+    @AppStorage("sort.series") private var sortRaw = SortMode.standard.rawValue
 
     private var groups: [String] {
         [resumeCategory, newCategory] + Array(Set(store.seriesList.compactMap(\.group))).sorted()
     }
 
+    /// Gefiltert und sortiert (angefangene Serien bleiben in der Reihenfolge „zuletzt geschaut“)
     private var filtered: [SeriesItem] {
+        let list = unsorted
+        if group == resumeCategory && !favoritesOnly { return list }
+        return Sorter.sort(list, SortMode(rawValue: sortRaw) ?? .standard,
+                           name: { $0.name }, added: { $0.added }, rating: { $0.rating }, year: { $0.year ?? 0 })
+    }
+
+    private var unsorted: [SeriesItem] {
         if group == resumeCategory && !favoritesOnly {
             let byId = Dictionary(parental.visibleSeries(store.seriesList).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             return store.resumeEntries.compactMap { e -> SeriesItem? in
@@ -490,6 +513,9 @@ struct SeriesGridView: View {
         .background(GoldBackground(dim: 0.78))
         .navigationTitle(group ?? (favoritesOnly ? "Favoriten" : "Serien"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) { SortMenu(raw: $sortRaw) }
+        }
         .task { await store.loadSeriesIfNeeded() }
     }
 
@@ -520,7 +546,8 @@ struct SeriesGridView: View {
                             let saved = store.resumeEntry(seriesId: show.id)
                             PosterCard(title: show.name, image: show.cover, isFavorite: store.isFavoriteSeries(show),
                                        progress: saved.flatMap { $0.next ? nil : $0.part },
-                                       subtitle: saved.map { "S\($0.season ?? 1) F\($0.number ?? 0) · \($0.leftText)" })
+                                       subtitle: saved.map { "S\($0.season ?? 1) F\($0.number ?? 0) · \($0.leftText)" },
+                                       rating: show.rating)
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
@@ -592,8 +619,9 @@ struct SeriesDetailView: View {
                                     .font(.caption)
                                     .foregroundStyle(Theme.goldLight)
                             }
-                            if let rating = info?.rating {
-                                Label(rating, systemImage: "star.fill")
+                            let score = (info?.score ?? 0) > 0 ? (info?.score ?? 0) : series.rating
+                            if score > 0 {
+                                Label("\(ratingText(score)) / 10", systemImage: "star.fill")
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(Theme.gold)
                             }
@@ -609,6 +637,9 @@ struct SeriesDetailView: View {
                                     .background(Capsule().fill(Color.white.opacity(0.12)))
                             }
                             .buttonStyle(.plain)
+                            if let trailer = info?.trailer {
+                                TrailerButton(id: trailer, compact: true)
+                            }
                             if let last = store.resumeEntry(seriesId: series.id),
                                let ep = episodes.first(where: { $0.id == last.itemId }) {
                                 Button {

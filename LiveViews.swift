@@ -24,6 +24,10 @@ struct LiveThreePaneView: View {
     @State private var selected: Channel?
     @State private var request: PlayRequest?
     @State private var epg: [EPGEntry] = []
+    /// Vollbild offen: Vorschau nicht anhalten
+    @State private var handingOff = false
+    /// Neu zeichnen nach dem Vollbild (VLC braucht seine Fläche zurück)
+    @State private var surface = 0
 
     private var groups: [String] {
         Array(Set(store.channels.compactMap(\.group))).sorted()
@@ -64,12 +68,12 @@ struct LiveThreePaneView: View {
                 epg = await store.shortEPG(streamId: channel.id)
             }
         }
-        .onDisappear { preview.stop() }
+        .onDisappear { if !handingOff { preview.stop() } }
         .sheet(item: $pinRequest) { req in
             PinSheet(request: req)
         }
         .fullScreenCover(item: $request, onDismiss: resumePreview) { req in
-            PlayerScreen(channels: req.channels, startIndex: req.index, isLive: true)
+            PlayerScreen(channels: req.channels, startIndex: req.index, isLive: true, handoff: preview)
                 .environmentObject(store)
         }
     }
@@ -229,11 +233,14 @@ struct LiveThreePaneView: View {
             ZStack {
                 Color.black
                 if selected != nil {
-                    if preview.usesVLC {
-                        VLCVideoView(player: preview.vlcPlayer)
-                    } else {
-                        PlayerLayerView(player: preview.player)
+                    Group {
+                        if preview.usesVLC {
+                            VLCVideoView(player: preview.vlcPlayer)
+                        } else {
+                            PlayerLayerView(player: preview.player)
+                        }
                     }
+                    .id(surface)
                     if preview.isBuffering && preview.errorMessage == nil {
                         ProgressView().tint(.white)
                     }
@@ -325,14 +332,24 @@ struct LiveThreePaneView: View {
         }
     }
 
-    /// Vorschau anhalten, damit nicht zwei Verbindungen gleichzeitig laufen
+    /// Vollbild übernimmt den laufenden Player – nur das Bild wird größer
     private func openFullscreen(list: [Channel], index: Int) {
-        preview.stop()
+        handingOff = true
+        if index < list.count, list[index].id != selected?.id {
+            selected = list[index]
+        }
         request = PlayRequest(channels: list, index: index, isLive: true)
     }
 
     private func resumePreview() {
-        if let channel = selected {
+        handingOff = false
+        surface += 1
+        // Im Vollbild umgeschaltet? Dann diesen Sender in der Vorschau markieren
+        if let url = preview.playingURL {
+            if let channel = store.channels.first(where: { $0.url == url }), channel.id != selected?.id {
+                selected = channel
+            }
+        } else if let channel = selected {
             preview.play(channel.url, userAgent: store.userAgentValue)
         }
     }

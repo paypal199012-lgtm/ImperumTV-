@@ -5,7 +5,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        Group {
+        ZStack {
             if !store.isLicenseActive {
                 LockView()
             } else if !store.started && store.channels.isEmpty {
@@ -27,6 +27,13 @@ struct RootView: View {
                 }
             }
         }
+        .overlay {
+            if let info = store.sync {
+                SyncView(info: info)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: store.sync == nil)
         .tint(Theme.gold)
         .task { await store.startup() }
         .onChange(of: scenePhase) { phase in
@@ -76,6 +83,26 @@ struct HomeView: View {
         }
         .background(GoldBackground())
         .toolbar(.hidden, for: .navigationBar)
+        .overlay(alignment: .top) {
+            if let note = store.refreshNote {
+                Text(note)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.goldLight)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .background(Capsule().fill(Color.black.opacity(0.8)))
+                    .overlay(Capsule().stroke(Theme.gold.opacity(0.5)))
+                    .padding(.top, 10)
+                    .padding(.horizontal, 20)
+                    .transition(.opacity)
+                    .task(id: note) {
+                        try? await Task.sleep(nanoseconds: 5_000_000_000)
+                        if store.refreshNote == note { store.refreshNote = nil }
+                    }
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: store.refreshNote)
     }
 
     // MARK: Hochformat
@@ -205,7 +232,7 @@ struct HomeView: View {
             Button {
                 Task { await store.refresh() }
             } label: {
-                if store.isLoading {
+                if store.isLoading || store.moviesLoading || store.seriesLoading {
                     ProgressView()
                         .frame(width: 34, height: 34)
                 } else {

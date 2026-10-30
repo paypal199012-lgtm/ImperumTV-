@@ -69,6 +69,8 @@ final class PlayerModel: NSObject, ObservableObject {
     private var timeObserver: Any?
     private var vlcTimer: Timer?
     private var currentURL: URL?
+    /// Was gerade läuft (für die Übergabe Vorschau → Vollbild)
+    var playingURL: URL? { currentURL }
     private var currentUserAgent = "IPTVPlayer/3.0"
     private var pipController: AVPictureInPictureController?
     private var pipPossibleObserver: NSKeyValueObservation?
@@ -545,6 +547,7 @@ final class PlayerModel: NSObject, ObservableObject {
     }
 
     func stop() {
+        currentURL = nil
         pipController?.stopPictureInPicture()
         player.pause()
         player.replaceCurrentItem(with: nil)
@@ -619,7 +622,9 @@ struct PlayerScreen: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
-    @StateObject private var model = PlayerModel()
+    @StateObject private var model: PlayerModel
+    /// Player kommt aus der Live-Vorschau: weiterlaufen lassen, nicht neu laden
+    private let handedOff: Bool
 
     let channels: [Channel]
     let isLive: Bool
@@ -637,8 +642,21 @@ struct PlayerScreen: View {
     @State private var lastSave = Date.distantPast
     @State private var hint: String?
     @State private var hintTask: Task<Void, Never>?
+    // Serien: „Intro überspringen“ und Countdown zur nächsten Folge
+    @AppStorage("autoNext") private var autoNext = true
+    @AppStorage("introBtn") private var introBtn = true
+    @State private var introDoneIndex: Int?
+    @State private var nextCancelledIndex: Int?
+    @State private var countdown: Int?
+    @State private var countdownTask: Task<Void, Never>?
 
-    init(channels: [Channel], startIndex: Int, isLive: Bool = false, resume: [ResumeInfo]? = nil, startAt: Double? = nil) {
+    /// Sekunden, die „Intro überspringen“ weiterspringt
+    private static let introSeconds: Double = 20
+
+    init(channels: [Channel], startIndex: Int, isLive: Bool = false, resume: [ResumeInfo]? = nil, startAt: Double? = nil,
+         handoff: PlayerModel? = nil) {
+        _model = StateObject(wrappedValue: handoff ?? PlayerModel())
+        handedOff = handoff != nil
         self.channels = channels
         self.isLive = isLive
         self.resume = (resume?.count == channels.count) ? resume : nil
@@ -706,6 +724,12 @@ struct PlayerScreen: View {
                 .padding(24)
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            episodeExtras
+                .padding(.trailing, 24)
+                .padding(.bottom, controlsVisible ? 120 : 28)
+                .animation(.easeInOut(duration: 0.2), value: controlsVisible)
+        }
         .overlay(alignment: .top) {
             if let hint = hint {
                 Text(hint)
@@ -752,27 +776,38 @@ struct PlayerScreen: View {
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
         .onAppear {
+            // Aus der Vorschau: das Bild wird nur größer, kein neues Laden
+            if handedOff && model.playingURL == channel.url && model.errorMessage == nil {
+                scheduleHide()
+                return
+            }
             let start = firstStart()
             model.play(channel.url, userAgent: store.userAgentValue, startAt: start)
             if start > 5 { showHint("Weiter ab \(timeText(start))") }
             scheduleHide()
         }
         .onChange(of: index) { _ in
+            stopCountdown()
             let start = savedStart()
             model.play(channel.url, userAgent: store.userAgentValue, startAt: start)
             if start > 5 { showHint("Weiter ab \(timeText(start))") }
             showControls()
         }
-        .onReceive(model.$currentTime) { _ in
+        .onReceive(model.$currentTime) { t in
             if Date().timeIntervalSince(lastSave) > 10 { saveProgress() }
+            if nextDue(at: t) {
+                if countdown == nil { startCountdown() }
+            } else if countdown != nil {
+                stopCountdown()
+            }
         }
         .onChange(of: model.endedCount) { _ in
-            saveProgress(ended: true)
-            if currentInfo?.kind == .episode && index < channels.count - 1 {
-                showHint("Nächste Folge: \(channels[index + 1].name)")
-                index += 1
-            } else if !isLive && currentInfo != nil {
-                dismiss()
+            stopCountdown()
+            if isEpisode && hasNext && autoNext && nextCancelledIndex != index {
+                goNext()
+            } else {
+                saveProgress(ended: true)
+                if !isLive && currentInfo != nil { dismiss() }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
@@ -786,9 +821,11 @@ struct PlayerScreen: View {
         }
         .onDisappear {
             saveProgress()
+            countdownTask?.cancel()
             hideTask?.cancel()
             hintTask?.cancel()
-            model.stop()
+            // Übergebener Player läuft in der kleinen Vorschau weiter
+            if !handedOff { model.stop() }
         }
     }
 
@@ -981,6 +1018,132 @@ struct PlayerScreen: View {
                 .frame(width: size, height: size)
                 .background(Circle().fill(Color.black.opacity(0.45)))
         }
+    }
+
+    // MARK: Serien: Intro überspringen / nächste Folge
+
+    private var isEpisode: Bool { currentInfo?.kind == .episode }
+    private var hasNext: Bool { index < channels.count - 1 }
+
+    private var showIntroButton: Bool {
+        guard isEpisode, introBtn, introDoneIndex != index, countdown == nil, !model.isSeekPending else { return false }
+        let t = model.currentTime
+        return t >= 2 && t < 10          // nur 8 Sekunden lang
+    }
+
+    private func nextDue(at t: Double) -> Bool {
+        guard isEpisode, hasNext, autoNext, nextCancelledIndex != index, !model.isSeekPending else { return false }
+        let d = model.duration
+        return d > 300 && d - t <= 30 && d - t > 1
+    }
+
+    @ViewBuilder
+    private var episodeExtras: some View {
+        if let c = countdown, hasNext {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Nächste Folge in \(c) s")
+                    .font(.headline)
+                    .foregroundStyle(Theme.goldLight)
+                Text(nextTitle)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(1)
+                ProgressView(value: Double(10 - c), total: 10)
+                    .tint(Theme.gold)
+                HStack(spacing: 10) {
+                    Button {
+                        cancelNext()
+                    } label: {
+                        Text("Abbrechen")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(Color.white.opacity(0.15)))
+                    }
+                    Button {
+                        goNext()
+                    } label: {
+                        Label("Jetzt ansehen", systemImage: "play.fill")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(Theme.gold))
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(14)
+            .frame(width: 290, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.82)))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.gold.opacity(0.6)))
+        } else if showIntroButton {
+            Button {
+                skipIntro()
+            } label: {
+                Label("Intro überspringen", systemImage: "forward.end.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
+                    .background(Capsule().fill(Theme.gold))
+                    .shadow(color: .black.opacity(0.5), radius: 6)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var nextTitle: String {
+        guard hasNext else { return "" }
+        let name = channels[index + 1].name
+        if let list = resume, index + 1 < list.count, let s = list[index + 1].season, let n = list[index + 1].number {
+            return "S\(s) F\(n) · \(name)"
+        }
+        return name
+    }
+
+    private func startCountdown() {
+        countdown = 10
+        countdownTask?.cancel()
+        countdownTask = Task { @MainActor in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard !Task.isCancelled, let c = countdown else { return }
+                if !model.isPlaying { continue }          // Pause hält den Countdown an
+                if c <= 1 {
+                    goNext()
+                    return
+                }
+                countdown = c - 1
+            }
+        }
+    }
+
+    private func stopCountdown() {
+        countdownTask?.cancel()
+        countdownTask = nil
+        countdown = nil
+    }
+
+    private func goNext() {
+        guard hasNext else { return }
+        stopCountdown()
+        saveProgress(ended: true)
+        showHint("Nächste Folge: \(nextTitle)")
+        index += 1
+    }
+
+    private func cancelNext() {
+        nextCancelledIndex = index
+        stopCountdown()
+        showHint("Automatische Wiedergabe abgebrochen")
+    }
+
+    private func skipIntro() {
+        introDoneIndex = index
+        model.skip(Self.introSeconds)
+        showHint("Intro übersprungen (+\(Int(Self.introSeconds)) s)")
     }
 
     // MARK: Logik

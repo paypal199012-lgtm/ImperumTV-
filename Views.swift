@@ -49,15 +49,8 @@ struct ChannelLogo: View {
     var size: CGFloat = 52
 
     var body: some View {
-        AsyncImage(url: url) { phase in
-            if let image = phase.image {
-                image.resizable().scaledToFit().padding(4)
-            } else {
-                Image(systemName: "play.tv")
-                    .font(.title3)
-                    .foregroundStyle(Theme.gold.opacity(0.8))
-            }
-        }
+        PosterImage(url: url, maxPixel: 160, fit: true, icon: "play.tv")
+            .padding(4)
         .frame(width: size, height: size)
         .background(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.4)))
     }
@@ -408,6 +401,8 @@ struct SettingsView: View {
     @State private var showParental = false
     @AppStorage("liveWithVLC") private var liveWithVLC = false
     @AppStorage("vodWithVLC") private var vodWithVLC = false
+    @AppStorage("autoNext") private var autoNext = true
+    @AppStorage("introBtn") private var introBtn = true
 
     var body: some View {
         Form {
@@ -435,6 +430,17 @@ struct SettingsView: View {
                 Text("Wiedergabe")
             } footer: {
                 Text("Einschalten, wenn Sender beim Start oft hängen bleiben oder ein Standbild zeigen. Mit VLC gibt es kein Bild-in-Bild. Im Player kannst du jederzeit oben mit dem Pfeil-Knopf zwischen iPhone-Player und VLC wechseln.")
+            }
+
+            Section {
+                Toggle("Nächste Folge automatisch", isOn: $autoNext)
+                    .tint(Theme.gold)
+                Toggle("Knopf „Intro überspringen“", isOn: $introBtn)
+                    .tint(Theme.gold)
+            } header: {
+                Text("Serien")
+            } footer: {
+                Text("Kurz vor Ende einer Folge zählt die App 10 Sekunden herunter und startet dann die nächste. „Intro überspringen“ erscheint 8 Sekunden lang am Anfang jeder Folge und springt 20 Sekunden weiter.")
             }
 
             Section {

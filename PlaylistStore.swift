@@ -21,6 +21,8 @@ final class AppStore: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published private(set) var sectionError: String?
     @Published private(set) var infoMessage: String?
+    /// Ergebnis des letzten Aktualisierens, z. B. „1.203 Sender · 8.040 Filme (neu: +40 Filme)“
+    @Published var refreshNote: String?
     @Published private(set) var expiry: Date?
     @Published private(set) var kind = ""
     @Published var showSetup = false
@@ -102,11 +104,11 @@ final class AppStore: ObservableObject {
         )
     }
 
-    static func nameMap(_ categories: [CategoryDTO]) -> [String: String] {
+    nonisolated static func nameMap(_ categories: [CategoryDTO]) -> [String: String] {
         Dictionary(categories.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
     }
 
-    static func url(_ s: String?) -> URL? {
+    nonisolated static func url(_ s: String?) -> URL? {
         guard let s = s, !s.isEmpty else { return nil }
         return URL(string: s)
     }
@@ -178,7 +180,7 @@ final class AppStore: ObservableObject {
         username = account.username
         password = account.password
         connectingId = playlist.id
-        await login()
+        await syncAll(title: playlist.name)
         connectingId = nil
         if errorMessage == nil {
             playlistId = playlist.id
@@ -198,10 +200,9 @@ final class AppStore: ObservableObject {
         let online = await loadRemote()
         if online && isLicenseActive {
             let lists = remoteLists ?? []
-            if let id = playlistId, let playlist = lists.first(where: { $0.id == id }), let account = playlist.account {
-                if channels.isEmpty || account != storedAccount || !isXtream {
-                    await connect(playlist)
-                }
+            if let id = playlistId, let playlist = lists.first(where: { $0.id == id }), playlist.account != nil {
+                // Bei jedem Start Sender, Filme und Serien frisch laden
+                await connect(playlist)
             } else if playlistId != nil && !lists.isEmpty {
                 errorMessage = "Die zuletzt genutzte Wiedergabeliste gibt es nicht mehr. Bitte wähle eine aus."
                 showSetup = true
@@ -263,7 +264,8 @@ final class AppStore: ObservableObject {
     // MARK: - Anmeldung und Live-TV
 
     /// Anmeldung per Xtream-Zugangsdaten (oder kompletter Anbieter-Link)
-    func login() async {
+    /// preload: Filme und Serien danach gleich im Hintergrund mitladen (beim Start)
+    func login(preload: Bool = true) async {
         let account: Account
         if let parsed = Account.parse(link: serverInput) {
             account = parsed
@@ -298,16 +300,19 @@ final class AppStore: ObservableObject {
             let names = Self.nameMap(try await api.categories("get_live_categories"))
             let streams = try await api.liveStreams()
 
-            let list = streams.compactMap { s -> Channel? in
-                guard let url = api.streamURL(id: s.streamId) else { return nil }
-                return Channel(
-                    id: s.streamId,
-                    name: s.name.isEmpty ? "Sender \(s.streamId)" : s.name,
-                    url: url,
-                    logo: Self.url(s.icon),
-                    group: s.categoryId.flatMap { names[$0] }
-                )
-            }
+            // Umrechnen im Hintergrund, damit die Oberfläche nicht hakt
+            let list: [Channel] = await Task.detached(priority: .userInitiated) {
+                streams.compactMap { s -> Channel? in
+                    guard let url = api.streamURL(id: s.streamId) else { return nil }
+                    return Channel(
+                        id: s.streamId,
+                        name: s.name.isEmpty ? "Sender \(s.streamId)" : s.name,
+                        url: url,
+                        logo: AppStore.url(s.icon),
+                        group: s.categoryId.flatMap { names[$0] }
+                    )
+                }
+            }.value
 
             if list.isEmpty {
                 errorMessage = "Anmeldung klappt, aber der Server liefert keine Live-Sender."
@@ -328,6 +333,13 @@ final class AppStore: ObservableObject {
             seriesList = []
             epgCache = [:]
             apply(list)
+            if preload {
+                // Startseite ist sofort bedienbar, Filme und Serien kommen im Hintergrund dazu
+                Task { [weak self] in
+                    await self?.loadMoviesIfNeeded()
+                    await self?.loadSeriesIfNeeded()
+                }
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -399,7 +411,95 @@ final class AppStore: ObservableObject {
         if kind == "m3u", let link = defaults.string(forKey: "m3uLink") {
             await loadM3U(link: link)
         } else if isXtream {
-            await login()
+            // Gleicher Bildschirm wie beim Start: Sender, Filme und Serien
+            let name = (remoteLists ?? []).first(where: { $0.id == playlistId })?.name ?? "Aktualisieren"
+            await syncAll(title: name)
+        }
+    }
+
+    // MARK: - Abgleich beim Start und beim Aktualisieren
+
+    /// Fortschritt für den Startbildschirm (nil = nicht sichtbar)
+    @Published private(set) var sync: SyncInfo?
+    private var syncToken = UUID()
+
+    /// Anzahl je Konto merken, um „+X neu“ zu zeigen
+    private var countsKey: String { "counts.\(serverInput)|\(username)" }
+
+    private func updateSync(_ token: UUID, _ change: (inout SyncInfo) -> Void) {
+        guard token == syncToken, var info = sync else { return }
+        change(&info)
+        sync = info
+    }
+
+    /// Startbildschirm ausblenden, Laden läuft im Hintergrund weiter
+    func skipSync() {
+        syncToken = UUID()
+        sync = nil
+    }
+
+    private nonisolated static func fresh(_ count: Int, _ before: Int?) -> Int {
+        guard let before = before, before > 0 else { return 0 }
+        return max(0, count - before)
+    }
+
+    /// Sender, Filme und Serien gemeinsam laden – Filme und Serien gleichzeitig
+    func syncAll(title: String) async {
+        let token = UUID()
+        syncToken = token
+        var info = SyncInfo(title: title)
+        info.live.phase = .loading
+        sync = info
+
+        await login(preload: false)
+        guard errorMessage == nil, !channels.isEmpty else {
+            let text = errorMessage ?? "Keine Sender gefunden."
+            updateSync(token) {
+                $0.live.phase = .failed
+                $0.message = text
+                $0.finished = true
+            }
+            return
+        }
+
+        let key = countsKey
+        let stored = defaults.dictionary(forKey: key) as? [String: Int] ?? [:]
+        let liveCount = channels.count
+        updateSync(token) {
+            $0.live = SyncItem(phase: .done, count: liveCount, fresh: Self.fresh(liveCount, stored["c"]))
+            $0.movies.phase = .loading
+            $0.series.phase = .loading
+        }
+
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await self.syncMovies(token, before: stored["m"]) }
+            group.addTask { await self.syncSeries(token, before: stored["s"]) }
+        }
+
+        defaults.set(["c": channels.count, "m": movies.count, "s": seriesList.count], forKey: key)
+        updateSync(token) { $0.finished = true }
+
+        // Kurz „Alles aktuell“ zeigen, dann ausblenden
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_400_000_000)
+            guard let self = self, token == self.syncToken else { return }
+            self.sync = nil
+        }
+    }
+
+    private func syncMovies(_ token: UUID, before: Int?) async {
+        await loadMoviesIfNeeded(force: true)
+        let count = movies.count
+        updateSync(token) {
+            $0.movies = SyncItem(phase: count > 0 ? .done : .failed, count: count, fresh: Self.fresh(count, before))
+        }
+    }
+
+    private func syncSeries(_ token: UUID, before: Int?) async {
+        await loadSeriesIfNeeded(force: true)
+        let count = seriesList.count
+        updateSync(token) {
+            $0.series = SyncItem(phase: count > 0 ? .done : .failed, count: count, fresh: Self.fresh(count, before))
         }
     }
 
@@ -432,18 +532,21 @@ final class AppStore: ObservableObject {
         do {
             let names = Self.nameMap(try await api.categories("get_vod_categories"))
             let streams = try await api.vodStreams()
-            movies = streams.compactMap { s -> Channel? in
-                guard let url = api.movieURL(id: s.streamId, ext: s.ext) else { return nil }
-                return Channel(
-                    id: s.streamId,
-                    name: s.name.isEmpty ? "Film \(s.streamId)" : s.name,
-                    url: url,
-                    logo: Self.url(s.icon),
-                    group: s.categoryId.flatMap { names[$0] },
-                    year: s.year,
-                    added: s.added
-                )
-            }
+            movies = await Task.detached(priority: .userInitiated) {
+                streams.compactMap { s -> Channel? in
+                    guard let url = api.movieURL(id: s.streamId, ext: s.ext) else { return nil }
+                    return Channel(
+                        id: s.streamId,
+                        name: s.name.isEmpty ? "Film \(s.streamId)" : s.name,
+                        url: url,
+                        logo: AppStore.url(s.icon),
+                        group: s.categoryId.flatMap { names[$0] },
+                        year: s.year,
+                        added: s.added,
+                        rating: s.rating > 0 ? s.rating : nil
+                    )
+                }
+            }.value
             if movies.isEmpty { sectionError = "Dein Anbieter liefert keine Filme." }
         } catch {
             sectionError = error.localizedDescription
@@ -459,15 +562,19 @@ final class AppStore: ObservableObject {
         do {
             let names = Self.nameMap(try await api.categories("get_series_categories"))
             let list = try await api.series()
-            seriesList = list.map { s in
-                SeriesItem(
-                    id: s.seriesId,
-                    name: s.name.isEmpty ? "Serie \(s.seriesId)" : s.name,
-                    cover: Self.url(s.cover),
-                    group: s.categoryId.flatMap { names[$0] },
-                    added: s.added
-                )
-            }
+            seriesList = await Task.detached(priority: .userInitiated) {
+                list.map { s in
+                    SeriesItem(
+                        id: s.seriesId,
+                        name: s.name.isEmpty ? "Serie \(s.seriesId)" : s.name,
+                        cover: AppStore.url(s.cover),
+                        group: s.categoryId.flatMap { names[$0] },
+                        added: s.added,
+                        year: s.year,
+                        rating: s.rating
+                    )
+                }
+            }.value
             if seriesList.isEmpty { sectionError = "Dein Anbieter liefert keine Serien." }
         } catch {
             sectionError = error.localizedDescription
