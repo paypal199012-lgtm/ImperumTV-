@@ -184,8 +184,9 @@ final class AppStore: ObservableObject {
                 }
             }
             // Status und Wiedergabelisten gleichzeitig abfragen
-            async let stateReq = RemoteAPI.status(mac: deviceMAC, key: deviceKey)
-            async let listsReq = RemoteAPI.playlists(mac: deviceMAC, key: deviceKey)
+            let mac = deviceMAC, key = deviceKey
+            async let stateReq = RemoteAPI.status(mac: mac, key: key)
+            async let listsReq = RemoteAPI.playlists(mac: mac, key: key)
             if let state = try await stateReq {
                 license = state
                 state.save()
@@ -746,7 +747,7 @@ final class AppStore: ObservableObject {
     private var moviesCacheURL: URL { cacheURL.deletingLastPathComponent().appendingPathComponent("movies.json") }
     private var seriesCacheURL: URL { cacheURL.deletingLastPathComponent().appendingPathComponent("series.json") }
 
-    private nonisolated static func writeCache<T: Encodable>(_ list: T, to url: URL) {
+    private nonisolated static func writeCache<T: Encodable & Sendable>(_ list: T, to url: URL) {
         Task.detached(priority: .utility) {
             if let data = try? JSONEncoder().encode(list) {
                 try? data.write(to: url, options: .atomic)
@@ -754,7 +755,7 @@ final class AppStore: ObservableObject {
         }
     }
 
-    private nonisolated static func readCache<T: Decodable>(_ type: T.Type, from url: URL) async -> T? {
+    private nonisolated static func readCache<T: Decodable & Sendable>(_ type: T.Type, from url: URL) async -> T? {
         await Task.detached(priority: .userInitiated) {
             guard let data = try? Data(contentsOf: url) else { return nil }
             return try? JSONDecoder().decode(T.self, from: data)
@@ -763,9 +764,10 @@ final class AppStore: ObservableObject {
 
     /// Zuletzt geladene Sender, Filme und Serien sofort wieder anzeigen
     private func restoreCache() async {
-        async let c = Self.readCache([Channel].self, from: cacheURL)
-        async let m = Self.readCache([Channel].self, from: moviesCacheURL)
-        async let sr = Self.readCache([SeriesItem].self, from: seriesCacheURL)
+        let cu = cacheURL, mu = moviesCacheURL, su = seriesCacheURL
+        async let c = Self.readCache([Channel].self, from: cu)
+        async let m = Self.readCache([Channel].self, from: mu)
+        async let sr = Self.readCache([SeriesItem].self, from: su)
         if channels.isEmpty, let list = await c, !list.isEmpty { channels = list }
         if movies.isEmpty, let list = await m, !list.isEmpty { movies = list }
         if seriesList.isEmpty, let list = await sr, !list.isEmpty { seriesList = list }

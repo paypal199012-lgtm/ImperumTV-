@@ -211,11 +211,14 @@ struct FavoritesView: View {
     @State private var memo = Memo<([Channel], [Channel], [SeriesItem])>()
 
     var body: some View {
-        let (live, films, shows) = memo.get([store.dataVersion, parental.stamp]) {
+        let favs = memo.get([store.dataVersion, parental.stamp]) {
             (parental.visible("live", store.channels).filter { store.isFavorite($0) },
              parental.visible("movie", store.movies).filter { store.isFavorite($0) },
              parental.visibleSeries(store.seriesList).filter { store.isFavoriteSeries($0) })
         }
+        let live = favs.0
+        let films = favs.1
+        let shows = favs.2
         ScrollView {
             LazyVStack(spacing: 10) {
                 if live.isEmpty && films.isEmpty && shows.isEmpty {
@@ -286,12 +289,15 @@ struct SearchView: View {
     @State private var memo = Memo<([Channel], [Channel], [SeriesItem])>()
 
     var body: some View {
-        let (live, films, shows) = memo.get([store.dataVersion, parental.stamp, q]) {
-            q.isEmpty ? ([], [], []) : (
+        let found = memo.get([store.dataVersion, parental.stamp, q]) {
+            q.isEmpty ? ([Channel](), [Channel](), [SeriesItem]()) : (
                 Array(parental.visible("live", store.channels).lazy.filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50)),
                 Array(parental.visible("movie", store.movies).lazy.filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50)),
                 Array(parental.visibleSeries(store.seriesList).lazy.filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50)))
         }
+        let live = found.0
+        let films = found.1
+        let shows = found.2
 
         ScrollView {
             LazyVStack(spacing: 10) {

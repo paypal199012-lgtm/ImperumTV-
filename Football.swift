@@ -296,7 +296,6 @@ struct FootballView: View {
         }
         .background(GoldBackground(dim: 0.6))
         .navigationTitle("Fußball")
-        }
         .overlay(alignment: .bottom) {
             if let note {
                 Text(note)
