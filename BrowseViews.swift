@@ -509,6 +509,8 @@ struct MovieDetailView: View {
                                     .padding(.top, 6)
                             }
                         }
+                        // Ähnliche Filme (gleiche Reihe, gleiche Kategorie)
+                        SimilarMoviesSection(movie: movie)
                     }
                     Spacer(minLength: 0)
                 }
