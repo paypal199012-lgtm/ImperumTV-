@@ -447,7 +447,7 @@ struct AddProfileSheet: View {
     @ObservedObject private var profiles = Profiles.shared
     @State private var mainName = ""
     @State private var name = ""
-    @State private var kids = false
+    @State private var askKids = false
 
     var body: some View {
         NavigationStack {
@@ -462,12 +462,11 @@ struct AddProfileSheet: View {
                     }
                 }
                 Section {
-                    TextField("Name", text: $name)
-                    Toggle("Kinder-Profil", isOn: $kids).tint(Theme.gold)
+                    TextField("Name, z. B. Max", text: $name)
                 } header: {
                     Text("Neues Profil")
                 } footer: {
-                    Text(kids ? "Zeigt nur Kinder-Kategorien (automatisch erkannt, anpassbar unter Einstellungen → Profile). Ohne Einstellungen und Listen. Verlassen nur mit der PIN der Kindersicherung – beim ersten Öffnen legst du sie fest." : "Eigene Favoriten, „Weiterschauen“ und Gesehen-Haken.")
+                    Text("Eigene Favoriten, „Weiterschauen“ und Gesehen-Haken. Nach „Weiter“ fragt die App, ob es ein Kinder-Profil sein soll.")
                 }
             }
             .navigationTitle("Profil hinzufügen")
@@ -475,17 +474,27 @@ struct AddProfileSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Anlegen") {
-                        let me = clean(mainName), n = clean(name)
-                        if profiles.list.isEmpty { profiles.createMain(me.isEmpty ? "Ich" : me) }
-                        profiles.add(n, kids: kids)
-                        dismiss()
-                    }
-                    .disabled(clean(name).isEmpty)
+                    Button("Weiter") { askKids = true }
+                        .disabled(clean(name).isEmpty)
                 }
+            }
+            // Nach dem Namen: Kinder-Profil ja oder nein?
+            .confirmationDialog("Soll „\(clean(name))“ ein Kinder-Profil bekommen?", isPresented: $askKids, titleVisibility: .visible) {
+                Button("Nein, normales Profil") { create(kids: false) }
+                Button("Ja, Kinder-Profil") { create(kids: true) }
+                Button("Abbrechen", role: .cancel) {}
+            } message: {
+                Text("Kinder-Profil: nur Kinder-Kategorien, keine Einstellungen, verlassen nur mit PIN. Normales Profil: alles wie bei dir, mit eigenen Favoriten und „Weiterschauen“.")
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private func create(kids: Bool) {
+        let me = clean(mainName), n = clean(name)
+        if profiles.list.isEmpty { profiles.createMain(me.isEmpty ? "Ich" : me) }
+        profiles.add(n, kids: kids)
+        dismiss()
     }
 
     private func clean(_ s: String) -> String {
