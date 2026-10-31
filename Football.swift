@@ -117,17 +117,34 @@ enum Football {
     private static let ended = try! NSRegularExpression(pattern: "(^|\\|)\\s*(ended|ende|beendet|finished|vorbei)([^a-z]|$)")
     private static func isEnded(_ s: String) -> Bool { ended.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)) != nil }
 
+    /// Ein Sender, für die Suche vorbereitet (Name einmal umgewandelt statt bei jedem Spiel neu)
+    struct IndexItem: Sendable {
+        let ch: Channel
+        let f: String
+        let youth: Bool
+    }
+
+    /// Senderliste ohne Trenner und beendete Events – wird einmal pro Senderliste im Hintergrund gebaut
+    static func makeIndex(_ channels: [Channel]) -> [IndexItem] {
+        var out: [IndexItem] = []
+        out.reserveCapacity(channels.count)
+        for ch in channels where !isSeparator(ch.name) {
+            let f = fold(ch.name)
+            if isEnded(f) { continue }                                     // beendete Events
+            out.append(IndexItem(ch: ch, f: f, youth: isYouth(f)))
+        }
+        return out
+    }
+
     /// Event-Sender, die beide Vereine im Namen tragen
-    static func eventChannels(_ m: FBMatch, in channels: [Channel]) -> [Channel] {
+    static func eventChannels(_ m: FBMatch, index: [IndexItem]) -> [Channel] {
         let hw = words(m.h), aw = words(m.a)
         if hw.isEmpty || aw.isEmpty { return [] }
         let teamYouth = isYouth(fold(m.h.n + " " + m.a.n))
         var out: [Channel] = []
-        for ch in channels where !isSeparator(ch.name) {
-            let f = fold(ch.name)
-            if !teamYouth && isYouth(f) { continue }
-            if isEnded(f) { continue }                                     // beendete Events
-            if hw.contains(where: { has(f, $0) }) && aw.contains(where: { has(f, $0) }) { out.append(ch) }
+        for it in index {
+            if !teamYouth && it.youth { continue }
+            if hw.contains(where: { has(it.f, $0) }) && aw.contains(where: { has(it.f, $0) }) { out.append(it.ch) }
             if out.count >= 20 { break }
         }
         return out
@@ -151,9 +168,18 @@ enum Football {
     }
 
     /// Welche Sender könnten es zeigen? (werden danach im Programm geprüft)
-    static func candidates(_ m: FBMatch, in channels: [Channel]) -> [Channel] {
+    private static let candPatterns: [String: NSRegularExpression] = Dictionary(uniqueKeysWithValues:
+        ["sky.*(bundesliga|buli|top ?event)", "dazn", "konferenz", "(^|[^a-z])(ard|das erste|zdf)([^a-z]|$)",
+         "sky.*(premier|top ?event|mix)", "prime|amazon", "(^|[^a-z])(rtl|nitro)([^a-z]|$)"]
+            .map { ($0, try! NSRegularExpression(pattern: $0)) })
+
+    static func candidates(_ m: FBMatch, index: [IndexItem]) -> [Channel] {
+        // Muster nur einmal übersetzen (vorher bei jedem Sender neu – sehr langsam)
         func match(_ pattern: String) -> [Channel] {
-            channels.filter { !isSeparator($0.name) && $0.name.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil }
+            guard let re = candPatterns[pattern] else { return [] }
+            return index.compactMap { it in
+                re.firstMatch(in: it.f, range: NSRange(it.f.startIndex..., in: it.f)) != nil ? it.ch : nil
+            }
         }
         var list: [Channel] = []
         switch m.c {
@@ -213,6 +239,10 @@ struct FootballView: View {
     @State private var note: String?
     @State private var events: [String: [Channel]] = [:]
     @State private var reloading = false
+    /// Vorbereitete Senderliste und bereits geprüfte Spiele (gelten für eine Senderliste)
+    @State private var index: [Football.IndexItem] = []
+    @State private var indexVersion = -1
+    @State private var eventCache: [String: [Channel]] = [:]
 
     private var shown: [FBMatch] {
         let old = Date().addingTimeInterval(-6 * 3600)
@@ -313,13 +343,13 @@ struct FootballView: View {
         }
         .task {
             await fb.load()
-            computeEvents()
+            await computeEvents()
             // Live-Stände regelmäßig auffrischen
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 20_000_000_000)
                 await fb.load(force: true)
                 if store.secondsSinceLiveReload >= 600 { await refreshChannels(manual: false) }
-                computeEvents()
+                await computeEvents()
             }
         }
         .confirmationDialog(choice?.title ?? "", isPresented: Binding(get: { choice != nil }, set: { if !$0 { choice = nil } }),
@@ -345,7 +375,7 @@ struct FootballView: View {
         if manual { reloading = true }
         let n = await store.reloadLiveChannels(manual: manual)
         reloading = false
-        computeEvents()
+        await computeEvents()
         guard manual else { return }
         if n == nil {
             note = "Senderliste ist aktuell (vor \(max(1, store.secondsSinceLiveReload)) Sek. geladen). Suche wurde erneuert."
@@ -359,21 +389,45 @@ struct FootballView: View {
         }
     }
 
-    private func computeEvents() {
-        var map: [String: [Channel]] = [:]
-        let live = store.channels
-        for m in fb.matches where !m.isOver {
-            let ev = Football.eventChannels(m, in: live)
-            if !ev.isEmpty { map[m.id] = ev }
+    /// Event-Sender suchen – im Hintergrund, damit die Liste nicht einfriert.
+    /// Jedes Spiel wird pro Senderliste nur einmal geprüft.
+    private func computeEvents() async {
+        let ver = store.dataVersion
+        if ver != indexVersion {
+            let chs = store.channels
+            let built = await Task.detached(priority: .userInitiated) { Football.makeIndex(chs) }.value
+            index = built
+            indexVersion = ver
+            eventCache = [:]
         }
-        events = map
+        let todo = fb.matches.filter { !$0.isOver && eventCache[$0.id] == nil }
+        if !todo.isEmpty {
+            let idx = index
+            let found = await Task.detached(priority: .userInitiated) { () -> [String: [Channel]] in
+                var out: [String: [Channel]] = [:]
+                for m in todo { out[m.id] = Football.eventChannels(m, index: idx) }
+                return out
+            }.value
+            guard ver == indexVersion else { return }
+            eventCache.merge(found) { _, new in new }
+        }
+        var map: [String: [Channel]] = [:]
+        for m in fb.matches where !m.isOver {
+            if let ev = eventCache[m.id], !ev.isEmpty { map[m.id] = ev }
+        }
+        if map != events { events = map }
     }
 
-    private func groupedByDay(_ list: [FBMatch]) -> [(String, [FBMatch])] {
-        let cal = Calendar.current
+    private static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "de_DE")
         f.dateFormat = "EEEE, d. MMMM"
+        return f
+    }()
+
+    private func groupedByDay(_ list: [FBMatch]) -> [(String, [FBMatch])] {
+        let cal = Calendar.current
+        let f = Self.dayFormatter
         var out: [(String, [FBMatch])] = []
         for m in list {
             var label = f.string(from: m.date)
@@ -397,6 +451,7 @@ struct FootballView: View {
         let tf = DateFormatter(); tf.dateFormat = "HH:mm"
         let when = tf.string(from: m.date) + " Uhr"
         if searching != nil { return }
+        if m.isOver { note = title + ": Spiel ist beendet."; return }
         var found = events[m.id] ?? []
         // Event-Sender sind sicher – sofort anzeigen, ohne Programm-Suche
         // Sonst: Programm der in Frage kommenden Sender zur Anstoßzeit prüfen
@@ -405,7 +460,9 @@ struct FootballView: View {
             note = "Sender werden gesucht …"
             let words = Football.words(m.h) + Football.words(m.a)
             let kick = m.date
-            let cands = Array(Football.candidates(m, in: store.channels).prefix(12))
+            if index.isEmpty || indexVersion != store.dataVersion { await computeEvents() }
+            let idx = index
+            let cands = await Task.detached(priority: .userInitiated) { Array(Football.candidates(m, index: idx).prefix(12)) }.value
             var prog: [Channel] = [], konf: [Channel] = []
             let st = store
             // Höchstens 12 Sender und 5 Sekunden prüfen – danach mit dem weitermachen, was gefunden wurde
@@ -511,10 +568,8 @@ private struct FBRow: View {
         .contentShape(Rectangle())
     }
 
-    private var timeText: String {
-        let f = DateFormatter(); f.dateFormat = "HH:mm"
-        return f.string(from: match.date)
-    }
+    private static let hhmm: DateFormatter = { let f = DateFormatter(); f.dateFormat = "HH:mm"; return f }()
+    private var timeText: String { Self.hhmm.string(from: match.date) }
 
     private var stateText: String {
         switch match.s {
