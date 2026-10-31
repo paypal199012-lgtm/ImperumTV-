@@ -87,6 +87,8 @@ final class PlayerModel: NSObject, ObservableObject {
     private var avSubtitleGroup: AVMediaSelectionGroup?
     private var avOptions: [String: AVMediaSelectionOption] = [:]
     private var audioPrefApplied = false
+    /// Filme und Serien: Tonspur Deutsch bevorzugen, sonst Englisch
+    private var preferLanguages = false
     private var subPrefApplied = false
 
     private var wantsMuted = false
@@ -215,6 +217,7 @@ final class PlayerModel: NSObject, ObservableObject {
 
         let ext = url.pathExtension.lowercased()
         let isLiveStream = url.absoluteString.contains("/live/")
+        preferLanguages = !isLiveStream          // Filme/Serien: Deutsch, sonst Englisch
         let liveWithVLC = UserDefaults.standard.bool(forKey: "liveWithVLC")
         let vodWithVLC = UserDefaults.standard.bool(forKey: "vodWithVLC")
         if isLiveStream && liveWithVLC {
@@ -479,7 +482,14 @@ final class PlayerModel: NSObject, ObservableObject {
     /// Nimmt automatisch die zuletzt gewählte Sprache (z. B. Deutsch), wenn vorhanden
     private func applyPreferencesIfNeeded() {
         let defaults = UserDefaults.standard
-        if !audioPrefApplied, !audioTracks.isEmpty {
+        if preferLanguages, !audioPrefApplied, audioTracks.count > 1 {
+            // Erst entscheiden, wenn mehrere Tonspuren bekannt sind (VLC meldet sie nach und nach)
+            audioPrefApplied = true
+            if let track = Self.languageTrack(in: audioTracks, options: avOptions), track.id != selectedAudio {
+                selectAudio(track.id, remember: false)
+            }
+        }
+        if !preferLanguages, !audioPrefApplied, !audioTracks.isEmpty {
             audioPrefApplied = true
             if let pref = defaults.string(forKey: "prefAudio"),
                let track = Self.match(pref, in: audioTracks),
@@ -496,6 +506,23 @@ final class PlayerModel: NSObject, ObservableObject {
                 }
             }
         }
+    }
+
+    /// Erste deutsche Tonspur, sonst die erste englische (nach Sprachcode oder Name, z. B. „Deutsch“, „German“, „GER“)
+    private static func languageTrack(in tracks: [TrackOption], options: [String: AVMediaSelectionOption]) -> TrackOption? {
+        func matches(_ track: TrackOption, _ want: String) -> Bool {
+            let code = (options[track.id]?.extendedLanguageTag ?? options[track.id]?.locale?.identifier ?? "").lowercased()
+            let name = track.name.lowercased()
+            let codes = want == "de" ? ["de", "deu", "ger"] : ["en", "eng"]
+            let words = want == "de" ? ["deutsch", "german", "ger", "deu", "de"] : ["englisch", "english", "eng", "en"]
+            if codes.contains(where: { code == $0 || code.hasPrefix($0 + "-") || code.hasPrefix($0 + "_") }) { return true }
+            let parts = name.split(whereSeparator: { !$0.isLetter }).map(String.init)
+            return parts.contains(where: { words.contains($0) })
+        }
+        for want in ["de", "en"] {
+            if let hit = tracks.first(where: { matches($0, want) }) { return hit }
+        }
+        return nil
     }
 
     private static func match(_ name: String, in tracks: [TrackOption]) -> TrackOption? {
