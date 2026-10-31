@@ -426,6 +426,7 @@ struct SettingsView: View {
     @AppStorage("vodWithVLC") private var vodWithVLC = false
     @AppStorage("autoNext") private var autoNext = true
     @AppStorage("introBtn") private var introBtn = true
+    @AppStorage("clockMode") private var clockMode = "sec"
     @State private var askClearCache = false
     @State private var cacheMessage: String?
 
@@ -508,6 +509,32 @@ struct SettingsView: View {
                 Text("Serien")
             } footer: {
                 Text("Kurz vor Ende einer Folge zählt die App 10 Sekunden herunter und startet dann die nächste. „Intro überspringen“ erscheint 8 Sekunden lang am Anfang jeder Folge und springt 20 Sekunden weiter.")
+            }
+
+            Section {
+                Picker("Uhrzeit oben rechts", selection: $clockMode) {
+                    Text("Mit Sekunden").tag("sec")
+                    Text("Ohne Sekunden").tag("min")
+                    Text("Aus").tag("off")
+                }
+            } header: {
+                Text("Anzeige")
+            }
+
+            Section {
+                NavigationLink {
+                    NetTestView().clockInToolbar()
+                } label: {
+                    HStack {
+                        Label("Verbindungstest", systemImage: "speedometer")
+                        Spacer()
+                        Text("Internet, Server, Sender").foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("Hilfe")
+            } footer: {
+                Text("Prüft in etwa 15 Sekunden, ob es an deinem Internet oder am Anbieter liegt, wenn Sender hängen.")
             }
 
             Section {

@@ -999,6 +999,7 @@ struct PlayerScreen: View {
                 }
                 .accessibilityLabel("Bild in Bild")
             }
+            ClockBadge()
         }
     }
 

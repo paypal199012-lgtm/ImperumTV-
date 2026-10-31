@@ -20,13 +20,13 @@ struct RootView: View {
                 NavigationStack {
                     HomeView()
                         .navigationDestination(for: Route.self) { route in
-                            destination(route)
+                            destination(route).clockInToolbar()
                         }
                         .navigationDestination(for: SeriesItem.self) { series in
-                            SeriesDetailView(series: series)
+                            SeriesDetailView(series: series).clockInToolbar()
                         }
                         .navigationDestination(for: Channel.self) { movie in
-                            MovieDetailView(movie: movie)
+                            MovieDetailView(movie: movie).clockInToolbar()
                         }
                 }
             }
@@ -269,6 +269,7 @@ struct HomeView: View {
                     headerIcon("arrow.clockwise")
                 }
             }
+            ClockBadge()
         }
     }
 

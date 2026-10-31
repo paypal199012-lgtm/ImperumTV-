@@ -131,6 +131,8 @@ final class AppStore: ObservableObject {
         return f.string(from: expiry)
     }
 
+    var accountInfoURL: URL? { currentAPI?.accountURL }
+
     var currentAPI: XtreamAPI? {
         guard isXtream, !serverInput.isEmpty, !username.isEmpty, !password.isEmpty else { return nil }
         return XtreamAPI(

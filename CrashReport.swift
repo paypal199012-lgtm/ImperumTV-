@@ -49,6 +49,17 @@ enum CrashReport {
         send(kind: "wiedergabe", message: text)
     }
 
+    /// Bericht sofort senden und Erfolg melden (z. B. Verbindungstest)
+    static func sendNow(kind: String, message: String) async -> Bool {
+        let id = DeviceIdentity.load()
+        let body: [String: Any] = [
+            "p_mac": id.mac, "p_key": id.key, "p_version": version, "p_device": device,
+            "p_kind": kind, "p_message": String(message.prefix(6000))
+        ]
+        guard let data = try? await RemoteAPI.rpc("report_crash", body) else { return false }
+        return String(decoding: data, as: UTF8.self).contains("true")
+    }
+
     /// Bericht senden (gleicher Text höchstens einmal pro Minute)
     static func send(kind: String, message: String) {
         let now = Date()

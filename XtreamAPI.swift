@@ -223,6 +223,11 @@ struct XtreamAPI {
         return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
     }
 
+    /// Kontodaten (Status, Verbindungen) – für den Verbindungstest
+    var accountURL: URL? {
+        URL(string: "\(account.server)/player_api.php?username=\(queryEncode(account.username))&password=\(queryEncode(account.password))")
+    }
+
     private func request(action: String?, extra: [String: String] = [:]) async throws -> Data {
         var urlString = "\(account.server)/player_api.php?username=\(queryEncode(account.username))&password=\(queryEncode(account.password))"
         if let action = action { urlString += "&action=\(action)" }
