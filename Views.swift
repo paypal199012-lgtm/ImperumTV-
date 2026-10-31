@@ -422,6 +422,7 @@ struct SettingsView: View {
     @ObservedObject private var parental = Parental.shared
     @State private var pinRequest: PinRequest?
     @State private var showParental = false
+    @State private var showNetTest = false
     @AppStorage("liveWithVLC") private var liveWithVLC = false
     @AppStorage("vodWithVLC") private var vodWithVLC = false
     @AppStorage("autoNext") private var autoNext = true
@@ -430,58 +431,105 @@ struct SettingsView: View {
     @State private var askClearCache = false
     @State private var cacheMessage: String?
 
+    private var version: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+    }
+
+    private func openParental() {
+        if parental.enabled {
+            pinRequest = PinRequest(title: "PIN eingeben") { showParental = true }
+        } else {
+            pinRequest = PinRequest(title: "Neue PIN", mode: .create) { showParental = true }
+        }
+    }
+
+    /// Banner oben: Logo, Konto und Version, rechts Kinderschutz und Gerät
+    private var banner: some View {
+        HStack(spacing: 14) {
+            Image("Logo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 92, height: 46)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("ImperumTV").font(.title3.weight(.bold)).foregroundStyle(.white)
+                Text((store.license?.activated == true ? "Konto aktiviert" : store.licenseText) + (version.isEmpty ? "" : " · Version \(version)"))
+                    .font(.caption)
+                    .foregroundStyle(Color.white.opacity(0.8))
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            statusBox("lock", "Kinderschutz", parental.enabled ? "An" : "Aus") { openParental() }
+            statusBox("display", "Gerät", store.macText, small: true) { store.showSetup = true }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(LinearGradient(colors: [Theme.gold.opacity(0.45), Theme.gold.opacity(0.12), Color.white.opacity(0.04)],
+                                     startPoint: .leading, endPoint: .trailing))
+        )
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Theme.goldLight.opacity(0.6), lineWidth: 1))
+    }
+
+    private func statusBox(_ icon: String, _ label: String, _ value: String, small: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 3) {
+                Label(label, systemImage: icon).font(.caption2).foregroundStyle(Color.white.opacity(0.65))
+                Text(value).font(small ? .caption.weight(.bold).monospacedDigit() : .subheadline.weight(.bold)).foregroundStyle(.white)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color.black.opacity(0.4)))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Aktionen unten wie auf dem Fernseher: Neu laden, Cache leeren, Verbindungstest
+    private var actions: some View {
+        HStack(spacing: 10) {
+            actionTile("arrow.clockwise", "Neu laden", "Sender, Filme, Serien") { Task { await store.refresh() } }
+                .disabled(store.isLoading)
+            actionTile("paintbrush", "Cache leeren", "Bilder & Programm") { askClearCache = true }
+                .disabled(store.isLoading)
+            actionTile("speedometer", "Verbindungstest", "Internet & Sender") { showNetTest = true }
+        }
+    }
+
+    private func actionTile(_ icon: String, _ title: String, _ sub: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.goldLight)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(Theme.gold.opacity(0.18)))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).font(.subheadline.weight(.bold)).foregroundStyle(.white).lineLimit(1)
+                    Text(sub).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.06)))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.12), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
     var body: some View {
         Form {
             Section {
-                Button("Alles neu laden") {
-                    Task { await store.refresh() }
-                }
-                .disabled(store.isLoading)
-
-                Button("Cache leeren") { askClearCache = true }
-                    .disabled(store.isLoading)
-                    .confirmationDialog("Cache leeren?", isPresented: $askClearCache, titleVisibility: .visible) {
-                        Button("Cache leeren", role: .destructive) {
-                            Task {
-                                let mb = await store.clearCache()
-                                cacheMessage = mb > 0 ? "Cache geleert (\(mb) MB frei) – Listen neu geladen." : "Cache geleert – Listen neu geladen."
-                            }
-                        }
-                        Button("Abbrechen", role: .cancel) {}
-                    } message: {
-                        Text("Gespeicherte Cover, Bilder und das Programm werden gelöscht und neu geladen. Favoriten, Weiterschauen, gesehene Folgen und Einstellungen bleiben erhalten.")
-                    }
+                banner
+                actions
                 if let msg = cacheMessage {
                     Text(msg)
                         .font(.footnote)
                         .foregroundStyle(Theme.goldLight)
                 }
-
-                Button("Wiedergabelisten") { store.showSetup = true }
-
-                NavigationLink {
-                    AccountView()
-                } label: {
-                    Label("Konto", systemImage: "person.crop.circle")
-                }
             }
-
-            if !Profiles.shared.isKids {
-                Section {
-                    NavigationLink {
-                        ProfilesSettingsView()
-                    } label: {
-                        HStack {
-                            Label("Profile", systemImage: "person.2.fill")
-                            Spacer()
-                            Text(Profiles.shared.list.isEmpty ? "Aus" : "\(Profiles.shared.list.count) · \(Profiles.shared.current?.name ?? "")")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                } footer: {
-                    Text("Mehrere Personen auf diesem Gerät: eigene Favoriten, „Weiterschauen“ und Gesehen-Haken. Auch als Kinder-Profil.")
-                }
-            }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 6, trailing: 0))
 
             if let error = store.errorMessage {
                 Text(error)
@@ -494,21 +542,14 @@ struct SettingsView: View {
                     .tint(Theme.gold)
                 Toggle("Filme & Serien mit VLC abspielen", isOn: $vodWithVLC)
                     .tint(Theme.gold)
-            } header: {
-                Text("Wiedergabe")
-            } footer: {
-                Text("Einschalten, wenn Sender beim Start oft hängen bleiben oder ein Standbild zeigen. Mit VLC gibt es kein Bild-in-Bild. Im Player kannst du jederzeit oben mit dem Pfeil-Knopf zwischen iPhone-Player und VLC wechseln.")
-            }
-
-            Section {
                 Toggle("Nächste Folge automatisch", isOn: $autoNext)
                     .tint(Theme.gold)
                 Toggle("Knopf „Intro überspringen“", isOn: $introBtn)
                     .tint(Theme.gold)
             } header: {
-                Text("Serien")
+                Label("Wiedergabe", systemImage: "play")
             } footer: {
-                Text("Kurz vor Ende einer Folge zählt die App 10 Sekunden herunter und startet dann die nächste. „Intro überspringen“ erscheint 8 Sekunden lang am Anfang jeder Folge und springt 20 Sekunden weiter.")
+                Text("VLC einschalten, wenn Sender beim Start oft hängen oder ein Standbild zeigen (dann ohne Bild-in-Bild). Kurz vor Ende einer Folge zählt die App 10 Sekunden herunter und startet die nächste; „Intro überspringen“ springt 20 Sekunden weiter.")
             }
 
             Section {
@@ -517,34 +558,7 @@ struct SettingsView: View {
                     Text("Ohne Sekunden").tag("min")
                     Text("Aus").tag("off")
                 }
-            } header: {
-                Text("Anzeige")
-            }
-
-            Section {
-                NavigationLink {
-                    NetTestView().clockInToolbar()
-                } label: {
-                    HStack {
-                        Label("Verbindungstest", systemImage: "speedometer")
-                        Spacer()
-                        Text("Internet, Server, Sender").foregroundStyle(.secondary)
-                    }
-                }
-            } header: {
-                Text("Hilfe")
-            } footer: {
-                Text("Prüft in etwa 15 Sekunden, ob es an deinem Internet oder am Anbieter liegt, wenn Sender hängen.")
-            }
-
-            Section {
-                Button {
-                    if parental.enabled {
-                        pinRequest = PinRequest(title: "PIN eingeben") { showParental = true }
-                    } else {
-                        pinRequest = PinRequest(title: "Neue PIN", mode: .create) { showParental = true }
-                    }
-                } label: {
+                Button { openParental() } label: {
                     HStack {
                         Label("Kindersicherung", systemImage: parental.enabled ? "lock.fill" : "lock.open")
                         Spacer()
@@ -552,10 +566,35 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                if !Profiles.shared.isKids {
+                    NavigationLink {
+                        ProfilesSettingsView()
+                    } label: {
+                        HStack {
+                            Label("Profile", systemImage: "person.2.fill")
+                            Spacer()
+                            Text(Profiles.shared.list.isEmpty ? "Aus" : "\(Profiles.shared.list.count) · \(Profiles.shared.current?.name ?? "")")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             } header: {
-                Text("Kindersicherung")
-            } footer: {
-                Text("Mit einer PIN werden Erwachsenen-Kategorien und Kategorien deiner Wahl gesperrt.")
+                Label("Anzeige & Familie", systemImage: "clock")
+            }
+
+            Section {
+                Button("Wiedergabelisten") { store.showSetup = true }
+                NavigationLink {
+                    AccountView()
+                } label: {
+                    HStack {
+                        Label("Konto", systemImage: "person.crop.circle")
+                        Spacer()
+                        Text(store.license?.activated == true ? "Aktiviert" : "").foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Label("Konto", systemImage: "person")
             }
 
             Section {
@@ -567,16 +606,29 @@ struct SettingsView: View {
             } footer: {
                 Text("Leer lassen. Nur ändern, wenn dein Anbieter eine bestimmte Kennung verlangt.")
             }
-
         }
         .scrollContentBackground(.hidden)
         .background(GoldBackground(dim: 0.6))
         .navigationTitle("Einstellungen")
+        .confirmationDialog("Cache leeren?", isPresented: $askClearCache, titleVisibility: .visible) {
+            Button("Cache leeren", role: .destructive) {
+                Task {
+                    let mb = await store.clearCache()
+                    cacheMessage = mb > 0 ? "Cache geleert (\(mb) MB frei) – Listen neu geladen." : "Cache geleert – Listen neu geladen."
+                }
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Gespeicherte Cover, Bilder und das Programm werden gelöscht und neu geladen. Favoriten, Weiterschauen, gesehene Folgen und Einstellungen bleiben erhalten.")
+        }
         .sheet(item: $pinRequest) { req in
             PinSheet(request: req)
         }
         .navigationDestination(isPresented: $showParental) {
             ParentalSettingsView()
+        }
+        .navigationDestination(isPresented: $showNetTest) {
+            NetTestView().clockInToolbar()
         }
     }
 }
