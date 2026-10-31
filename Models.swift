@@ -88,7 +88,7 @@ struct MediaInfo {
 }
 
 enum Route: Hashable {
-    case live, epg, epgList, vod, series, favorites, search, account, settings, resume
+    case live, epg, epgList, vod, series, favorites, search, account, settings, resume, football
 }
 
 /// Was gerade abgespielt wird, damit sich Filme und Folgen den Stand merken

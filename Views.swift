@@ -434,6 +434,12 @@ struct SettingsView: View {
                 }
 
                 Button("Wiedergabelisten") { store.showSetup = true }
+
+                NavigationLink {
+                    AccountView()
+                } label: {
+                    Label("Konto", systemImage: "person.crop.circle")
+                }
             }
 
             if !Profiles.shared.isKids {

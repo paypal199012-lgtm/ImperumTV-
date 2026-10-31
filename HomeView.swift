@@ -86,6 +86,8 @@ struct RootView: View {
             SearchView()
         case .account:
             AccountView()
+        case .football:
+            FootballView()
         case .settings:
             SettingsView()
         }
@@ -153,7 +155,7 @@ struct HomeView: View {
                         smallTile(.favorites, "Favoriten", "star.fill")
                         smallTile(.search, "Suche", "magnifyingglass")
                         if !profiles.isKids {           // Kinder-Profil: keine Einstellungen, keine Listen
-                            smallTile(.account, "Konto", "person.crop.circle")
+                            smallTile(.football, "Fußball", "soccerball")
                             smallTile(.settings, "Einstellungen", "gearshape.fill")
                             listsTile()
                         }
@@ -202,7 +204,7 @@ struct HomeView: View {
                 smallTile(.favorites, "Favoriten", "star.fill", height: smallHeight).frame(width: 78)
                 smallTile(.search, "Suche", "magnifyingglass", height: smallHeight).frame(width: 78)
                 if !profiles.isKids {
-                    smallTile(.account, "Konto", "person.crop.circle", height: smallHeight).frame(width: 78)
+                    smallTile(.football, "Fußball", "soccerball", height: smallHeight).frame(width: 78)
                     smallTile(.settings, "Einstellungen", "gearshape.fill", height: smallHeight).frame(width: 78)
                     listsTile(height: smallHeight).frame(width: 78)
                 }
