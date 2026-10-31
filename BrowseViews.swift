@@ -237,6 +237,7 @@ struct MovieGridView: View {
     @State private var favoritesOnly = false
     @State private var counts: [String: Int] = [:]
     @AppStorage("sort.movies") private var sortRaw = SortMode.standard.rawValue
+    @State private var memo = Memo<[Channel]>()
 
     /// Zahl der Filme je Kategorie (einmal berechnet, nicht bei jedem Tippen)
     private func countGroups() {
@@ -259,15 +260,17 @@ struct MovieGridView: View {
     private var yearCategory: String { "Filme \(currentYear)" }
 
     private var groups: [String] {
-        [resumeCategory, newCategory, yearCategory, seenCategory, unseenCategory] + Array(Set(store.movies.compactMap(\.group))).sorted()
+        [resumeCategory, newCategory, yearCategory, seenCategory, unseenCategory] + store.movieGroups
     }
 
     /// Gefiltert und sortiert (angefangene Filme bleiben in der Reihenfolge „zuletzt geschaut“)
     private var filtered: [Channel] {
-        let list = unsorted
-        if group == resumeCategory && !favoritesOnly { return list }
-        return Sorter.sort(list, SortMode(rawValue: sortRaw) ?? .standard,
-                           name: { $0.name }, added: { $0.added ?? 0 }, rating: { $0.rating ?? 0 }, year: { $0.year ?? 0 })
+        memo.get([store.dataVersion, parental.stamp, group, favoritesOnly, query, sortRaw]) {
+            let list = unsorted
+            if group == resumeCategory && !favoritesOnly { return list }
+            return Sorter.sort(list, SortMode(rawValue: sortRaw) ?? .standard,
+                               name: { $0.name }, added: { $0.added ?? 0 }, rating: { $0.rating ?? 0 }, year: { $0.year ?? 0 })
+        }
     }
 
     private var unsorted: [Channel] {
@@ -329,7 +332,7 @@ struct MovieGridView: View {
         }
         .task { await store.loadMoviesIfNeeded() }
         .task(id: store.movies.count) { countGroups() }
-        .onAppear { countGroups() }
+        .onAppear { memo.reset(); countGroups() }
         .onChange(of: favoritesOnly) { _ in countGroups() }
     }
 
@@ -564,6 +567,7 @@ struct SeriesGridView: View {
     @State private var favoritesOnly = false
     @State private var counts: [String: Int] = [:]
     @AppStorage("sort.series") private var sortRaw = SortMode.standard.rawValue
+    @State private var memo = Memo<[SeriesItem]>()
 
     /// Zahl der Serien je Kategorie (einmal berechnet, nicht bei jedem Tippen)
     private func countGroups() {
@@ -578,15 +582,17 @@ struct SeriesGridView: View {
     }
 
     private var groups: [String] {
-        [resumeCategory, newEpisodesCategory, newCategory] + Array(Set(store.seriesList.compactMap(\.group))).sorted()
+        [resumeCategory, newEpisodesCategory, newCategory] + store.seriesGroups
     }
 
     /// Gefiltert und sortiert (angefangene Serien bleiben in der Reihenfolge „zuletzt geschaut“)
     private var filtered: [SeriesItem] {
-        let list = unsorted
-        if (group == resumeCategory || group == newEpisodesCategory) && !favoritesOnly { return list }
-        return Sorter.sort(list, SortMode(rawValue: sortRaw) ?? .standard,
-                           name: { $0.name }, added: { $0.added }, rating: { $0.rating }, year: { $0.year ?? 0 })
+        memo.get([store.dataVersion, store.newEpisodesVersion, parental.stamp, group, favoritesOnly, query, sortRaw]) {
+            let list = unsorted
+            if (group == resumeCategory || group == newEpisodesCategory) && !favoritesOnly { return list }
+            return Sorter.sort(list, SortMode(rawValue: sortRaw) ?? .standard,
+                               name: { $0.name }, added: { $0.added }, rating: { $0.rating }, year: { $0.year ?? 0 })
+        }
     }
 
     private var unsorted: [SeriesItem] {
@@ -643,7 +649,7 @@ struct SeriesGridView: View {
         .task { await store.loadSeriesIfNeeded() }
         .task(id: store.seriesList.count) { countGroups() }
         .onChange(of: store.newEpisodesVersion) { _ in countGroups() }
-        .onAppear { countGroups() }
+        .onAppear { memo.reset(); countGroups() }
         .onChange(of: favoritesOnly) { _ in countGroups() }
     }
 
@@ -1066,15 +1072,16 @@ struct EPGListView: View {
     @State private var query = ""
     @State private var group: String?
     @State private var request: PlayRequest?
+    @State private var memo = Memo<[Channel]>()
 
-    private var groups: [String] {
-        Array(Set(store.channels.compactMap(\.group))).sorted()
-    }
+    private var groups: [String] { store.liveGroups }
 
     private var filtered: [Channel] {
-        store.channels.filter { channel in
-            (group == nil || channel.group == group)
-                && (query.isEmpty || channel.name.localizedCaseInsensitiveContains(query))
+        memo.get([store.dataVersion, group, query]) {
+            store.channels.filter { channel in
+                (group == nil || channel.group == group)
+                    && (query.isEmpty || channel.name.localizedCaseInsensitiveContains(query))
+            }
         }
     }
 

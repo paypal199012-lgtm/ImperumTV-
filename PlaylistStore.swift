@@ -11,10 +11,39 @@ final class AppStore: ObservableObject {
         didSet { UserDefaults.standard.set(userAgent, forKey: "userAgent") }
     }
 
-    @Published private(set) var channels: [Channel] = []
-    @Published private(set) var movies: [Channel] = []
-    @Published private(set) var seriesList: [SeriesItem] = []
-    @Published private(set) var favorites: Set<String> = []
+    @Published private(set) var channels: [Channel] = [] {
+        didSet {
+            dataVersion &+= 1
+            liveGroups = Array(Set(channels.compactMap(\.group))).sorted()
+            var nums: [Int: Int] = [:]
+            nums.reserveCapacity(channels.count)
+            for (i, c) in channels.enumerated() where nums[c.id] == nil { nums[c.id] = i + 1 }
+            liveNumbers = nums
+        }
+    }
+    @Published private(set) var movies: [Channel] = [] {
+        didSet {
+            dataVersion &+= 1
+            movieGroups = Array(Set(movies.compactMap(\.group))).sorted()
+        }
+    }
+    @Published private(set) var seriesList: [SeriesItem] = [] {
+        didSet {
+            dataVersion &+= 1
+            seriesGroups = Array(Set(seriesList.compactMap(\.group))).sorted()
+        }
+    }
+    @Published private(set) var favorites: Set<String> = [] { didSet { dataVersion &+= 1 } }
+
+    /// Steigt bei jeder Änderung an Listen, Favoriten oder „Weiterschauen“ –
+    /// Ansichten rechnen ihre gefilterten Listen nur dann neu
+    private(set) var dataVersion = 0
+    /// Einmal pro Laden berechnet statt bei jedem Zeichnen
+    private(set) var liveGroups: [String] = []
+    private(set) var movieGroups: [String] = []
+    private(set) var seriesGroups: [String] = []
+    /// Sendernummer (1, 2, 3 …) je Sender-ID
+    private(set) var liveNumbers: [Int: Int] = [:]
     /// Hinweis „Neue Folgen bei …“ (wird unten kurz eingeblendet)
     @Published var newEpisodesNote: String?
     /// Prüfung auf neue Folgen läuft gerade
@@ -49,7 +78,7 @@ final class AppStore: ObservableObject {
     /// Ausführliches Programm für das EPG-Raster (10 Minuten zwischengespeichert)
     var fullEPGCache: [Int: (at: Date, list: [EPGEntry])] = [:]
     /// „Weiterschauen“: gespeicherte Stände von Filmen und Serien
-    @Published var resumeList: [ResumeEntry] = []
+    @Published var resumeList: [ResumeEntry] = [] { didSet { dataVersion &+= 1 } }
     let defaults = UserDefaults.standard
     private let cacheURL: URL
 
@@ -154,12 +183,15 @@ final class AppStore: ObservableObject {
                     // Wird beim nächsten Mal erneut versucht
                 }
             }
-            if let state = try await RemoteAPI.status(mac: deviceMAC, key: deviceKey) {
+            // Status und Wiedergabelisten gleichzeitig abfragen
+            async let stateReq = RemoteAPI.status(mac: deviceMAC, key: deviceKey)
+            async let listsReq = RemoteAPI.playlists(mac: deviceMAC, key: deviceKey)
+            if let state = try await stateReq {
                 license = state
                 state.save()
                 Parental.shared.onStatus(state.parentalReset)
             }
-            let lists = try await RemoteAPI.playlists(mac: deviceMAC, key: deviceKey)
+            let lists = try await listsReq
             if lists != remoteLists { remoteLists = lists }
             remoteError = nil
             if !wasActive && isLicenseActive {
@@ -175,7 +207,7 @@ final class AppStore: ObservableObject {
     }
 
     /// Mit einer Wiedergabeliste von der Website verbinden
-    func connect(_ playlist: RemotePlaylist) async {
+    func connect(_ playlist: RemotePlaylist, quiet: Bool = false) async {
         guard isLicenseActive else { return }
         guard let account = playlist.account else {
             errorMessage = "Diese Wiedergabeliste wird nicht unterstützt. Nötig sind Server, Benutzername und Passwort oder ein Link mit get.php?username=…&password=…"
@@ -186,7 +218,7 @@ final class AppStore: ObservableObject {
         username = account.username
         password = account.password
         connectingId = playlist.id
-        await syncAll(title: playlist.name)
+        await syncAll(title: playlist.name, quiet: quiet)
         connectingId = nil
         if errorMessage == nil {
             playlistId = playlist.id
@@ -207,8 +239,9 @@ final class AppStore: ObservableObject {
         if online && isLicenseActive {
             let lists = remoteLists ?? []
             if let id = playlistId, let playlist = lists.first(where: { $0.id == id }), playlist.account != nil {
-                // Bei jedem Start Sender, Filme und Serien frisch laden
-                await connect(playlist)
+                // Bei jedem Start Sender, Filme und Serien frisch laden –
+                // liegt die Liste schon vom letzten Mal vor, still im Hintergrund (kein Ladebildschirm)
+                await connect(playlist, quiet: !channels.isEmpty)
             } else if playlistId != nil && !lists.isEmpty {
                 errorMessage = "Die zuletzt genutzte Wiedergabeliste gibt es nicht mehr. Bitte wähle eine aus."
                 showSetup = true
@@ -316,8 +349,11 @@ final class AppStore: ObservableObject {
         do {
             let api = XtreamAPI(account: account, userAgent: userAgentValue)
             let auth = try await api.authenticate()
-            let names = Self.nameMap(try await api.categories("get_live_categories"))
-            let streams = try await api.liveStreams()
+            // Kategorien und Sender gleichzeitig holen
+            async let catsReq = api.categories("get_live_categories")
+            async let streamsReq = api.liveStreams()
+            let names = Self.nameMap(try await catsReq)
+            let streams = try await streamsReq
 
             // Umrechnen im Hintergrund, damit die Oberfläche nicht hakt
             let list: [Channel] = await Task.detached(priority: .userInitiated) {
@@ -479,12 +515,12 @@ final class AppStore: ObservableObject {
     }
 
     /// Sender, Filme und Serien gemeinsam laden – Filme und Serien gleichzeitig
-    func syncAll(title: String) async {
+    func syncAll(title: String, quiet: Bool = false) async {
         let token = UUID()
         syncToken = token
         var info = SyncInfo(title: title)
         info.live.phase = .loading
-        sync = info
+        sync = quiet ? nil : info
 
         await login(preload: false)
         guard errorMessage == nil, !channels.isEmpty else {
@@ -558,6 +594,8 @@ final class AppStore: ObservableObject {
             defaults.removeObject(forKey: key)
         }
         try? FileManager.default.removeItem(at: cacheURL)
+        try? FileManager.default.removeItem(at: moviesCacheURL)
+        try? FileManager.default.removeItem(at: seriesCacheURL)
         showSetup = false
     }
 
@@ -570,8 +608,10 @@ final class AppStore: ObservableObject {
         defer { moviesLoading = false }
 
         do {
-            let names = Self.nameMap(try await api.categories("get_vod_categories"))
-            let streams = try await api.vodStreams()
+            async let catsReq = api.categories("get_vod_categories")
+            async let streamsReq = api.vodStreams()
+            let names = Self.nameMap(try await catsReq)
+            let streams = try await streamsReq
             movies = await Task.detached(priority: .userInitiated) {
                 streams.compactMap { s -> Channel? in
                     guard let url = api.movieURL(id: s.streamId, ext: s.ext) else { return nil }
@@ -588,6 +628,7 @@ final class AppStore: ObservableObject {
                 }
             }.value
             if movies.isEmpty { sectionError = "Dein Anbieter liefert keine Filme." }
+            else { Self.writeCache(movies, to: moviesCacheURL) }
         } catch {
             sectionError = error.localizedDescription
         }
@@ -600,8 +641,10 @@ final class AppStore: ObservableObject {
         defer { seriesLoading = false }
 
         do {
-            let names = Self.nameMap(try await api.categories("get_series_categories"))
-            let list = try await api.series()
+            async let catsReq = api.categories("get_series_categories")
+            async let listReq = api.series()
+            let names = Self.nameMap(try await catsReq)
+            let list = try await listReq
             seriesList = await Task.detached(priority: .userInitiated) {
                 list.map { s in
                     SeriesItem(
@@ -616,6 +659,7 @@ final class AppStore: ObservableObject {
                 }
             }.value
             if seriesList.isEmpty { sectionError = "Dein Anbieter liefert keine Serien." }
+            else { Self.writeCache(seriesList, to: seriesCacheURL) }
         } catch {
             sectionError = error.localizedDescription
         }
@@ -664,8 +708,11 @@ final class AppStore: ObservableObject {
         } else if Date().timeIntervalSince(liveReloadedAt ?? appStartedAt) < 600 { return nil }
         liveReloadedAt = Date()
         do {
-            let names = Self.nameMap(try await api.categories("get_live_categories"))
-            let streams = try await api.liveStreams()
+            // Kategorien und Sender gleichzeitig holen
+            async let catsReq = api.categories("get_live_categories")
+            async let streamsReq = api.liveStreams()
+            let names = Self.nameMap(try await catsReq)
+            let streams = try await streamsReq
             let list: [Channel] = await Task.detached(priority: .userInitiated) {
                 streams.compactMap { s -> Channel? in
                     guard let url = api.streamURL(id: s.streamId) else { return nil }
@@ -696,14 +743,31 @@ final class AppStore: ObservableObject {
         }
     }
 
-    /// Zuletzt geladene Senderliste sofort wieder anzeigen
-    private func restoreCache() async {
-        let url = cacheURL
-        let cached: [Channel] = await Task.detached(priority: .userInitiated) {
-            guard let data = try? Data(contentsOf: url),
-                  let list = try? JSONDecoder().decode([Channel].self, from: data) else { return [] }
-            return list
+    private var moviesCacheURL: URL { cacheURL.deletingLastPathComponent().appendingPathComponent("movies.json") }
+    private var seriesCacheURL: URL { cacheURL.deletingLastPathComponent().appendingPathComponent("series.json") }
+
+    private nonisolated static func writeCache<T: Encodable>(_ list: T, to url: URL) {
+        Task.detached(priority: .utility) {
+            if let data = try? JSONEncoder().encode(list) {
+                try? data.write(to: url, options: .atomic)
+            }
+        }
+    }
+
+    private nonisolated static func readCache<T: Decodable>(_ type: T.Type, from url: URL) async -> T? {
+        await Task.detached(priority: .userInitiated) {
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            return try? JSONDecoder().decode(T.self, from: data)
         }.value
-        if channels.isEmpty { channels = cached }
+    }
+
+    /// Zuletzt geladene Sender, Filme und Serien sofort wieder anzeigen
+    private func restoreCache() async {
+        async let c = Self.readCache([Channel].self, from: cacheURL)
+        async let m = Self.readCache([Channel].self, from: moviesCacheURL)
+        async let sr = Self.readCache([SeriesItem].self, from: seriesCacheURL)
+        if channels.isEmpty, let list = await c, !list.isEmpty { channels = list }
+        if movies.isEmpty, let list = await m, !list.isEmpty { movies = list }
+        if seriesList.isEmpty, let list = await sr, !list.isEmpty { seriesList = list }
     }
 }

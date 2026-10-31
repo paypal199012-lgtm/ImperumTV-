@@ -38,12 +38,14 @@ struct EPGGridView: View {
     private let channelWidth: CGFloat = 130
     private let rowHeight: CGFloat = 54
 
-    private var groups: [String] {
-        Array(Set(store.channels.compactMap(\.group))).sorted()
-    }
+    @State private var memo = Memo<[Channel]>()
+
+    private var groups: [String] { store.liveGroups }
 
     private var list: [Channel] {
-        parental.visible("live", store.channels).filter { group == nil || $0.group == group }
+        memo.get([store.dataVersion, parental.stamp, group]) {
+            parental.visible("live", store.channels).filter { group == nil || $0.group == group }
+        }
     }
 
     static func floorHalfHour(_ date: Date) -> Date {

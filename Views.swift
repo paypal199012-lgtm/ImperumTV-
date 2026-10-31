@@ -154,15 +154,19 @@ struct ChannelListView: View {
     @State private var query = ""
     @State private var group: String?
     @State private var request: PlayRequest?
+    @State private var groupMemo = Memo<[String]>()
+    @State private var memo = Memo<[Channel]>()
 
     private var groups: [String] {
-        Array(Set(items.compactMap(\.group))).sorted()
+        groupMemo.get([items.count, items.first?.id, items.last?.id]) { Array(Set(items.compactMap(\.group))).sorted() }
     }
 
     private var filtered: [Channel] {
-        items.filter { channel in
-            (group == nil || channel.group == group)
-                && (query.isEmpty || channel.name.localizedCaseInsensitiveContains(query))
+        memo.get([items.count, items.first?.id, items.last?.id, group, query]) {
+            items.filter { channel in
+                (group == nil || channel.group == group)
+                    && (query.isEmpty || channel.name.localizedCaseInsensitiveContains(query))
+            }
         }
     }
 
@@ -204,11 +208,14 @@ struct FavoritesView: View {
     @EnvironmentObject private var store: AppStore
     @ObservedObject private var parental = Parental.shared
     @State private var request: PlayRequest?
+    @State private var memo = Memo<([Channel], [Channel], [SeriesItem])>()
 
     var body: some View {
-        let live = parental.visible("live", store.channels).filter { store.isFavorite($0) }
-        let films = parental.visible("movie", store.movies).filter { store.isFavorite($0) }
-        let shows = parental.visibleSeries(store.seriesList).filter { store.isFavoriteSeries($0) }
+        let (live, films, shows) = memo.get([store.dataVersion, parental.stamp]) {
+            (parental.visible("live", store.channels).filter { store.isFavorite($0) },
+             parental.visible("movie", store.movies).filter { store.isFavorite($0) },
+             parental.visibleSeries(store.seriesList).filter { store.isFavoriteSeries($0) })
+        }
         ScrollView {
             LazyVStack(spacing: 10) {
                 if live.isEmpty && films.isEmpty && shows.isEmpty {
@@ -273,13 +280,18 @@ struct SearchView: View {
     @EnvironmentObject private var store: AppStore
     @ObservedObject private var parental = Parental.shared
     @State private var query = ""
+    /// Erst suchen, wenn kurz nicht mehr getippt wird
+    @State private var q = ""
     @State private var request: PlayRequest?
+    @State private var memo = Memo<([Channel], [Channel], [SeriesItem])>()
 
     var body: some View {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let live: [Channel] = q.isEmpty ? [] : Array(parental.visible("live", store.channels).filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50))
-        let films: [Channel] = q.isEmpty ? [] : Array(parental.visible("movie", store.movies).filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50))
-        let shows: [SeriesItem] = q.isEmpty ? [] : Array(parental.visibleSeries(store.seriesList).filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50))
+        let (live, films, shows) = memo.get([store.dataVersion, parental.stamp, q]) {
+            q.isEmpty ? ([], [], []) : (
+                Array(parental.visible("live", store.channels).lazy.filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50)),
+                Array(parental.visible("movie", store.movies).lazy.filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50)),
+                Array(parental.visibleSeries(store.seriesList).lazy.filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(50)))
+        }
 
         ScrollView {
             LazyVStack(spacing: 10) {
@@ -336,6 +348,11 @@ struct SearchView: View {
         .background(GoldBackground(dim: 0.6))
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Sender, Filme, Serien")
         .navigationTitle("Suche")
+        .task(id: query) {
+            let t = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !t.isEmpty && !q.isEmpty { try? await Task.sleep(nanoseconds: 250_000_000) }
+            if !Task.isCancelled { q = t }
+        }
         .task {
             if store.isXtream {
                 await store.loadMoviesIfNeeded()

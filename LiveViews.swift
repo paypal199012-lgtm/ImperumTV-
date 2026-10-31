@@ -14,7 +14,10 @@ struct LiveTVView: View {
 
 struct LiveThreePaneView: View {
     @EnvironmentObject private var store: AppStore
-    @StateObject private var preview = PlayerModel()
+    /// Player ohne Beobachtung halten: sonst wird die ganze Ansicht zweimal pro Sekunde neu gezeichnet
+    @StateObject private var holder = PlayerHolder()
+    private var preview: PlayerModel { holder.model }
+    @State private var memo = Memo<[Channel]>()
     @ObservedObject private var parental = Parental.shared
     @State private var pinRequest: PinRequest?
 
@@ -29,24 +32,21 @@ struct LiveThreePaneView: View {
     /// Neu zeichnen nach dem Vollbild (VLC braucht seine Fläche zurück)
     @State private var surface = 0
 
-    private var groups: [String] {
-        Array(Set(store.channels.compactMap(\.group))).sorted()
-    }
+    private var groups: [String] { store.liveGroups }
 
     private var filtered: [Channel] {
+        memo.get([store.dataVersion, parental.stamp, group, favoritesOnly, query]) {
         parental.visible("live", store.channels).filter { channel in
             (!favoritesOnly || store.isFavorite(channel))
                 && (group == nil || channel.group == group)
                 && (query.isEmpty || channel.name.localizedCaseInsensitiveContains(query))
         }
+        }
     }
 
     var body: some View {
         let list = filtered
-        let numbers = Dictionary(
-            store.channels.enumerated().map { ($0.element.id, $0.offset + 1) },
-            uniquingKeysWith: { first, _ in first }
-        )
+        let numbers = store.liveNumbers
 
         GeometryReader { geo in
             HStack(spacing: 0) {
@@ -230,40 +230,7 @@ struct LiveThreePaneView: View {
 
     private func previewColumn(_ list: [Channel]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            ZStack {
-                Color.black
-                if preview.isPiPActive {
-                    // Läuft schon im kleinen Fenster: hier nicht doppelt zeigen
-                    VStack(spacing: 6) {
-                        Image(systemName: "pip").font(.title)
-                        Text("Läuft im Bild-in-Bild").font(.caption)
-                    }
-                    .foregroundStyle(Theme.goldLight)
-                } else if selected != nil {
-                    Group {
-                        if preview.usesVLC {
-                            VLCVideoView(player: preview.vlcPlayer)
-                        } else {
-                            PlayerLayerView(player: preview.player)
-                        }
-                    }
-                    .id(surface)
-                    if preview.isBuffering && preview.errorMessage == nil {
-                        ProgressView().tint(.white)
-                    }
-                    if preview.errorMessage != nil {
-                        Text("Sender nicht verfügbar")
-                            .font(.caption)
-                            .foregroundStyle(.white)
-                    }
-                } else {
-                    VStack(spacing: 6) {
-                        Image(systemName: "play.tv").font(.title)
-                        Text("Sender antippen").font(.caption)
-                    }
-                    .foregroundStyle(.secondary)
-                }
-            }
+            PreviewSurface(model: preview, hasSelection: selected != nil, surface: surface)
             .aspectRatio(16.0 / 9.0, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.gold.opacity(0.4)))
@@ -358,6 +325,50 @@ struct LiveThreePaneView: View {
             }
         } else if let channel = selected {
             preview.play(channel.url, userAgent: store.userAgentValue)
+        }
+    }
+}
+
+/// Videofläche der Vorschau – nur sie wird bei Player-Änderungen neu gezeichnet
+private struct PreviewSurface: View {
+    @ObservedObject var model: PlayerModel
+    let hasSelection: Bool
+    let surface: Int
+
+    var body: some View {
+        ZStack {
+            Color.black
+            if model.isPiPActive {
+                // Läuft schon im kleinen Fenster: hier nicht doppelt zeigen
+                VStack(spacing: 6) {
+                    Image(systemName: "pip").font(.title)
+                    Text("Läuft im Bild-in-Bild").font(.caption)
+                }
+                .foregroundStyle(Theme.goldLight)
+            } else if hasSelection {
+                Group {
+                    if model.usesVLC {
+                        VLCVideoView(player: model.vlcPlayer)
+                    } else {
+                        PlayerLayerView(player: model.player)
+                    }
+                }
+                .id(surface)
+                if model.isBuffering && model.errorMessage == nil {
+                    ProgressView().tint(.white)
+                }
+                if model.errorMessage != nil {
+                    Text("Sender nicht verfügbar")
+                        .font(.caption)
+                        .foregroundStyle(.white)
+                }
+            } else {
+                VStack(spacing: 6) {
+                    Image(systemName: "play.tv").font(.title)
+                    Text("Sender antippen").font(.caption)
+                }
+                .foregroundStyle(.secondary)
+            }
         }
     }
 }

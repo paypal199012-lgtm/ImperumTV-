@@ -17,7 +17,7 @@ struct Channel: Identifiable, Hashable, Codable {
     var key: String { url.absoluteString }
 }
 
-struct SeriesItem: Identifiable, Hashable {
+struct SeriesItem: Identifiable, Hashable, Codable {
     let id: Int
     let name: String
     let cover: URL?

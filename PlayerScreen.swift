@@ -118,14 +118,16 @@ final class PlayerModel: NSObject, ObservableObject {
             queue: .main
         ) { [weak self] time in
             guard let self = self, !self.usesVLC else { return }
-            self.currentTime = time.seconds.isFinite ? time.seconds : 0
-            if let d = self.player.currentItem?.duration.seconds, d.isFinite, d > 0 {
-                self.duration = d
-            } else {
-                self.duration = 0
-            }
-            self.isBuffering = self.player.timeControlStatus == .waitingToPlayAtSpecifiedRate
-            self.isPlaying = self.player.timeControlStatus != .paused
+            // Nur melden, was sich wirklich ändert – jede Meldung zeichnet die Oberfläche neu
+            let t = time.seconds.isFinite ? time.seconds : 0
+            if t != self.currentTime { self.currentTime = t }
+            var d = 0.0
+            if let x = self.player.currentItem?.duration.seconds, x.isFinite, x > 0 { d = x }
+            if d != self.duration { self.duration = d }
+            let buf = self.player.timeControlStatus == .waitingToPlayAtSpecifiedRate
+            if buf != self.isBuffering { self.isBuffering = buf }
+            let playing = self.player.timeControlStatus != .paused
+            if playing != self.isPlaying { self.isPlaying = playing }
             self.checkForStall()
         }
     }
@@ -241,7 +243,9 @@ final class PlayerModel: NSObject, ObservableObject {
             options: ["AVURLAssetHTTPHeaderFieldsKey": ["User-Agent": userAgent]]
         )
         let item = AVPlayerItem(asset: asset)
-        item.preferredForwardBufferDuration = 4
+        // Live: schneller Start mit kleinem Puffer, Filme/Serien etwas mehr Vorrat
+        let live = url.absoluteString.contains("/live/")
+        item.preferredForwardBufferDuration = live ? 2 : 4
         statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
             if item.status == .readyToPlay {
                 self?.loadAVTracks(for: item)
@@ -317,12 +321,11 @@ final class PlayerModel: NSObject, ObservableObject {
     private func pollVLC() {
         let p = vlcPlayer
         let ms = p.time.intValue
-        currentTime = Double(ms) / 1000
-        if let length = p.media?.length.intValue, length > 0 {
-            duration = Double(length) / 1000
-        } else {
-            duration = 0
-        }
+        let t = Double(ms) / 1000
+        if t != currentTime { currentTime = t }
+        var d = 0.0
+        if let length = p.media?.length.intValue, length > 0 { d = Double(length) / 1000 }
+        if d != duration { duration = d }
 
         let size = p.videoSize
         if size != vlcVideoSize { vlcVideoSize = size }
@@ -338,17 +341,17 @@ final class PlayerModel: NSObject, ObservableObject {
 
         switch p.state {
         case .error:
-            isBuffering = false
-            errorMessage = "Wiedergabe fehlgeschlagen. Der Server liefert die Datei nicht oder das Format wird nicht unterstützt."
+            if isBuffering != (false) { isBuffering = false }
+            if errorMessage == nil { errorMessage = "Wiedergabe fehlgeschlagen. Der Server liefert die Datei nicht oder das Format wird nicht unterstützt." }
         case .paused, .stopped, .ended:
-            isBuffering = false
-            isPlaying = false
+            if isBuffering != (false) { isBuffering = false }
+            if isPlaying != (false) { isPlaying = false }
         case .opening, .buffering:
-            isBuffering = ms == 0
-            isPlaying = true
+            if isBuffering != (ms == 0) { isBuffering = ms == 0 }
+            if isPlaying != (true) { isPlaying = true }
         default:
-            isBuffering = false
-            isPlaying = true
+            if isBuffering != (false) { isBuffering = false }
+            if isPlaying != (true) { isPlaying = true }
         }
 
         if ms > 0 { refreshVLCTracks() }
