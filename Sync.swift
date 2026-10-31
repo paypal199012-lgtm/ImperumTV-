@@ -224,10 +224,13 @@ final class ThumbCache {
     private let lock = NSLock()
     private var running: [URL: Task<UIImage?, Never>] = [:]
 
+    /// Festplatten-Speicher der Poster (für „Cache leeren“ erreichbar)
+    private static let diskCache = URLCache(memoryCapacity: 16 * 1024 * 1024, diskCapacity: 300 * 1024 * 1024)
+
     /// Eigene Sitzung mit Festplatten-Speicher: beim nächsten Start sind die Bilder sofort da
     private let session: URLSession = {
         let config = URLSessionConfiguration.default
-        config.urlCache = URLCache(memoryCapacity: 16 * 1024 * 1024, diskCapacity: 300 * 1024 * 1024)
+        config.urlCache = ThumbCache.diskCache
         config.requestCachePolicy = .returnCacheDataElseLoad
         config.timeoutIntervalForRequest = 20
         config.httpMaximumConnectionsPerHost = 6
@@ -241,6 +244,15 @@ final class ThumbCache {
 
     func cached(_ url: URL) -> UIImage? {
         memory.object(forKey: url as NSURL)
+    }
+
+    /// Belegter Platz auf dem Gerät (Bytes)
+    var diskUsage: Int { ThumbCache.diskCache.currentDiskUsage }
+
+    /// Alle gespeicherten Poster löschen
+    func clear() {
+        memory.removeAllObjects()
+        ThumbCache.diskCache.removeAllCachedResponses()
     }
 
     func load(_ url: URL, maxPixel: CGFloat) async -> UIImage? {

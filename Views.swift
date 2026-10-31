@@ -403,6 +403,8 @@ struct SettingsView: View {
     @AppStorage("vodWithVLC") private var vodWithVLC = false
     @AppStorage("autoNext") private var autoNext = true
     @AppStorage("introBtn") private var introBtn = true
+    @State private var askClearCache = false
+    @State private var cacheMessage: String?
 
     var body: some View {
         Form {
@@ -411,6 +413,25 @@ struct SettingsView: View {
                     Task { await store.refresh() }
                 }
                 .disabled(store.isLoading)
+
+                Button("Cache leeren") { askClearCache = true }
+                    .disabled(store.isLoading)
+                    .confirmationDialog("Cache leeren?", isPresented: $askClearCache, titleVisibility: .visible) {
+                        Button("Cache leeren", role: .destructive) {
+                            Task {
+                                let mb = await store.clearCache()
+                                cacheMessage = mb > 0 ? "Cache geleert (\(mb) MB frei) – Listen neu geladen." : "Cache geleert – Listen neu geladen."
+                            }
+                        }
+                        Button("Abbrechen", role: .cancel) {}
+                    } message: {
+                        Text("Gespeicherte Cover, Bilder und das Programm werden gelöscht und neu geladen. Favoriten, Weiterschauen, gesehene Folgen und Einstellungen bleiben erhalten.")
+                    }
+                if let msg = cacheMessage {
+                    Text(msg)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.goldLight)
+                }
 
                 Button("Wiedergabelisten") { store.showSetup = true }
             }

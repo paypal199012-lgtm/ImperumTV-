@@ -406,6 +406,22 @@ final class AppStore: ObservableObject {
         }
     }
 
+    /// Einstellungen → Cache leeren: Poster, Bilder und Programm löschen, danach alles neu laden.
+    /// Favoriten, Weiterschauen, gesehene Folgen und Einstellungen bleiben. Gibt die freigegebenen MB zurück.
+    func clearCache() async -> Int {
+        let before = ThumbCache.shared.diskUsage + URLCache.shared.currentDiskUsage
+        ThumbCache.shared.clear()
+        URLCache.shared.removeAllCachedResponses()
+        epgCache = [:]
+        // Alte temporäre Dateien
+        let tmp = FileManager.default.temporaryDirectory
+        if let files = try? FileManager.default.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil) {
+            for f in files { try? FileManager.default.removeItem(at: f) }
+        }
+        await refresh()
+        return max(0, before) / (1024 * 1024)
+    }
+
     func refresh() async {
         epgCache = [:]
         if kind == "m3u", let link = defaults.string(forKey: "m3uLink") {

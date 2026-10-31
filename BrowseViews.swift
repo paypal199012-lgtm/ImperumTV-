@@ -457,11 +457,16 @@ struct MovieDetailView: View {
     private var backdrop: some View {
         ZStack {
             Theme.dark
-            AsyncImage(url: info?.backdrop ?? info?.cover ?? movie.logo) { phase in
-                if let img = phase.image {
-                    img.resizable().scaledToFill().blur(radius: 18)
+            // Bild darf das Layout nicht vergrößern (sonst rutschen Staffeln/Knöpfe aus dem Bildschirm)
+            Color.clear
+                .overlay {
+                    AsyncImage(url: info?.backdrop ?? info?.cover ?? movie.logo) { phase in
+                        if let img = phase.image {
+                            img.resizable().scaledToFill().blur(radius: 18)
+                        }
+                    }
                 }
-            }
+                .clipped()
             LinearGradient(colors: [.black.opacity(0.55), .black.opacity(0.9)], startPoint: .top, endPoint: .bottom)
         }
         .ignoresSafeArea()
@@ -721,22 +726,31 @@ struct SeriesDetailView: View {
 
                     // Rechts: Staffeln und Folgen
                     VStack(alignment: .leading, spacing: 10) {
-                        if seasons.count > 1 {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(seasons, id: \.self) { s in
-                                        Button {
-                                            season = s
-                                        } label: {
-                                            Text("Staffel \(s)")
-                                                .font(.subheadline.weight(.medium))
-                                                .padding(.horizontal, 14)
-                                                .padding(.vertical, 8)
-                                                .background(Capsule().fill(s == season ? Theme.gold : Theme.panel))
-                                                .foregroundStyle(s == season ? Color.black : Color.white)
+                        // Staffeln immer zeigen (auch bei nur einer), gewählte Staffel in den sichtbaren Bereich holen
+                        if !seasons.isEmpty {
+                            ScrollViewReader { proxy in
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 8) {
+                                        ForEach(seasons, id: \.self) { s in
+                                            Button {
+                                                season = s
+                                            } label: {
+                                                Text("Staffel \(s)")
+                                                    .font(.subheadline.weight(.medium))
+                                                    .padding(.horizontal, 14)
+                                                    .padding(.vertical, 8)
+                                                    .background(Capsule().fill(s == season ? Theme.gold : Theme.panel))
+                                                    .foregroundStyle(s == season ? Color.black : Color.white)
+                                            }
+                                            .buttonStyle(.plain)
+                                            .id(s)
                                         }
-                                        .buttonStyle(.plain)
                                     }
+                                }
+                                .frame(height: 40)
+                                .onAppear { proxy.scrollTo(season, anchor: .center) }
+                                .onChange(of: season) { s in
+                                    withAnimation { proxy.scrollTo(s, anchor: .center) }
                                 }
                             }
                         }
@@ -812,11 +826,16 @@ struct SeriesDetailView: View {
     private var backdrop: some View {
         ZStack {
             Theme.dark
-            AsyncImage(url: info?.backdrop ?? info?.cover ?? series.cover) { phase in
-                if let img = phase.image {
-                    img.resizable().scaledToFill().blur(radius: 18)
+            // Bild darf das Layout nicht vergrößern (sonst rutschen Staffeln/Knöpfe aus dem Bildschirm)
+            Color.clear
+                .overlay {
+                    AsyncImage(url: info?.backdrop ?? info?.cover ?? series.cover) { phase in
+                        if let img = phase.image {
+                            img.resizable().scaledToFill().blur(radius: 18)
+                        }
+                    }
                 }
-            }
+                .clipped()
             LinearGradient(colors: [.black.opacity(0.6), .black.opacity(0.92)], startPoint: .top, endPoint: .bottom)
         }
         .ignoresSafeArea()
