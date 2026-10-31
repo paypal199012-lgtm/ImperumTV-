@@ -114,6 +114,9 @@ enum Football {
     private static let youth = try! NSRegularExpression(pattern: "(^|[^a-z0-9])(u ?1[5-9]|u ?2[0-3]|ii|frauen|women|damen|jugend|youth|reserves?)([^a-z0-9]|$)")
     private static func isYouth(_ s: String) -> Bool { youth.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)) != nil }
 
+    private static let ended = try! NSRegularExpression(pattern: "(^|\\|)\\s*(ended|ende|beendet|finished|vorbei)([^a-z]|$)")
+    private static func isEnded(_ s: String) -> Bool { ended.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)) != nil }
+
     /// Event-Sender, die beide Vereine im Namen tragen
     static func eventChannels(_ m: FBMatch, in channels: [Channel]) -> [Channel] {
         let hw = words(m.h), aw = words(m.a)
@@ -123,6 +126,7 @@ enum Football {
         for ch in channels where !isSeparator(ch.name) {
             let f = fold(ch.name)
             if !teamYouth && isYouth(f) { continue }
+            if isEnded(f) { continue }                                     // beendete Events
             if hw.contains(where: { has(f, $0) }) && aw.contains(where: { has(f, $0) }) { out.append(ch) }
             if out.count >= 20 { break }
         }
@@ -208,6 +212,7 @@ struct FootballView: View {
     @State private var searching: String?
     @State private var note: String?
     @State private var events: [String: [Channel]] = [:]
+    @State private var reloading = false
 
     private var shown: [FBMatch] {
         let old = Date().addingTimeInterval(-6 * 3600)
@@ -274,6 +279,14 @@ struct FootballView: View {
         }
         .background(GoldBackground(dim: 0.6))
         .navigationTitle("Fußball")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { Task { await refreshChannels(manual: true) } } label: {
+                    if reloading { ProgressView().tint(Theme.gold) } else { Label("Sender neu suchen", systemImage: "arrow.clockwise") }
+                }
+                .disabled(reloading)
+            }
+        }
         .overlay(alignment: .bottom) {
             if let note {
                 Text(note)
@@ -296,6 +309,7 @@ struct FootballView: View {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 10_000_000_000)
                 await fb.load(force: true)
+                if Date().timeIntervalSince(store.liveReloadedAt) >= 600 { await refreshChannels(manual: false) }
                 computeEvents()
             }
         }
@@ -313,6 +327,24 @@ struct FootballView: View {
         .fullScreenCover(item: $request) { req in
             PlayerScreen(channels: req.channels, startIndex: req.index, isLive: true)
                 .environmentObject(store)
+        }
+    }
+
+    /// Senderliste neu laden (neue Event-Sender) und neu suchen
+    private func refreshChannels(manual: Bool) async {
+        let before = events.count
+        if manual { reloading = true }
+        let n = await store.reloadLiveChannels(manual: manual)
+        reloading = false
+        computeEvents()
+        guard manual else { return }
+        if n == nil {
+            let min = max(1, Int(Date().timeIntervalSince(store.liveReloadedAt) / 60))
+            note = "Senderliste ist aktuell (vor \(min) Min. geladen). Suche wurde erneuert."
+        } else {
+            let more = events.count - before
+            note = more > 0 ? "Senderliste neu geladen – \(more) " + (more == 1 ? "neues Spiel" : "neue Spiele") + " mit Event-Sender gefunden."
+                : "Senderliste neu geladen – keine neuen Event-Sender."
         }
     }
 

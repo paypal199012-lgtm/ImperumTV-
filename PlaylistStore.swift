@@ -647,6 +647,34 @@ final class AppStore: ObservableObject {
         return upcoming
     }
 
+    /// Nur die Live-Sender beim Anbieter neu laden (z. B. für neue Event-Sender beim Fußball).
+    /// Schonend: per Knopf höchstens alle 2 Minuten, automatisch höchstens alle 10 Minuten.
+    /// Antwort: Anzahl Sender, oder nil = zu früh bzw. nicht möglich.
+    private(set) var liveReloadedAt = Date()
+    func reloadLiveChannels(manual: Bool) async -> Int? {
+        guard let api = currentAPI, !isLoading else { return nil }
+        if Date().timeIntervalSince(liveReloadedAt) < (manual ? 120 : 600) { return nil }
+        liveReloadedAt = Date()
+        do {
+            let names = Self.nameMap(try await api.categories("get_live_categories"))
+            let streams = try await api.liveStreams()
+            let list: [Channel] = await Task.detached(priority: .userInitiated) {
+                streams.compactMap { s -> Channel? in
+                    guard let url = api.streamURL(id: s.streamId) else { return nil }
+                    return Channel(id: s.streamId, name: s.name.isEmpty ? "Sender \(s.streamId)" : s.name,
+                                   url: url, logo: AppStore.url(s.icon), group: s.categoryId.flatMap { names[$0] })
+                }
+            }.value
+            if list.isEmpty { return nil }
+            let keepSetup = showSetup
+            apply(list)
+            showSetup = keepSetup
+            return list.count
+        } catch {
+            return nil
+        }
+    }
+
     // MARK: - Zwischenspeicher
 
     private func apply(_ list: [Channel]) {
