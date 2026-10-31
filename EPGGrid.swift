@@ -136,7 +136,7 @@ struct EPGGridView: View {
             if groups.count > 1 {
                 Menu {
                     Button("Alle Kategorien") { group = nil }
-                    ForEach(groups, id: \.self) { g in
+                    ForEach(groups.filter { !(Profiles.shared.isKids && parental.isProtected("live", $0)) }, id: \.self) { g in
                         Button(parental.isProtected("live", g) ? "🔒 \(g)" : g) {
                             if parental.isLocked("live", g) {
                                 pinRequest = PinRequest(title: "PIN für „\(g)“") { group = g }

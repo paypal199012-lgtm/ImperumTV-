@@ -103,7 +103,7 @@ struct LiveThreePaneView: View {
                     favoritesOnly = true
                     group = nil
                 }
-                ForEach(groups, id: \.self) { name in
+                ForEach(groups.filter { !(Profiles.shared.isKids && parental.isProtected("live", $0)) }, id: \.self) { name in
                     categoryRow(name, icon: parental.isProtected("live", name) ? "lock.fill" : nil,
                                 selected: group == name && !favoritesOnly) {
                         if parental.isLocked("live", name) {

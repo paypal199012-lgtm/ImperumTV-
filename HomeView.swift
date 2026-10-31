@@ -3,12 +3,15 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var store: AppStore
     @ObservedObject private var pip = PiPCenter.shared
+    @ObservedObject private var profiles = Profiles.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
             if !store.isLicenseActive {
                 LockView()
+            } else if profiles.needsChoice {
+                WhoView()
             } else if !store.started && store.channels.isEmpty {
                 StartingView()
             } else if store.channels.isEmpty || store.showSetup {
@@ -35,6 +38,19 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: store.sync == nil)
+        // „Neue Folgen bei …“ kurz unten zeigen
+        .overlay(alignment: .bottom) {
+            if let note = store.newEpisodesNote, store.sync == nil {
+                NoteBanner(text: note)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .onTapGesture { store.newEpisodesNote = nil }
+                    .task {
+                        try? await Task.sleep(nanoseconds: 8_000_000_000)
+                        store.newEpisodesNote = nil
+                    }
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: store.newEpisodesNote)
         // Aus Bild-in-Bild zurückgeholt: Player wieder groß
         .fullScreenCover(item: $pip.restore) { session in
             PlayerScreen(channels: session.channels, startIndex: session.index, isLive: session.isLive,
@@ -78,6 +94,7 @@ struct RootView: View {
 
 struct HomeView: View {
     @EnvironmentObject private var store: AppStore
+    @ObservedObject private var profiles = Profiles.shared
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     var body: some View {
@@ -135,9 +152,11 @@ struct HomeView: View {
                         }
                         smallTile(.favorites, "Favoriten", "star.fill")
                         smallTile(.search, "Suche", "magnifyingglass")
-                        smallTile(.account, "Konto", "person.crop.circle")
-                        smallTile(.settings, "Einstellungen", "gearshape.fill")
-                        listsTile()
+                        if !profiles.isKids {           // Kinder-Profil: keine Einstellungen, keine Listen
+                            smallTile(.account, "Konto", "person.crop.circle")
+                            smallTile(.settings, "Einstellungen", "gearshape.fill")
+                            listsTile()
+                        }
                     }
                 }
                 .frame(maxWidth: min(size.width - 40, 440))
@@ -182,9 +201,11 @@ struct HomeView: View {
                 }
                 smallTile(.favorites, "Favoriten", "star.fill", height: smallHeight).frame(width: 78)
                 smallTile(.search, "Suche", "magnifyingglass", height: smallHeight).frame(width: 78)
-                smallTile(.account, "Konto", "person.crop.circle", height: smallHeight).frame(width: 78)
-                smallTile(.settings, "Einstellungen", "gearshape.fill", height: smallHeight).frame(width: 78)
-                listsTile(height: smallHeight).frame(width: 78)
+                if !profiles.isKids {
+                    smallTile(.account, "Konto", "person.crop.circle", height: smallHeight).frame(width: 78)
+                    smallTile(.settings, "Einstellungen", "gearshape.fill", height: smallHeight).frame(width: 78)
+                    listsTile(height: smallHeight).frame(width: 78)
+                }
             }
             .padding(.top, 14)
 
@@ -256,6 +277,7 @@ struct HomeView: View {
             ZStack {
                 title
                 HStack {
+                    ProfileChip()
                     Spacer()
                     headerButtons
                 }
@@ -265,6 +287,7 @@ struct HomeView: View {
             HStack {
                 title
                 Spacer()
+                ProfileChip()
                 headerButtons
             }
         }
@@ -281,6 +304,22 @@ struct HomeView: View {
     private func bigTile(_ route: Route, _ title: String, _ icon: String) -> some View {
         NavigationLink(value: route) {
             CircleTile(title: title, icon: icon)
+                .overlay(alignment: .topTrailing) {
+                    // Serien: roter Zähler für neue Folgen
+                    if route == .series {
+                        let count = store.seriesWithNewEpisodes.count
+                        if count > 0 {
+                            Text("\(count)")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.white)
+                                .frame(minWidth: 26, minHeight: 26)
+                                .padding(.horizontal, 4)
+                                .background(Capsule().fill(Color.red))
+                                .overlay(Capsule().stroke(Color.black, lineWidth: 2))
+                                .offset(x: -6, y: 6)
+                        }
+                    }
+                }
         }
         .buttonStyle(.plain)
     }

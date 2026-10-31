@@ -11,6 +11,10 @@ struct PosterCard: View {
     var subtitle: String? = nil
     /// Bewertung 0–10, wird oben links gezeigt
     var rating: Double? = nil
+    /// Film schon gesehen: abgedunkelt mit Haken
+    var seen = false
+    /// Serie: Anzahl neuer Folgen („+2 NEU“)
+    var newCount = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -19,8 +23,40 @@ struct PosterCard: View {
                 .overlay {
                     PosterImage(url: image)
                 }
+                .overlay {
+                    if seen {
+                        ZStack(alignment: .bottom) {
+                            Color.black.opacity(0.5)
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 20, weight: .heavy))
+                                .foregroundStyle(.black)
+                                .frame(width: 40, height: 40)
+                                .background(Circle().fill(Theme.gold))
+                                .shadow(color: .black.opacity(0.6), radius: 4)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            Text("GESEHEN")
+                                .font(.caption2.weight(.heavy))
+                                .foregroundStyle(Theme.goldLight)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 4)
+                                .background(Color.black.opacity(0.65))
+                        }
+                    }
+                }
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.gold.opacity(0.3)))
+                .overlay(alignment: .bottomLeading) {
+                    if newCount > 0 {
+                        Text("+\(newCount) NEU")
+                            .font(.caption2.weight(.heavy))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(Color.red))
+                            .padding(.leading, 6)
+                            .padding(.bottom, 16)
+                    }
+                }
                 .overlay(alignment: .bottom) {
                     if let progress = progress {
                         ProgressStrip(part: progress)
@@ -70,6 +106,10 @@ private let posterColumns = [GridItem(.adaptive(minimum: 105), spacing: 12)]
 let resumeCategory = "▶ Weiter ansehen"
 /// Sonder-Kategorie mit den neuesten Titeln des Anbieters
 let newCategory = "Zuletzt hinzugefügt"
+/// Sonder-Kategorien: gesehene / nicht gesehene Filme, Serien mit neuen Folgen
+let seenCategory = "✓ Gesehen"
+let unseenCategory = "Nicht gesehen"
+let newEpisodesCategory = "Neue Folgen"
 /// Schlüssel für die Zahl bei „Alle“ und „Favoriten“ (kann mit keinem Kategorienamen kollidieren)
 let countAll = "\u{1}alle"
 let countFavorites = "\u{1}favoriten"
@@ -105,7 +145,7 @@ struct CategorySidebar: View {
                     favoritesOnly = true
                     group = nil
                 }
-                ForEach(groups, id: \.self) { name in
+                ForEach(groups.filter { name in !(Profiles.shared.isKids && (kind.map { parental.isProtected($0, name) } ?? false)) }, id: \.self) { name in
                     let protected = kind.map { parental.isProtected($0, name) } ?? false
                     row(name, icon: protected ? "lock.fill" : nil, count: counts[name], selected: group == name && !favoritesOnly) {
                         if let k = kind, parental.isLocked(k, name) {
@@ -207,6 +247,9 @@ struct MovieGridView: View {
         c[yearCategory] = all.filter { $0.year == currentYear }.count
         c[newCategory] = min(150, all.count)
         c[resumeCategory] = store.resumeEntries.filter { !$0.isEpisode && $0.pos >= 30 }.count
+        let seenCount = all.filter { store.movieSeen($0) != nil }.count
+        c[seenCategory] = seenCount
+        c[unseenCategory] = all.count - seenCount
         counts = c
     }
 
@@ -216,7 +259,7 @@ struct MovieGridView: View {
     private var yearCategory: String { "Filme \(currentYear)" }
 
     private var groups: [String] {
-        [resumeCategory, newCategory, yearCategory] + Array(Set(store.movies.compactMap(\.group))).sorted()
+        [resumeCategory, newCategory, yearCategory, seenCategory, unseenCategory] + Array(Set(store.movies.compactMap(\.group))).sorted()
     }
 
     /// Gefiltert und sortiert (angefangene Filme bleiben in der Reihenfolge „zuletzt geschaut“)
@@ -245,7 +288,11 @@ struct MovieGridView: View {
         }
         return parental.visible("movie", store.movies).filter { movie in
             let inGroup: Bool
-            if group == yearCategory {
+            if group == seenCategory {
+                inGroup = store.movieSeen(movie) != nil
+            } else if group == unseenCategory {
+                inGroup = store.movieSeen(movie) == nil
+            } else if group == yearCategory {
                 inGroup = movie.year == currentYear
             } else {
                 inGroup = group == nil || movie.group == group
@@ -304,6 +351,7 @@ struct MovieGridView: View {
                     Text(favoritesOnly ? "Noch keine Film-Favoriten. Halte den Finger auf ein Poster."
                          : group == resumeCategory ? "Hier erscheinen Filme, die du angefangen hast."
                          : group == yearCategory ? "Dein Anbieter hat keine Filme mit dem Jahr \(currentYear) gekennzeichnet."
+                         : group == seenCategory ? "Hier erscheinen Filme, die du bis zum Ende geschaut hast."
                          : "Keine Filme gefunden.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -312,9 +360,10 @@ struct MovieGridView: View {
                 LazyVGrid(columns: posterColumns, spacing: 16) {
                     ForEach(list) { movie in
                         NavigationLink(value: movie) {
+                            let part = store.resumeEntry(movieId: movie.id).flatMap { $0.pos >= 30 ? $0.part : nil }
                             PosterCard(title: movie.name, image: movie.logo, isFavorite: store.isFavorite(movie),
-                                       progress: store.resumeEntry(movieId: movie.id).flatMap { $0.pos >= 30 ? $0.part : nil },
-                                       rating: movie.rating)
+                                       progress: part, rating: movie.rating,
+                                       seen: part == nil && store.movieSeen(movie) != nil)
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
@@ -370,13 +419,25 @@ struct MovieDetailView: View {
                                 .foregroundStyle(Theme.gold)
                         }
 
+                        let seenState = store.movieSeen(movie)
+                        if let seenState = seenState, store.resumeEntry(movieId: movie.id).flatMap({ $0.pos >= 30 ? $0 : nil }) == nil {
+                            Label("Gesehen am \(seenDateText(seenState))", systemImage: "checkmark")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Theme.goldLight)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(RoundedRectangle(cornerRadius: 10).fill(Theme.gold.opacity(0.18)))
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.gold, lineWidth: 1.5))
+                        }
+
                         HStack(spacing: 12) {
                             let saved = store.resumeEntry(movieId: movie.id).flatMap { $0.pos >= 30 ? $0 : nil }
                             Button {
                                 request = PlayRequest(channels: [movie], index: 0, isLive: false,
                                                       resume: [ResumeInfo.movie(movie)], startAt: saved?.pos ?? 0)
                             } label: {
-                                Label(saved.map { "Weiter ab \(timeText($0.pos))" } ?? "Abspielen", systemImage: "play.fill")
+                                Label(saved.map { "Weiter ab \(timeText($0.pos))" } ?? (seenState != nil ? "Nochmal ansehen" : "Abspielen"),
+                                      systemImage: saved == nil && seenState != nil ? "arrow.counterclockwise" : "play.fill")
                                     .font(.headline)
                                     .foregroundStyle(.black)
                                     .padding(.horizontal, 22)
@@ -405,6 +466,19 @@ struct MovieDetailView: View {
                                     .foregroundStyle(store.isFavorite(movie) ? Theme.gold : Color.white)
                                     .frame(width: 44, height: 44)
                                     .background(Circle().fill(Color.white.opacity(0.12)))
+                            }
+
+                            // Von Hand als gesehen / ungesehen markieren
+                            Button {
+                                store.setMovieSeen(movie, seenState == nil)
+                            } label: {
+                                Label(seenState == nil ? "Gesehen" : "Ungesehen",
+                                      systemImage: seenState == nil ? "checkmark.circle" : "xmark.circle")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 10)
+                                    .background(Capsule().fill(Color.white.opacity(0.12)))
                             }
                         }
                         .buttonStyle(.plain)
@@ -497,17 +571,18 @@ struct SeriesGridView: View {
         c[countFavorites] = all.filter { store.isFavoriteSeries($0) }.count
         c[newCategory] = min(150, all.count)
         c[resumeCategory] = Set(store.resumeEntries.filter { $0.isEpisode }.compactMap { $0.seriesId }).count
+        c[newEpisodesCategory] = store.seriesWithNewEpisodes.count
         counts = c
     }
 
     private var groups: [String] {
-        [resumeCategory, newCategory] + Array(Set(store.seriesList.compactMap(\.group))).sorted()
+        [resumeCategory, newEpisodesCategory, newCategory] + Array(Set(store.seriesList.compactMap(\.group))).sorted()
     }
 
     /// Gefiltert und sortiert (angefangene Serien bleiben in der Reihenfolge „zuletzt geschaut“)
     private var filtered: [SeriesItem] {
         let list = unsorted
-        if group == resumeCategory && !favoritesOnly { return list }
+        if (group == resumeCategory || group == newEpisodesCategory) && !favoritesOnly { return list }
         return Sorter.sort(list, SortMode(rawValue: sortRaw) ?? .standard,
                            name: { $0.name }, added: { $0.added }, rating: { $0.rating }, year: { $0.year ?? 0 })
     }
@@ -519,6 +594,10 @@ struct SeriesGridView: View {
                 guard e.isEpisode, let sid = e.seriesId, let show = byId[sid] else { return nil }
                 return (query.isEmpty || show.name.localizedCaseInsensitiveContains(query)) ? show : nil
             }
+        }
+        if group == newEpisodesCategory && !favoritesOnly {
+            return parental.visibleSeries(store.seriesWithNewEpisodes)
+                .filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }
         }
         if group == newCategory && !favoritesOnly {
             let all = parental.visibleSeries(store.seriesList)
@@ -561,6 +640,7 @@ struct SeriesGridView: View {
         }
         .task { await store.loadSeriesIfNeeded() }
         .task(id: store.seriesList.count) { countGroups() }
+        .onChange(of: store.newEpisodesVersion) { _ in countGroups() }
         .onAppear { countGroups() }
         .onChange(of: favoritesOnly) { _ in countGroups() }
     }
@@ -581,7 +661,9 @@ struct SeriesGridView: View {
                 }
                 if list.isEmpty && !store.seriesList.isEmpty {
                     Text(favoritesOnly ? "Noch keine Serien-Favoriten. Halte den Finger auf ein Poster."
-                         : group == resumeCategory ? "Hier erscheinen Serien, die du angefangen hast." : "Keine Serien gefunden.")
+                         : group == resumeCategory ? "Hier erscheinen Serien, die du angefangen hast."
+                         : group == newEpisodesCategory ? "Hier erscheinen Serien, die du schaust oder als Favorit hast, sobald dein Anbieter neue Folgen hinzufügt."
+                         : "Keine Serien gefunden.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.top, 30)
@@ -590,10 +672,14 @@ struct SeriesGridView: View {
                     ForEach(list) { show in
                         NavigationLink(value: show) {
                             let saved = store.resumeEntry(seriesId: show.id)
+                            let fresh = store.freshEpisodes(seriesId: show.id)
                             PosterCard(title: show.name, image: show.cover, isFavorite: store.isFavoriteSeries(show),
                                        progress: saved.flatMap { $0.next ? nil : $0.part },
-                                       subtitle: saved.map { "S\($0.season ?? 1) F\($0.number ?? 0) · \($0.leftText)" },
-                                       rating: show.rating)
+                                       subtitle: fresh.isEmpty
+                                           ? saved.map { "S\($0.season ?? 1) F\($0.number ?? 0) · \($0.leftText)" }
+                                           : Optional("Neu: " + NewEpisodesStore.label(fresh)),
+                                       rating: show.rating,
+                                       newCount: fresh.count)
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
@@ -647,6 +733,7 @@ struct SeriesDetailView: View {
 
     var body: some View {
         let current = episodes.filter { $0.season == season }
+        let fresh = store.freshEpisodes(seriesId: series.id)
 
         ZStack {
             backdrop
@@ -702,6 +789,21 @@ struct SeriesDetailView: View {
                                 }
                                 .buttonStyle(.plain)
                             }
+                            if let first = fresh.first, let ep = episodes.first(where: { $0.id == first.id }),
+                               store.resumeEntry(seriesId: series.id)?.itemId != ep.id {
+                                Button {
+                                    season = ep.season
+                                    play(ep, from: 0)
+                                } label: {
+                                    Label("Neue Folge: S\(ep.season) F\(ep.number)", systemImage: "sparkles")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 8)
+                                        .background(Capsule().fill(Color.red))
+                                }
+                                .buttonStyle(.plain)
+                            }
                             if let plot = info?.plot {
                                 Text(plot)
                                     .font(.caption)
@@ -741,13 +843,26 @@ struct SeriesDetailView: View {
                                                     .padding(.vertical, 8)
                                                     .background(Capsule().fill(s == season ? Theme.gold : Theme.panel))
                                                     .foregroundStyle(s == season ? Color.black : Color.white)
+                                                    .overlay(alignment: .topTrailing) {
+                                                        let n = fresh.filter { $0.season == s }.count
+                                                        if n > 0 {
+                                                            Text("\(n)")
+                                                                .font(.caption2.weight(.bold))
+                                                                .foregroundStyle(.white)
+                                                                .frame(minWidth: 18, minHeight: 18)
+                                                                .background(Circle().fill(Color.red))
+                                                                .offset(x: 6, y: -6)
+                                                        }
+                                                    }
                                             }
                                             .buttonStyle(.plain)
                                             .id(s)
                                         }
                                     }
+                                    .padding(.top, 8)
+                                    .padding(.trailing, 8)
                                 }
-                                .frame(height: 40)
+                                .frame(height: 50)
                                 .onAppear { proxy.scrollTo(season, anchor: .center) }
                                 .onChange(of: season) { s in
                                     withAnimation { proxy.scrollTo(s, anchor: .center) }
@@ -775,7 +890,8 @@ struct SeriesDetailView: View {
                                 ForEach(current) { episode in
                                     EpisodeRow(episode: episode,
                                                saved: store.resumeEntry(for: ResumeInfo.episode(episode, series: series)),
-                                               seen: store.seenState(for: episode)) { hasProgress in
+                                               seen: store.seenState(for: episode),
+                                               isNew: fresh.contains { $0.id == episode.id }) { hasProgress in
                                         if hasProgress {
                                             askEpisode = episode
                                         } else {
@@ -800,6 +916,10 @@ struct SeriesDetailView: View {
                 info = details.info
                 season = episodes.first?.season ?? 1
                 jumpToLastSeason()
+                // Neue Folgen da? Dann deren Staffel zeigen
+                if let first = store.freshEpisodes(seriesId: series.id).first, seasons.contains(first.season) {
+                    season = first.season
+                }
                 if episodes.isEmpty { errorText = "Keine Folgen gefunden." }
             } catch {
                 errorText = error.localizedDescription
@@ -847,6 +967,8 @@ struct EpisodeRow: View {
     let episode: Episode
     let saved: ResumeEntry?
     var seen: SeenState? = nil
+    /// Neu beim Anbieter dazugekommen (noch nicht gesehen)
+    var isNew = false
     /// true = es gibt einen gespeicherten Stand
     let onTap: (Bool) -> Void
 
@@ -857,10 +979,11 @@ struct EpisodeRow: View {
     }
 
     private var isDone: Bool { part == nil && (seen?.d ?? false) }
-    private var isNext: Bool { part == nil && !isDone && (saved?.next ?? false) }
+    private var isFresh: Bool { part == nil && !isDone && isNew }
+    private var isNext: Bool { part == nil && !isDone && !isFresh && (saved?.next ?? false) }
     /// Angefangen, aber nicht mehr in „Weiter ansehen“
     private var seenPart: Double? {
-        guard part == nil, !isDone, !isNext, let s = seen, s.p >= 3 else { return nil }
+        guard part == nil, !isDone, !isNext, !isFresh, let s = seen, s.p >= 3 else { return nil }
         return Double(s.p) / 100
     }
 
@@ -886,6 +1009,13 @@ struct EpisodeRow: View {
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
                             .background(Capsule().fill(Theme.gold.opacity(0.22)))
+                    } else if isFresh {
+                        Text("NEU")
+                            .font(.caption2.weight(.heavy))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(Color.red))
                     } else if isNext {
                         Label("Als Nächstes", systemImage: "play.fill")
                             .font(.caption2.weight(.bold))
@@ -913,9 +1043,9 @@ struct EpisodeRow: View {
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12).fill(Theme.panel))
             .overlay(alignment: .leading) {
-                if part != nil || seenPart != nil || isNext {
+                if part != nil || seenPart != nil || isNext || isFresh {
                     Rectangle()
-                        .fill(isNext ? Theme.goldLight : Theme.gold)
+                        .fill(isFresh ? Color.red : (isNext ? Theme.goldLight : Theme.gold))
                         .frame(width: 4)
                         .clipShape(RoundedRectangle(cornerRadius: 2))
                         .padding(.vertical, 6)

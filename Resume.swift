@@ -12,7 +12,7 @@ extension AppStore {
         var list = resumeList.filter { $0.acc == acc }.sorted { $0.at > $1.at }
         // Kindersicherung: gesperrte Filme und Serien nicht zeigen
         let parental = Parental.shared
-        if parental.enabled && !parental.isUnlocked {
+        if (parental.enabled || Profiles.shared.isKids) && !parental.isUnlocked {
             var hidden = Set<String>()
             for m in movies where parental.isProtected("movie", m.group) { hidden.insert("movie:\(m.id)") }
             for s in seriesList where parental.isProtected("series", s.group) { hidden.insert("series:\(s.id)") }
@@ -56,7 +56,7 @@ extension AppStore {
 
     private func saveResumeList() {
         if let data = try? JSONEncoder().encode(resumeList) {
-            defaults.set(data, forKey: "resume")
+            defaults.set(data, forKey: Profiles.storageKey("resume"))
         }
     }
 
@@ -84,13 +84,12 @@ extension AppStore {
     func recordProgress(info: ResumeInfo, channel: Channel, next: (info: ResumeInfo, channel: Channel)?,
                         pos: Double, dur: Double, ended: Bool) {
         let done = ended || (dur > 60 && (pos >= dur * 0.95 || dur - pos < 60))
-        // Pro Folge merken: gesehen oder angefangen (für die Haken in der Folgenliste)
-        if info.kind == .episode {
-            if done {
-                SeenStore.mark(resumeAccount, info.itemId, part: 1, done: true)
-            } else if dur > 60 && pos >= 30 {
-                SeenStore.mark(resumeAccount, info.itemId, part: pos / dur, done: false)
-            }
+        // Pro Folge bzw. Film merken: gesehen oder angefangen (für die Haken)
+        let seenId = info.kind == .episode ? info.itemId : "mv\(info.itemId)"
+        if done {
+            SeenStore.mark(resumeAccount, seenId, part: 1, done: true)
+        } else if dur > 60 && pos >= 30 {
+            SeenStore.mark(resumeAccount, seenId, part: pos / dur, done: false)
         }
         if done {
             if let n = next {
@@ -119,9 +118,12 @@ struct SeenState: Codable, Hashable {
 }
 
 enum SeenStore {
-    private static let storageKey = "seenEpisodes"
+    private static var storageKey: String { Profiles.storageKey("seenEpisodes") }
     private static let maxEntries = 4000
     private static var cache: [String: SeenState]?
+
+    /// Profil gewechselt: neu laden
+    static func resetCache() { cache = nil }
 
     private static func all() -> [String: SeenState] {
         if let c = cache { return c }
@@ -133,6 +135,15 @@ enum SeenStore {
 
     static func get(_ account: String, _ id: String) -> SeenState? {
         all()[account + "|" + id]
+    }
+
+    static func remove(_ account: String, _ id: String) {
+        var dict = all()
+        dict[account + "|" + id] = nil
+        cache = dict
+        if let data = try? JSONEncoder().encode(dict) {
+            UserDefaults.standard.set(data, forKey: storageKey)
+        }
     }
 
     static func mark(_ account: String, _ id: String, part: Double, done: Bool) {

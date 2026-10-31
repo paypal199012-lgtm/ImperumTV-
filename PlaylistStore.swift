@@ -15,6 +15,12 @@ final class AppStore: ObservableObject {
     @Published private(set) var movies: [Channel] = []
     @Published private(set) var seriesList: [SeriesItem] = []
     @Published private(set) var favorites: Set<String> = []
+    /// Hinweis „Neue Folgen bei …“ (wird unten kurz eingeblendet)
+    @Published var newEpisodesNote: String?
+    /// Prüfung auf neue Folgen läuft gerade
+    var newEpisodesChecking = false
+    /// Zählt hoch, wenn neue Folgen gefunden wurden (Zahlen in den Kategorien auffrischen)
+    @Published var newEpisodesVersion = 0
     @Published private(set) var isLoading = false
     @Published private(set) var moviesLoading = false
     @Published private(set) var seriesLoading = false
@@ -64,13 +70,13 @@ final class AppStore: ObservableObject {
         username = defaults.string(forKey: "username") ?? ""
         password = Keychain.load("password") ?? ""
         userAgent = defaults.string(forKey: "userAgent") ?? ""
-        favorites = Set(defaults.stringArray(forKey: "favorites") ?? [])
+        favorites = Set(defaults.stringArray(forKey: Profiles.storageKey("favorites")) ?? [])
         infoMessage = defaults.string(forKey: "info")
         kind = defaults.string(forKey: "kind") ?? ""
         let exp = defaults.double(forKey: "expiry")
         expiry = exp > 0 ? Date(timeIntervalSince1970: exp) : nil
 
-        if let data = defaults.data(forKey: "resume"),
+        if let data = defaults.data(forKey: Profiles.storageKey("resume")),
            let list = try? JSONDecoder().decode([ResumeEntry].self, from: data) {
             resumeList = list
         }
@@ -238,13 +244,26 @@ final class AppStore: ObservableObject {
         favorites.contains(channel.key)
     }
 
+    /// Profil gewechselt: Favoriten und „Weiterschauen“ des Profils laden
+    func reloadProfileData() {
+        favorites = Set(defaults.stringArray(forKey: Profiles.storageKey("favorites")) ?? [])
+        if let data = defaults.data(forKey: Profiles.storageKey("resume")),
+           let list = try? JSONDecoder().decode([ResumeEntry].self, from: data) {
+            resumeList = list
+        } else {
+            resumeList = []
+        }
+        newEpisodesVersion += 1
+        objectWillChange.send()
+    }
+
     func toggleFavorite(_ channel: Channel) {
         if favorites.contains(channel.key) {
             favorites.remove(channel.key)
         } else {
             favorites.insert(channel.key)
         }
-        defaults.set(Array(favorites), forKey: "favorites")
+        defaults.set(Array(favorites), forKey: Profiles.storageKey("favorites"))
     }
 
     func isFavoriteSeries(_ series: SeriesItem) -> Bool {
@@ -258,7 +277,7 @@ final class AppStore: ObservableObject {
         } else {
             favorites.insert(key)
         }
-        defaults.set(Array(favorites), forKey: "favorites")
+        defaults.set(Array(favorites), forKey: Profiles.storageKey("favorites"))
     }
 
     // MARK: - Anmeldung und Live-TV
@@ -500,6 +519,11 @@ final class AppStore: ObservableObject {
             try? await Task.sleep(nanoseconds: 1_400_000_000)
             guard let self = self, token == self.syncToken else { return }
             self.sync = nil
+        }
+        // Etwas später: neue Folgen bei verfolgten Serien suchen
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            await self?.checkNewEpisodes()
         }
     }
 

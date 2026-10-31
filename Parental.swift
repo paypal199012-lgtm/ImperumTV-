@@ -29,7 +29,7 @@ final class Parental: ObservableObject {
     }
 
     var enabled: Bool { pinHash != nil }
-    var isUnlocked: Bool { Date() < unlockedUntil }
+    var isUnlocked: Bool { !Profiles.shared.isKids && Date() < unlockedUntil }
 
     private static let adultPattern = #"(^|[^a-z])(xxx|adult|adults|erwachsene?|for adults|18\s*\+|\+\s*18|porn|porno|sex|sexy|erotik|erotic|playboy|hustler|brazzers|redlight|private)([^a-z]|$)"#
 
@@ -39,6 +39,8 @@ final class Parental: ObservableObject {
 
     /// Geschützte Kategorie? kind: "live", "movie" oder "series"
     func isProtected(_ kind: String, _ cat: String?) -> Bool {
+        // Kinder-Profil: alles außer den freigegebenen Kategorien
+        if Profiles.shared.isKids, let c = cat, !c.isEmpty { return !Profiles.shared.kidAllowed(kind, c) }
         guard enabled, let c = cat, !c.isEmpty else { return false }
         if autoAdult && isAdult(c) { return true }
         return cats.contains("\(kind):\(c)")
@@ -50,12 +52,12 @@ final class Parental: ObservableObject {
     }
 
     func visible(_ kind: String, _ list: [Channel]) -> [Channel] {
-        guard enabled && !isUnlocked else { return list }
+        guard (enabled || Profiles.shared.isKids) && !isUnlocked else { return list }
         return list.filter { !isProtected(kind, $0.group) }
     }
 
     func visibleSeries(_ list: [SeriesItem]) -> [SeriesItem] {
-        guard enabled && !isUnlocked else { return list }
+        guard (enabled || Profiles.shared.isKids) && !isUnlocked else { return list }
         return list.filter { !isProtected("series", $0.group) }
     }
 

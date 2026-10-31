@@ -436,6 +436,23 @@ struct SettingsView: View {
                 Button("Wiedergabelisten") { store.showSetup = true }
             }
 
+            if !Profiles.shared.isKids {
+                Section {
+                    NavigationLink {
+                        ProfilesSettingsView()
+                    } label: {
+                        HStack {
+                            Label("Profile", systemImage: "person.2.fill")
+                            Spacer()
+                            Text(Profiles.shared.list.isEmpty ? "Aus" : "\(Profiles.shared.list.count) · \(Profiles.shared.current?.name ?? "")")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } footer: {
+                    Text("Mehrere Personen auf diesem Gerät: eigene Favoriten, „Weiterschauen“ und Gesehen-Haken. Auch als Kinder-Profil.")
+                }
+            }
+
             if let error = store.errorMessage {
                 Text(error)
                     .foregroundStyle(.red)
