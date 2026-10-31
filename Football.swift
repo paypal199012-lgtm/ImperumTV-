@@ -223,6 +223,22 @@ struct FootballView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Button { Task { await refreshChannels(manual: true) } } label: {
+                    HStack(spacing: 6) {
+                        if reloading { ProgressView().tint(.black).scaleEffect(0.8) } else { Image(systemName: "arrow.clockwise") }
+                        Text("Sender neu suchen")
+                    }
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.black)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(Capsule().fill(Theme.goldLight))
+                }
+                .buttonStyle(.plain)
+                .disabled(reloading)
+            }
+            .padding(.horizontal, 16).padding(.top, 6)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(Football.leagues, id: \.0) { item in
@@ -262,6 +278,7 @@ struct FootballView: View {
                             ForEach(list) { m in
                                 FBRow(match: m, channel: events[m.id]?.first, extra: max(0, (events[m.id]?.count ?? 0) - 1),
                                       busy: searching == m.id)
+                                    .contentShape(Rectangle())
                                     .onTapGesture { Task { await open(m) } }
                             }
                         }
@@ -279,13 +296,6 @@ struct FootballView: View {
         }
         .background(GoldBackground(dim: 0.6))
         .navigationTitle("Fußball")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button { Task { await refreshChannels(manual: true) } } label: {
-                    if reloading { ProgressView().tint(Theme.gold) } else { Label("Sender neu suchen", systemImage: "arrow.clockwise") }
-                }
-                .disabled(reloading)
-            }
         }
         .overlay(alignment: .bottom) {
             if let note {
@@ -309,7 +319,7 @@ struct FootballView: View {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 20_000_000_000)
                 await fb.load(force: true)
-                if Date().timeIntervalSince(store.liveReloadedAt) >= 600 { await refreshChannels(manual: false) }
+                if store.secondsSinceLiveReload >= 600 { await refreshChannels(manual: false) }
                 computeEvents()
             }
         }
@@ -339,8 +349,10 @@ struct FootballView: View {
         computeEvents()
         guard manual else { return }
         if n == nil {
-            let sec = max(1, Int(Date().timeIntervalSince(store.liveReloadedAt)))
-            note = "Senderliste ist aktuell (vor \(sec) Sek. geladen). Suche wurde erneuert."
+            note = "Senderliste ist aktuell (vor \(max(1, store.secondsSinceLiveReload)) Sek. geladen). Suche wurde erneuert."
+        } else if n == -1 {
+            note = store.isXtream ? "Senderliste konnte gerade nicht geladen werden. Bitte gleich noch einmal versuchen."
+                : "Sender neu suchen geht nur mit Zugangsdaten (Xtream), nicht mit einem M3U-Link."
         } else {
             let more = events.count - before
             note = more > 0 ? "Senderliste neu geladen – \(more) " + (more == 1 ? "neues Spiel" : "neue Spiele") + " mit Event-Sender gefunden."
@@ -385,16 +397,24 @@ struct FootballView: View {
         let title = m.h.display + " – " + m.a.display
         let tf = DateFormatter(); tf.dateFormat = "HH:mm"
         let when = tf.string(from: m.date) + " Uhr"
+        if searching != nil { return }
         var found = events[m.id] ?? []
-        // Programm der in Frage kommenden Sender zur Anstoßzeit prüfen
-        if !m.isOver && store.isXtream {
+        // Event-Sender sind sicher – sofort anzeigen, ohne Programm-Suche
+        // Sonst: Programm der in Frage kommenden Sender zur Anstoßzeit prüfen
+        if found.isEmpty && !m.isOver && store.isXtream {
             searching = m.id
+            note = "Sender werden gesucht …"
             let words = Football.words(m.h) + Football.words(m.a)
             let kick = m.date
-            let cands = Football.candidates(m, in: store.channels).filter { c in !found.contains(where: { $0.id == c.id }) }
+            let cands = Array(Football.candidates(m, in: store.channels).prefix(12))
             var prog: [Channel] = [], konf: [Channel] = []
             let st = store
-            await withTaskGroup(of: (Channel, Int).self) { group in
+            // Höchstens 12 Sender und 5 Sekunden prüfen – danach mit dem weitermachen, was gefunden wurde
+            if !cands.isEmpty { await withTaskGroup(of: (Channel?, Int).self) { group in
+                group.addTask {
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                    return (nil, -1)
+                }
                 for ch in cands {
                     group.addTask {
                         let list = await st.shortEPG(streamId: ch.id)
@@ -406,11 +426,17 @@ struct FootballView: View {
                         return (ch, 0)
                     }
                 }
+                var done = 0
                 for await (ch, hit) in group {
+                    if hit == -1 { group.cancelAll(); break }
+                    guard let ch else { continue }
                     if hit == 2 { prog.append(ch) } else if hit == 1 { konf.append(ch) }
+                    done += 1
+                    if done >= cands.count { group.cancelAll(); break }
                 }
-            }
+            } }
             searching = nil
+            if note == "Sender werden gesucht …" { note = nil }
             found += prog + konf
         }
         if found.isEmpty {

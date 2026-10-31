@@ -650,10 +650,18 @@ final class AppStore: ObservableObject {
     /// Nur die Live-Sender beim Anbieter neu laden (z. B. für neue Event-Sender beim Fußball).
     /// Schonend: per Knopf höchstens jede Minute, automatisch höchstens alle 10 Minuten.
     /// Antwort: Anzahl Sender, oder nil = zu früh bzw. nicht möglich.
-    private(set) var liveReloadedAt = Date()
+    /// Zeitpunkt des letzten Nachladens (nil = seit App-Start noch nicht)
+    private(set) var liveReloadedAt: Date? = nil
+    private let appStartedAt = Date()
+    /// Sekunden seit dem letzten Laden der Senderliste (App-Start zählt mit)
+    var secondsSinceLiveReload: Int { Int(Date().timeIntervalSince(liveReloadedAt ?? appStartedAt)) }
+    /// nil = zu früh (nichts geladen), -1 = nicht möglich (keine Xtream-Liste oder Fehler), sonst Anzahl Sender
     func reloadLiveChannels(manual: Bool) async -> Int? {
-        guard let api = currentAPI, !isLoading else { return nil }
-        if Date().timeIntervalSince(liveReloadedAt) < (manual ? 60 : 600) { return nil }
+        guard let api = currentAPI else { return -1 }
+        if isLoading { return nil }
+        if manual {
+            if let t = liveReloadedAt, Date().timeIntervalSince(t) < 60 { return nil }
+        } else if Date().timeIntervalSince(liveReloadedAt ?? appStartedAt) < 600 { return nil }
         liveReloadedAt = Date()
         do {
             let names = Self.nameMap(try await api.categories("get_live_categories"))
@@ -665,13 +673,13 @@ final class AppStore: ObservableObject {
                                    url: url, logo: AppStore.url(s.icon), group: s.categoryId.flatMap { names[$0] })
                 }
             }.value
-            if list.isEmpty { return nil }
+            if list.isEmpty { return -1 }
             let keepSetup = showSetup
             apply(list)
             showSetup = keepSetup
             return list.count
         } catch {
-            return nil
+            return -1
         }
     }
 
