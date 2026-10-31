@@ -178,7 +178,7 @@ final class FootballStore: ObservableObject {
     private var loadedAt = Date.distantPast
 
     func load(force: Bool = false) async {
-        if !force && Date().timeIntervalSince(loadedAt) < 8 && !matches.isEmpty { return }
+        if !force && Date().timeIntervalSince(loadedAt) < 15 && !matches.isEmpty { return }
         guard let url = URL(string: RemoteConfig.website + "api/fussball") else { return }
         loading = true
         defer { loading = false }
@@ -307,7 +307,7 @@ struct FootballView: View {
             computeEvents()
             // Live-Stände regelmäßig auffrischen
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                try? await Task.sleep(nanoseconds: 20_000_000_000)
                 await fb.load(force: true)
                 if Date().timeIntervalSince(store.liveReloadedAt) >= 600 { await refreshChannels(manual: false) }
                 computeEvents()
