@@ -339,8 +339,8 @@ struct FootballView: View {
         computeEvents()
         guard manual else { return }
         if n == nil {
-            let min = max(1, Int(Date().timeIntervalSince(store.liveReloadedAt) / 60))
-            note = "Senderliste ist aktuell (vor \(min) Min. geladen). Suche wurde erneuert."
+            let sec = max(1, Int(Date().timeIntervalSince(store.liveReloadedAt)))
+            note = "Senderliste ist aktuell (vor \(sec) Sek. geladen). Suche wurde erneuert."
         } else {
             let more = events.count - before
             note = more > 0 ? "Senderliste neu geladen – \(more) " + (more == 1 ? "neues Spiel" : "neue Spiele") + " mit Event-Sender gefunden."

@@ -648,12 +648,12 @@ final class AppStore: ObservableObject {
     }
 
     /// Nur die Live-Sender beim Anbieter neu laden (z. B. für neue Event-Sender beim Fußball).
-    /// Schonend: per Knopf höchstens alle 2 Minuten, automatisch höchstens alle 10 Minuten.
+    /// Schonend: per Knopf höchstens alle 20 Sekunden, automatisch höchstens alle 10 Minuten.
     /// Antwort: Anzahl Sender, oder nil = zu früh bzw. nicht möglich.
     private(set) var liveReloadedAt = Date()
     func reloadLiveChannels(manual: Bool) async -> Int? {
         guard let api = currentAPI, !isLoading else { return nil }
-        if Date().timeIntervalSince(liveReloadedAt) < (manual ? 120 : 600) { return nil }
+        if Date().timeIntervalSince(liveReloadedAt) < (manual ? 20 : 600) { return nil }
         liveReloadedAt = Date()
         do {
             let names = Self.nameMap(try await api.categories("get_live_categories"))
