@@ -123,6 +123,15 @@ final class Profiles: ObservableObject {
         use(curId, store: store)
     }
 
+    var hasAnyPin: Bool { list.contains { $0.pin != nil } }
+
+    /// Website hat zurückgesetzt: PINs aller Profile löschen
+    func clearPins() {
+        guard hasAnyPin else { return }
+        for i in list.indices { list[i].pin = nil }
+        save()
+    }
+
     // MARK: PIN eines Profils
 
     func pinHash(_ pin: String) -> String {
@@ -304,6 +313,7 @@ struct WhoView: View {
     @ObservedObject private var profiles = Profiles.shared
     @State private var code: CodeRequest?
     @State private var adding = false
+    @State private var pinRequest: PinRequest?
 
     var body: some View {
         GeometryReader { geo in
@@ -370,6 +380,7 @@ struct WhoView: View {
             }
         }
         .sheet(item: $code) { req in CodeSheet(request: req) }
+        .sheet(item: $pinRequest) { req in PinSheet(request: req) }
         .sheet(isPresented: $adding) { AddProfileSheet().environmentObject(store) }
     }
 
@@ -399,6 +410,13 @@ struct WhoView: View {
     }
 
     private func open(_ p: UserProfile) {
+        // Ins Kinder-Profil nur mit PIN der Kindersicherung (sonst könnten Kinder es einfach verlassen)
+        if p.kids && Parental.shared.pinHash == nil {
+            pinRequest = PinRequest(title: "PIN für das Kinder-Profil", mode: .create) {
+                Profiles.shared.use(p.id, store: store)
+            }
+            return
+        }
         func finish() {
             if let hash = p.pin {
                 code = CodeRequest(title: "PIN für „\(p.name)“", subtitle: "Dieses Profil ist mit einer PIN geschützt.",
@@ -449,7 +467,7 @@ struct AddProfileSheet: View {
                 } header: {
                     Text("Neues Profil")
                 } footer: {
-                    Text(kids ? "Zeigt nur Kinder-Kategorien (automatisch erkannt, anpassbar unter Einstellungen → Profile). Ohne Einstellungen und Listen." : "Eigene Favoriten, „Weiterschauen“ und Gesehen-Haken.")
+                    Text(kids ? "Zeigt nur Kinder-Kategorien (automatisch erkannt, anpassbar unter Einstellungen → Profile). Ohne Einstellungen und Listen. Verlassen nur mit der PIN der Kindersicherung – beim ersten Öffnen legst du sie fest." : "Eigene Favoriten, „Weiterschauen“ und Gesehen-Haken.")
                 }
             }
             .navigationTitle("Profil hinzufügen")
@@ -505,7 +523,7 @@ struct ProfilesSettingsView: View {
                     Label("Profil hinzufügen", systemImage: "plus.circle")
                 }
             } footer: {
-                Text("Jedes Profil hat eigene Favoriten, „Weiterschauen“, Gesehen-Haken und Hinweise auf neue Folgen. Wiedergabeliste und Einstellungen gelten für alle. Ist die Kindersicherung an, braucht man zum Verlassen des Kinder-Profils deren PIN.")
+                Text("Jedes Profil hat eigene Favoriten, „Weiterschauen“, Gesehen-Haken und Hinweise auf neue Folgen. Wiedergabeliste und Einstellungen gelten für alle. Das Kinder-Profil verlässt man nur mit der PIN der Kindersicherung. PIN vergessen? Dein Anbieter kann sie auf der Website zurücksetzen.")
             }
             if profiles.list.count >= 2 {
                 Section {
@@ -539,6 +557,7 @@ struct ProfileEditView: View {
     @State private var name = ""
     @State private var code: CodeRequest?
     @State private var askDelete = false
+    @State private var pinRequest: PinRequest?
 
     private var profile: UserProfile? { profiles.list.first { $0.id == profileId } }
 
@@ -562,7 +581,12 @@ struct ProfileEditView: View {
                     Toggle("Kinder-Profil", isOn: Binding(get: { p.kids }, set: { on in
                         var q = p
                         q.kids = on
-                        profiles.update(q)
+                        if on && Parental.shared.pinHash == nil {
+                            // Zum Verlassen des Kinder-Profils braucht es eine PIN
+                            pinRequest = PinRequest(title: "PIN für das Kinder-Profil", mode: .create) { Profiles.shared.update(q) }
+                        } else {
+                            profiles.update(q)
+                        }
                     }))
                     .tint(Theme.gold)
                 }
@@ -616,6 +640,7 @@ struct ProfileEditView: View {
         .onAppear { name = profile?.name ?? "" }
         .onDisappear { if let p = profile { rename(p) } }
         .sheet(item: $code) { req in CodeSheet(request: req) }
+        .sheet(item: $pinRequest) { req in PinSheet(request: req) }
         .confirmationDialog("Profil löschen?", isPresented: $askDelete, titleVisibility: .visible) {
             Button("Löschen", role: .destructive) {
                 profiles.remove(profileId, store: store)

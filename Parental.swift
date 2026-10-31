@@ -104,7 +104,7 @@ final class Parental: ObservableObject {
         let now = resetAt ?? ""
         lastReset = now
         lastResetKnown = true
-        guard enabled else { return }
+        guard enabled || Profiles.shared.hasAnyPin else { return }
         let seen = defaults.string(forKey: "parentalResetSeen") ?? "?"
         if seen == "?" {
             defaults.set(now, forKey: "parentalResetSeen")
@@ -115,6 +115,8 @@ final class Parental: ObservableObject {
             defaults.removeObject(forKey: "parentalPin")
             defaults.set(now, forKey: "parentalResetSeen")
             lock()
+            // auch die PINs der Profile (sonst käme man nie mehr in ein Profil mit vergessener PIN)
+            Profiles.shared.clearPins()
         }
     }
 
