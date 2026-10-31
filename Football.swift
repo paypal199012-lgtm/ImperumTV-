@@ -261,7 +261,13 @@ struct FootballView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 14).padding(.bottom, 20)
+                    .padding(.horizontal, 14).padding(.bottom, 8)
+                    Text("Daten: OpenLigaDB · Football data provided by the Football-Data.org API · API-Football")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 20).padding(.bottom, 20)
                 }
                 .refreshable { await fb.load(force: true) }
             }
