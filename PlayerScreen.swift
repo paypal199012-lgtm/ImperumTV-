@@ -56,6 +56,27 @@ final class PlayerModel: NSObject, ObservableObject {
         return e.observedBitrate / 1_000_000
     }
 
+    /// Läuft ein Live-Sender? (für „Näher am Live-Geschehen“)
+    private var liveNow = false
+
+    /// Näher am Live-Geschehen: Vorrat nach einem Hänger mit 1,05-facher Geschwindigkeit aufholen
+    private func catchUp() {
+        guard liveNow, !usesVLC, UserDefaults.standard.object(forKey: "catchup") as? Bool ?? true,
+              let item = player.currentItem, player.rate > 0 else {
+            if player.rate > 1.01 { player.rate = 1 }
+            return
+        }
+        let now = player.currentTime().seconds
+        var ahead = 0.0
+        for v in item.loadedTimeRanges {
+            let r = v.timeRangeValue
+            let s = r.start.seconds, e = (r.start + r.duration).seconds
+            if s <= now + 0.5 && e >= now { ahead = e - now }
+        }
+        if ahead > 4 && player.rate < 1.04 { player.rate = 1.05 }
+        else if ahead < 1.5 && player.rate > 1.01 { player.rate = 1 }
+    }
+
     private func netReset() {
         netStarted = false
         bufferingSince = nil
@@ -166,6 +187,7 @@ final class PlayerModel: NSObject, ObservableObject {
             if buf != self.isBuffering { self.isBuffering = buf }
             let playing = self.player.timeControlStatus != .paused
             if playing != self.isPlaying { self.isPlaying = playing }
+            self.catchUp()
             self.checkForStall()
         }
     }
@@ -258,6 +280,7 @@ final class PlayerModel: NSObject, ObservableObject {
 
         let ext = url.pathExtension.lowercased()
         let isLiveStream = url.absoluteString.contains("/live/")
+        liveNow = isLiveStream
         preferLanguages = !isLiveStream          // Filme/Serien: Deutsch, sonst Englisch
         let liveWithVLC = UserDefaults.standard.bool(forKey: "liveWithVLC")
         let vodWithVLC = UserDefaults.standard.bool(forKey: "vodWithVLC")
