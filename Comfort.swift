@@ -160,7 +160,7 @@ struct NetBadge: View {
             }
             Text(level.text).font(.caption.weight(.bold)).foregroundStyle(.white)
             if mbit > 0 {
-                Text("· " + (mbit >= 10 ? String(Int(mbit.rounded())) : String(format: "%.1f", mbit).replacingOccurrences(of: ".", with: ",")) + " Mbit/s")
+                Text("· Datenrate " + (mbit >= 10 ? String(Int(mbit.rounded())) : String(format: "%.1f", mbit).replacingOccurrences(of: ".", with: ",")) + " Mbit/s")
                     .font(.caption2).foregroundStyle(Color.white.opacity(0.7))
             }
         }
