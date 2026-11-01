@@ -56,27 +56,9 @@ final class PlayerModel: NSObject, ObservableObject {
         return e.observedBitrate / 1_000_000
     }
 
-    /// Läuft ein Live-Sender? (für „Näher am Live-Geschehen“)
+    /// Läuft ein Live-Sender?
     private var liveNow = false
 
-    /// Näher am Live-Geschehen: Vorrat nach einem Hänger mit 1,05-facher Geschwindigkeit aufholen
-    private func catchUp() {
-        guard liveNow, !usesVLC, UserDefaults.standard.object(forKey: "catchup") as? Bool ?? false,
-              let item = player.currentItem, player.rate > 0 else {
-            if player.rate > 1.01 { player.rate = 1 }
-            return
-        }
-        let now = player.currentTime().seconds
-        var ahead = 0.0
-        for v in item.loadedTimeRanges {
-            let r = v.timeRangeValue
-            let s = r.start.seconds, e = (r.start + r.duration).seconds
-            if s <= now + 0.5 && e >= now { ahead = e - now }
-        }
-        // Nur bei deutlichem Rückstand und sanft – nie den ganzen Vorrat aufbrauchen (sonst Ruckler)
-        if ahead > 15 && player.rate < 1.02 { player.rate = 1.03 }
-        else if ahead < 8 && player.rate > 1.01 { player.rate = 1 }
-    }
 
     private func netReset() {
         netStarted = false
@@ -188,7 +170,6 @@ final class PlayerModel: NSObject, ObservableObject {
             if buf != self.isBuffering { self.isBuffering = buf }
             let playing = self.player.timeControlStatus != .paused
             if playing != self.isPlaying { self.isPlaying = playing }
-            self.catchUp()
             self.checkForStall()
         }
     }

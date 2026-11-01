@@ -430,7 +430,6 @@ struct SettingsView: View {
     @AppStorage("clockMode") private var clockMode = "sec"
     @AppStorage("bufferMode") private var bufferMode = "normal"
     @AppStorage("netqMode") private var netqMode = "always"
-    @AppStorage("catchup") private var catchup = false
     @State private var showSleep = false
     @ObservedObject private var sleep = SleepTimer.shared
     @State private var askClearCache = false
@@ -571,8 +570,6 @@ struct SettingsView: View {
                     Text("Normal · 2 s (wie bisher)").tag("normal")
                     Text("Groß · 5 s (gegen Ruckler)").tag("large")
                 }
-                Toggle("Näher am Live-Geschehen", isOn: $catchup)
-                    .tint(Theme.gold)
                 Toggle("Nächste Folge automatisch", isOn: $autoNext)
                     .tint(Theme.gold)
                 Toggle("Knopf „Intro überspringen“", isOn: $introBtn)
