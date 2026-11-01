@@ -22,7 +22,45 @@ final class PlayerModel: NSObject, ObservableObject {
     @Published var isPiPActive = false
     @Published var errorMessage: String?
     @Published var isPlaying = true
-    @Published var isBuffering = true
+    @Published var isBuffering = true { didSet { if oldValue != isBuffering { netBuffer(isBuffering) } } }
+
+    // Verbindungsanzeige: Hänger der letzten 2 Minuten
+    private var netStarted = false
+    private var bufferingSince: Date?
+    private var stalls: [Date] = []
+
+    private func netBuffer(_ on: Bool) {
+        if on { if bufferingSince == nil { bufferingSince = Date() }; return }
+        if let s = bufferingSince, netStarted, Date().timeIntervalSince(s) > 0.7 { stalls.append(Date()) }
+        bufferingSince = nil
+        netStarted = true
+    }
+
+    /// Wie lange hängt das Bild gerade schon (Sekunden, 0 = läuft)
+    var netWaiting: Double {
+        guard netStarted, let s = bufferingSince else { return 0 }
+        return Date().timeIntervalSince(s)
+    }
+
+    var netLevel: NetLevel {
+        stalls = stalls.filter { Date().timeIntervalSince($0) < 120 }
+        let w = netWaiting
+        if w > 3 || stalls.count >= 2 { return .bad }
+        if stalls.count == 1 || w > 1 { return .mid }
+        return netStarted ? .good : .wait
+    }
+
+    /// Gemessene Datenrate (Mbit/s, nur iPhone-Player)
+    var netMbit: Double {
+        guard !usesVLC, let e = player.currentItem?.accessLog()?.events.last, e.observedBitrate > 0 else { return 0 }
+        return e.observedBitrate / 1_000_000
+    }
+
+    private func netReset() {
+        netStarted = false
+        bufferingSince = nil
+        stalls = []
+    }
     @Published var currentTime: Double = 0
     @Published var duration: Double = 0
     @Published var audioTracks: [TrackOption] = []
@@ -201,6 +239,7 @@ final class PlayerModel: NSObject, ObservableObject {
     }
 
     func play(_ url: URL, userAgent: String, startAt: Double = 0) {
+        netReset()
         pendingSeek = startAt > 5 ? startAt : nil
         currentURL = url
         currentUserAgent = userAgent
@@ -722,6 +761,9 @@ struct PlayerScreen: View {
     /// Programm des Senders (jetzt und danach)
     @State private var epg: [EPGEntry] = []
     @State private var controlsVisible = true
+    @State private var showSleep = false
+    @ObservedObject private var sleep = SleepTimer.shared
+    @AppStorage("netqMode") private var netqMode = "always"
     @State private var hideTask: Task<Void, Never>?
     @State private var scrubValue: Double?
     @State private var showTracks = false
@@ -834,6 +876,14 @@ struct PlayerScreen: View {
                 .padding(.trailing, 24)
                 .padding(.bottom, controlsVisible ? 150 : 28)
                 .animation(.easeInOut(duration: 0.2), value: controlsVisible)
+        }
+        .overlay(alignment: .top) { netOverlay }
+        .overlay(alignment: .bottom) { netHint }
+        .overlay { SleepWarning() }
+        .sleepTimerDialog(isPresented: $showSleep, end: sleepEnd, endLabel: isLive ? "Ende der Sendung" : "Ende des Films")
+        .onReceive(NotificationCenter.default.publisher(for: .sleepTimerFired)) { _ in
+            model.stop()
+            dismiss()
         }
         .overlay(alignment: .top) {
             if let hint = hint {
@@ -982,6 +1032,54 @@ struct PlayerScreen: View {
         .foregroundStyle(.white)
     }
 
+    /// Ende der laufenden Sendung bzw. des Films (für „Schlaf-Timer: Ende der Sendung“)
+    private var sleepEnd: Date? {
+        if isLive {
+            let now = Date()
+            return epg.first { ($0.start ?? .distantPast) <= now && ($0.end ?? .distantFuture) > now }?.end
+        }
+        guard model.duration > 0 else { return nil }
+        return Date().addingTimeInterval(max(0, model.duration - model.currentTime))
+    }
+
+    /// Abzeichen oben: Gut/Mäßig/Schwach (mit Bedienleiste immer, sonst nur bei schwacher Verbindung)
+    private var netOverlay: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
+            let lv = model.netLevel
+            let show = netqMode != "off" && lv != .wait &&
+                ((controlsVisible && (netqMode == "always" || lv != .good)) || lv == .bad)
+            if show {
+                NetBadge(level: lv, mbit: model.netMbit)
+                    .padding(.top, 14)
+            }
+        }
+    }
+
+    /// Hängt das Bild länger als 3 Sekunden: Hinweis mit „Puffer: Groß“
+    private var netHint: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
+            if netqMode != "off" && model.netWaiting > 3 && model.errorMessage == nil {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Verbindung zu langsam – Bild lädt nach …").font(.subheadline.weight(.bold)).foregroundStyle(.white)
+                        Text("Mehr Puffer hilft gegen Ruckler").font(.caption).foregroundStyle(Color.white.opacity(0.7))
+                    }
+                    if (UserDefaults.standard.string(forKey: "bufferMode") ?? "normal") != "large" {
+                        Button("Puffer: Groß") {
+                            UserDefaults.standard.set("large", forKey: "bufferMode")
+                            model.retry()
+                        }
+                        .buttonStyle(.borderedProminent).tint(Theme.gold)
+                    }
+                }
+                .padding(14)
+                .background(RoundedRectangle(cornerRadius: 16).fill(Color.black.opacity(0.88)))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.orange, lineWidth: 1.5))
+                .padding(.bottom, controlsVisible ? 160 : 40)
+            }
+        }
+    }
+
     private var topBar: some View {
         HStack(spacing: 12) {
             Button { dismiss() } label: {
@@ -992,6 +1090,14 @@ struct PlayerScreen: View {
             }
             .accessibilityLabel("Zurück")
             Spacer()
+            Button { showSleep = true } label: {
+                Image(systemName: sleep.active ? "moon.fill" : "moon")
+                    .font(.title3)
+                    .foregroundStyle(sleep.active ? Theme.goldLight : .white)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(Color.black.opacity(0.45)))
+            }
+            .accessibilityLabel("Schlaf-Timer")
             if model.isPiPPossible {
                 Button {
                     model.togglePiP()

@@ -429,6 +429,9 @@ struct SettingsView: View {
     @AppStorage("introBtn") private var introBtn = true
     @AppStorage("clockMode") private var clockMode = "sec"
     @AppStorage("bufferMode") private var bufferMode = "normal"
+    @AppStorage("netqMode") private var netqMode = "always"
+    @State private var showSleep = false
+    @ObservedObject private var sleep = SleepTimer.shared
     @State private var askClearCache = false
     @State private var cacheMessage: String?
     @State private var aboNote: String?
@@ -583,6 +586,18 @@ struct SettingsView: View {
                     Text("Ohne Sekunden").tag("min")
                     Text("Aus").tag("off")
                 }
+                Picker("Verbindungsanzeige", selection: $netqMode) {
+                    Text("Immer").tag("always")
+                    Text("Nur bei Problemen").tag("problems")
+                    Text("Aus").tag("off")
+                }
+                Button { showSleep = true } label: {
+                    HStack {
+                        Label("Schlaf-Timer", systemImage: sleep.active ? "moon.fill" : "moon")
+                        Spacer()
+                        Text(sleep.active ? "An · noch \(sleep.minutesLeft) Min" : "Aus").foregroundStyle(.secondary)
+                    }
+                }
                 Button { openParental() } label: {
                     HStack {
                         Label("Kindersicherung", systemImage: parental.enabled ? "lock.fill" : "lock.open")
@@ -652,6 +667,7 @@ struct SettingsView: View {
         .navigationDestination(isPresented: $showParental) {
             ParentalSettingsView()
         }
+        .sleepTimerDialog(isPresented: $showSleep)
         .navigationDestination(isPresented: $showNetTest) {
             NetTestView().clockInToolbar()
         }

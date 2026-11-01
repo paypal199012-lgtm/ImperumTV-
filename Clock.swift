@@ -13,6 +13,14 @@ struct ClockBadge: View {
     }()
 
     var body: some View {
+        HStack(spacing: 6) {
+            SleepBadge()
+            clock
+        }
+    }
+
+    @ViewBuilder
+    private var clock: some View {
         if mode != "off" {
             TimelineView(.periodic(from: .now, by: mode == "sec" ? 1 : 30)) { ctx in
                 VStack(alignment: .trailing, spacing: 1) {

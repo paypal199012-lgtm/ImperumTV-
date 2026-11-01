@@ -38,6 +38,7 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: store.sync == nil)
+        .overlay { SleepWarning() }
         // „Neue Folgen bei …“ kurz unten zeigen
         .overlay(alignment: .bottom) {
             if let note = store.newEpisodesNote, store.sync == nil {

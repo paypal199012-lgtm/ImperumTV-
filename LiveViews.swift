@@ -69,6 +69,7 @@ struct LiveThreePaneView: View {
             }
         }
         .onDisappear { if !handingOff && !preview.isPiPActive { preview.stop() } }   // Bild-in-Bild läuft weiter
+        .onReceive(NotificationCenter.default.publisher(for: .sleepTimerFired)) { _ in preview.stop() }
         .sheet(item: $pinRequest) { req in
             PinSheet(request: req)
         }
