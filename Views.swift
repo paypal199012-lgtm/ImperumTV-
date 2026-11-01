@@ -428,8 +428,10 @@ struct SettingsView: View {
     @AppStorage("autoNext") private var autoNext = true
     @AppStorage("introBtn") private var introBtn = true
     @AppStorage("clockMode") private var clockMode = "sec"
+    @AppStorage("bufferMode") private var bufferMode = "normal"
     @State private var askClearCache = false
     @State private var cacheMessage: String?
+    @State private var aboNote: String?
 
     private var version: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
@@ -459,6 +461,10 @@ struct SettingsView: View {
             }
             Spacer(minLength: 8)
             statusBox("lock", "Kinderschutz", parental.enabled ? "An" : "Aus") { openParental() }
+            statusBox("calendar", abo.label, abo.value, tint: abo.tint) {
+                aboNote = store.expiry.map { "Dein Abo beim Anbieter läuft bis \(Self.dateText($0)). Verlängern kannst du es bei deinem Anbieter." }
+                    ?? "Dein Anbieter meldet kein Ablaufdatum."
+            }
             statusBox("display", "Gerät", store.macText, small: true) { store.showSetup = true }
         }
         .padding(14)
@@ -470,15 +476,29 @@ struct SettingsView: View {
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(Theme.goldLight.opacity(0.6), lineWidth: 1))
     }
 
-    private func statusBox(_ icon: String, _ label: String, _ value: String, small: Bool = false, action: @escaping () -> Void) -> some View {
+    private static func dateText(_ d: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "dd.MM.yyyy"; return f.string(from: d)
+    }
+
+    /// Abo beim Anbieter: Datum, ab 7 Tagen vorher gelb, abgelaufen rot
+    private var abo: (label: String, value: String, tint: Color?) {
+        guard let exp = store.expiry else { return ("Abo", "unbegrenzt", nil) }
+        let days = Int(ceil(exp.timeIntervalSinceNow / 86400))
+        if days <= 0 { return ("Abo", "abgelaufen", .red) }
+        if days <= 7 { return ("Abo läuft ab", days == 1 ? "morgen" : "in \(days) Tagen", .orange) }
+        return ("Abo bis", Self.dateText(exp), nil)
+    }
+
+    private func statusBox(_ icon: String, _ label: String, _ value: String, small: Bool = false, tint: Color? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 3) {
                 Label(label, systemImage: icon).font(.caption2).foregroundStyle(Color.white.opacity(0.65))
-                Text(value).font(small ? .caption.weight(.bold).monospacedDigit() : .subheadline.weight(.bold)).foregroundStyle(.white)
+                Text(value).font(small ? .caption.weight(.bold).monospacedDigit() : .subheadline.weight(.bold)).foregroundStyle(tint ?? .white)
                     .lineLimit(1)
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color.black.opacity(0.4)))
+            .background(RoundedRectangle(cornerRadius: 12).fill(tint.map { $0.opacity(0.18) } ?? Color.black.opacity(0.4)))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(tint ?? .clear, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
@@ -521,7 +541,7 @@ struct SettingsView: View {
             Section {
                 banner
                 actions
-                if let msg = cacheMessage {
+                if let msg = cacheMessage ?? aboNote {
                     Text(msg)
                         .font(.footnote)
                         .foregroundStyle(Theme.goldLight)
@@ -542,6 +562,11 @@ struct SettingsView: View {
                     .tint(Theme.gold)
                 Toggle("Filme & Serien mit VLC abspielen", isOn: $vodWithVLC)
                     .tint(Theme.gold)
+                Picker("Puffer", selection: $bufferMode) {
+                    Text("Klein · 0,5 s (schnellster Start)").tag("small")
+                    Text("Normal · 2 s (wie bisher)").tag("normal")
+                    Text("Groß · 5 s (gegen Ruckler)").tag("large")
+                }
                 Toggle("Nächste Folge automatisch", isOn: $autoNext)
                     .tint(Theme.gold)
                 Toggle("Knopf „Intro überspringen“", isOn: $introBtn)

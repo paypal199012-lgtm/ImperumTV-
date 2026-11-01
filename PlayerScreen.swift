@@ -245,7 +245,10 @@ final class PlayerModel: NSObject, ObservableObject {
         let item = AVPlayerItem(asset: asset)
         // Live: schneller Start mit kleinem Puffer, Filme/Serien etwas mehr Vorrat
         let live = url.absoluteString.contains("/live/")
-        item.preferredForwardBufferDuration = live ? 2 : 4
+        // Puffer aus den Einstellungen: klein = schnellster Start, groß = weniger Ruckler
+        let mode = UserDefaults.standard.string(forKey: "bufferMode") ?? "normal"
+        let liveBuf: Double = mode == "small" ? 0.5 : mode == "large" ? 5 : 2
+        item.preferredForwardBufferDuration = live ? liveBuf : max(4, liveBuf)
         statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
             if item.status == .readyToPlay {
                 self?.loadAVTracks(for: item)
@@ -308,7 +311,8 @@ final class PlayerModel: NSObject, ObservableObject {
 
         let media = VLCMedia(url: url)
         media.addOption(":http-user-agent=\(userAgent)")
-        media.addOption(":network-caching=1500")
+        let mode = UserDefaults.standard.string(forKey: "bufferMode") ?? "normal"
+        media.addOption(":network-caching=" + (mode == "small" ? "800" : mode == "large" ? "5000" : "1500"))
         vlcPlayer.media = media
         vlcPlayer.play()
 
