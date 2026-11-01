@@ -430,7 +430,7 @@ struct SettingsView: View {
     @AppStorage("clockMode") private var clockMode = "sec"
     @AppStorage("bufferMode") private var bufferMode = "normal"
     @AppStorage("netqMode") private var netqMode = "always"
-    @AppStorage("catchup") private var catchup = true
+    @AppStorage("catchup") private var catchup = false
     @State private var showSleep = false
     @ObservedObject private var sleep = SleepTimer.shared
     @State private var askClearCache = false

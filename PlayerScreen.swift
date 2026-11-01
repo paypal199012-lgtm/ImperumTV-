@@ -61,7 +61,7 @@ final class PlayerModel: NSObject, ObservableObject {
 
     /// Näher am Live-Geschehen: Vorrat nach einem Hänger mit 1,05-facher Geschwindigkeit aufholen
     private func catchUp() {
-        guard liveNow, !usesVLC, UserDefaults.standard.object(forKey: "catchup") as? Bool ?? true,
+        guard liveNow, !usesVLC, UserDefaults.standard.object(forKey: "catchup") as? Bool ?? false,
               let item = player.currentItem, player.rate > 0 else {
             if player.rate > 1.01 { player.rate = 1 }
             return
@@ -73,8 +73,9 @@ final class PlayerModel: NSObject, ObservableObject {
             let s = r.start.seconds, e = (r.start + r.duration).seconds
             if s <= now + 0.5 && e >= now { ahead = e - now }
         }
-        if ahead > 4 && player.rate < 1.04 { player.rate = 1.05 }
-        else if ahead < 1.5 && player.rate > 1.01 { player.rate = 1 }
+        // Nur bei deutlichem Rückstand und sanft – nie den ganzen Vorrat aufbrauchen (sonst Ruckler)
+        if ahead > 15 && player.rate < 1.02 { player.rate = 1.03 }
+        else if ahead < 8 && player.rate > 1.01 { player.rate = 1 }
     }
 
     private func netReset() {
