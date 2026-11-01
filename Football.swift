@@ -54,9 +54,9 @@ private struct FBResponse: Decodable {
 enum Football {
     static let leagues: [(String, String)] = [("", "Alle"), ("BL1", "Bundesliga"), ("BL2", "2. Liga"), ("DFB", "DFB-Pokal"),
         ("CL", "Champions League"), ("EL", "Europa League"), ("ECL", "Conference L."), ("PL", "Premier League"),
-        ("SA", "Serie A"), ("PD", "LaLiga"), ("FL1", "Ligue 1")]
+        ("SA", "Serie A"), ("SB", "Serie B"), ("PD", "LaLiga"), ("FL1", "Ligue 1")]
     static let short: [String: String] = ["BL1": "BL", "BL2": "2.BL", "DFB": "POK", "CL": "CL", "EL": "EL", "ECL": "ECL",
-        "PL": "PL", "SA": "SA", "PD": "LL", "FL1": "L1"]
+        "PL": "PL", "SA": "SA", "SB": "SB", "PD": "LL", "FL1": "L1"]
     static func color(_ c: String) -> Color {
         switch c {
         case "BL1": return Color(red: 0.82, green: 0.02, blue: 0.08)
@@ -67,6 +67,7 @@ enum Football {
         case "ECL": return Color(red: 0.07, green: 0.64, blue: 0.35)
         case "PL": return Color(red: 0.24, green: 0.10, blue: 0.36)
         case "SA": return Color(red: 0.04, green: 0.36, blue: 0.71)
+        case "SB": return Color(red: 0.18, green: 0.49, blue: 0.20)
         case "PD": return Color(red: 0.88, green: 0.25, blue: 0.23)
         case "FL1": return Color(red: 0.07, green: 0.19, blue: 0.37)
         default: return Color.gray
