@@ -24,7 +24,7 @@ struct PlaylistsScreen: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             HStack(spacing: 22) {
-                Image("Logo").resizable().scaledToFit().frame(height: 60)
+                Image("Logo").resizable().scaledToFit().themedLogo().frame(height: 60)
                 Text("Wiedergabelisten").font(UI.font(40, .bold))
             }
             .place(70, 34, 1000, 70)
@@ -208,9 +208,9 @@ struct SearchScreen: View {
 
     var body: some View {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        let live = q.count < 2 ? [] : store.live.filter { $0.name.lowercased().contains(q) }
-        let movies = q.count < 2 ? [] : store.vod.filter { $0.name.lowercased().contains(q) }
-        let series = q.count < 2 ? [] : store.series.filter { $0.name.lowercased().contains(q) }
+        let live = q.count < 2 ? [] : store.visible(.live).filter { $0.name.lowercased().contains(q) }
+        let movies = q.count < 2 ? [] : store.visible(.movie).filter { $0.name.lowercased().contains(q) }
+        let series = q.count < 2 ? [] : store.visible(.series).filter { $0.name.lowercased().contains(q) }
         ZStack(alignment: .topLeading) {
             ScreenTitle(text: "Suche")
             TextField("Sender, Filme oder Serien suchen", text: $query)
@@ -235,43 +235,3 @@ struct SearchScreen: View {
     }
 }
 
-// MARK: - Einstellungen
-
-struct SettingsScreen: View {
-    @EnvironmentObject var store: TVStore
-    @EnvironmentObject var nav: Nav
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            ScreenTitle(text: "Einstellungen")
-            VStack(alignment: .leading, spacing: 14) {
-                row("list", "Wiedergabelisten", store.sourceName.isEmpty ? "Keine gewählt" : store.sourceName) { nav.push(.playlists) }
-                row("refresh", "Neu laden", "Sender, Filme, Serien") { Task { await store.reload() } }
-                row("device", "Gerät", "MAC \(store.device.mac.lowercased()) · Schlüssel \(store.device.key)") { nav.push(.playlists) }
-                row("star", "Favoriten löschen", "\(store.favorites.count) gespeichert") {
-                    store.favorites = []
-                    UserDefaults.standard.set([String](), forKey: "tv.favs")
-                }
-                let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
-                let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
-                Text("ImperumTV für Apple TV · Version \(v) (\(b))").font(UI.font(22)).foregroundColor(UI.muted).padding(.top, 20)
-            }
-            .place(300, 160, 1320, 800)
-        }
-        .frame(width: 1920, height: 1080)
-    }
-
-    private func row(_ icon: String, _ title: String, _ value: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 24) {
-                Icon(icon, 40).foregroundColor(UI.gold)
-                Text(title).font(UI.font(30, .semibold))
-                Spacer()
-                Text(value).font(UI.font(24)).foregroundColor(UI.muted).lineLimit(1)
-            }
-            .padding(.horizontal, 30).frame(height: 92)
-        }
-        .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 14)), normal: .black.opacity(0.35),
-                               border: .white.opacity(0.1), borderWidth: 1.5))
-    }
-}

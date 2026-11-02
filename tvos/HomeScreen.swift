@@ -9,15 +9,16 @@ struct HomeScreen: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             Image("Logo")
-                .resizable().scaledToFit()
+                .resizable().scaledToFit().themedLogo()
                 .shadow(color: .black.opacity(0.55), radius: 10, y: 6)
                 .place(0, 148, 1920, 127, alignment: .center)
 
             HStack(spacing: 22) {
                 RoundButton(icon: "search") { nav.push(.search) }.focused($focus, equals: "top-search")
                 RoundButton(icon: "refresh") { Task { await store.reload() } }.focused($focus, equals: "top-reload")
+                RoundButton(icon: "users") { nav.push(.profiles) }.focused($focus, equals: "top-profile")
             }
-            .place(1464, 26, 206, 92)
+            .place(1350, 26, 320, 92)
 
             HStack(spacing: 44) {
                 circle("live", "tv", "LIVE TV") { nav.push(.live) }

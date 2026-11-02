@@ -36,16 +36,36 @@ struct TVResumeEntry: Codable, Identifiable, Hashable {
 @MainActor
 final class ResumeBook: ObservableObject {
     @Published private(set) var entries: [TVResumeEntry] = []
-    private let storeKey = "tv.resume"
+    /// Gesehene Filme und Folgen („Liste|movie:101“, „Liste|ep:301“)
+    @Published private(set) var seen: Set<String> = []
+    /// Profil (jedes Profil hat eigene Stände)
+    private var profile = ""
+    private var storeKey: String { "tv.resume" + profile }
+    private var seenKey: String { "tv.seen" + profile }
 
-    init() {
+    init() { setProfile(Profiles.currentId) }
+
+    func setProfile(_ p: String) {
+        profile = p == "p0" ? "" : "." + p
+        entries = []
         if let d = UserDefaults.standard.data(forKey: storeKey),
            let l = try? JSONDecoder().decode([TVResumeEntry].self, from: d) { entries = l }
+        seen = Set(UserDefaults.standard.stringArray(forKey: seenKey) ?? [])
     }
 
     private func persist() {
         if let d = try? JSONEncoder().encode(entries) { UserDefaults.standard.set(d, forKey: storeKey) }
+        UserDefaults.standard.set(Array(seen), forKey: seenKey)
     }
+
+    func isSeen(_ source: String, movie id: Int) -> Bool { seen.contains("\(source)|movie:\(id)") }
+    func isSeen(_ source: String, episode id: String) -> Bool { seen.contains("\(source)|ep:\(id)") }
+    func toggleSeen(_ source: String, movie id: Int) {
+        let k = "\(source)|movie:\(id)"
+        if seen.contains(k) { seen.remove(k) } else { seen.insert(k); entries.removeAll { $0.key == "\(source)|movie:\(id)" } }
+        persist()
+    }
+    func clearAll() { entries = []; seen = []; persist() }
 
     func list(source: String) -> [TVResumeEntry] {
         entries.filter { $0.key.hasPrefix(source + "|") }.sorted { $0.at > $1.at }
@@ -57,8 +77,11 @@ final class ResumeBook: ObservableObject {
 
     /// Stand speichern (unter 30 s nichts; fast zu Ende = gesehen, Eintrag weg – bei Serien zur nächsten Folge)
     func save(source: String, kind: MediaKind, item: TVItem, pos: Double, dur: Double, episode: Int? = nil,
-              episodeTitle: String? = nil, episodeCount: Int = 0) {
+              episodeTitle: String? = nil, episodeCount: Int = 0, episodeId: String? = nil) {
         guard kind != .live, dur > 60 else { return }
+        if pos / dur > 0.9 {
+            seen.insert(kind == .series ? "\(source)|ep:\(episodeId ?? "")" : "\(source)|movie:\(item.id)")
+        }
         let key = "\(source)|\(kind.rawValue):\(item.id)"
         entries.removeAll { $0.key == key }
         var e = TVResumeEntry(key: key, kind: kind.rawValue, itemId: item.id, name: item.name, cat: item.cat,

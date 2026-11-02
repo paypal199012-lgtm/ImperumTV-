@@ -4,6 +4,7 @@ import SwiftUI
 struct PosterCard: View {
     let item: TVItem
     var fav = false
+    var badge: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -24,6 +25,13 @@ struct PosterCard: View {
                     .overlay(alignment: .topTrailing) {
                         if fav { Text("★").font(UI.font(26)).foregroundColor(UI.gold2).padding(10) }
                     }
+                    .overlay(alignment: .bottomTrailing) {
+                        if let b = badge {
+                            Text(b).font(UI.font(18, .heavy)).foregroundColor(UI.dark)
+                                .padding(.horizontal, 10).padding(.vertical, 3)
+                                .background(Capsule().fill(UI.gold)).padding(8)
+                        }
+                    }
                 Text(item.name).font(UI.font(24)).lineLimit(2).multilineTextAlignment(.leading)
                     .frame(width: 200, height: 62, alignment: .topLeading)
             }
@@ -38,25 +46,37 @@ struct VodScreen: View {
     @EnvironmentObject var store: TVStore
     @EnvironmentObject var nav: Nav
     @EnvironmentObject var engine: PlayerEngine
+    @EnvironmentObject var resume: ResumeBook
 
     enum F: Hashable { case search, sort, cat(String), item(Int) }
     @FocusState private var focus: F?
     @State private var cat = "all"
     @State private var query = ""
     @State private var sort = 0
+    @State private var askPin = false
 
     private static let sorts = ["Standard", "Neueste", "A–Z", "Bewertung"]
     private var title: String { kind == .movie ? "Filme" : "Serien" }
 
+    private var src: String { store.sourceName }
+    private var started: Set<Int> {
+        Set(resume.list(source: src).filter { $0.kind == (kind == .movie ? "movie" : "series") }.map(\.itemId))
+    }
+
     private var items: [TVItem] {
-        let all = store.items(kind)
+        _ = store.unlockTick
+        let all = store.visible(kind)
         var l: [TVItem]
         switch cat {
         case "all": l = all
         case "fav": l = all.filter { store.isFav($0, kind) }
+        case "resume": let s = started; l = all.filter { s.contains($0.id) }
+        case "seen": l = all.filter { resume.isSeen(src, movie: $0.id) }
+        case "unseen": l = all.filter { !resume.isSeen(src, movie: $0.id) }
+        case "neweps": l = all.filter { store.newEpisodes.contains($0.id) }
         case "new": l = all.sorted { $0.added > $1.added }.prefix(200).map { $0 }
         case "year": let y = Calendar.current.component(.year, from: Date()); l = all.filter { $0.year == y }
-        default: l = all.filter { $0.cat == cat }
+        default: l = store.catLocked(kind, cat) ? [] : store.items(kind).filter { $0.cat == cat }
         }
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         if !q.isEmpty { l = l.filter { $0.name.lowercased().contains(q) } }
@@ -82,13 +102,20 @@ struct VodScreen: View {
                     CatRow(name: "Sortieren: \(Self.sorts[sort])", icon: nil, gold: true) { sort = (sort + 1) % Self.sorts.count }
                         .focused($focus, equals: .sort)
                     SectionHead(text: "Für dich")
-                    row("all", "☰ Alle", store.items(kind).count)
+                    row("all", "☰ Alle", store.visible(kind).count)
                     row("fav", "★ Favoriten", store.items(kind).filter { store.isFav($0, kind) }.count)
+                    row("resume", "▶ Weiter ansehen", started.count)
+                    if kind == .movie {
+                        row("seen", "✓ Gesehen", store.items(kind).filter { resume.isSeen(src, movie: $0.id) }.count)
+                    }
                     SectionHead(text: "Neu & Stöbern")
+                    if kind == .series { row("neweps", "● Neue Folgen", store.newEpisodes.count) }
                     row("new", "Zuletzt hinzugefügt", nil)
-                    row("year", "\(title) \(Calendar.current.component(.year, from: Date()))", nil)
+                    if kind == .movie { row("unseen", "Nicht gesehen", nil) }
                     SectionHead(text: "Kategorien")
-                    ForEach(store.cats(kind)) { c in row(c.id, c.name, nil) }
+                    ForEach(store.visibleCats(kind)) { c in
+                        row(c.id, (store.catLocked(kind, c.id) ? "🔒 " : "") + c.name, nil)
+                    }
                 }
                 .padding(.vertical, 20).padding(.horizontal, 10)
             }
@@ -96,14 +123,19 @@ struct VodScreen: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 if list.isEmpty {
-                    Text(cat == "fav" ? "Noch keine Favoriten. Auf einem Plakat OK lange drücken." : "Nichts gefunden")
+                    Text(store.catLocked(kind, cat) ? "🔒 Diese Kategorie ist gesperrt. Links auf die Kategorie drücken und PIN eingeben."
+                         : cat == "fav" ? "Noch keine Favoriten. Auf einem Plakat OK lange drücken." : "Nichts gefunden")
                         .font(UI.font(28)).foregroundColor(UI.muted).padding(40)
                 }
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(220), spacing: 22), count: 6), alignment: .leading, spacing: 26) {
                     ForEach(list) { it in
-                        PosterCard(item: it, fav: store.isFav(it, kind)) { open(it) }
+                        PosterCard(item: it, fav: store.isFav(it, kind),
+                                   badge: kind == .series && store.newEpisodes.contains(it.id) ? "NEU" : (kind == .movie && resume.isSeen(src, movie: it.id) ? "✓" : nil)) { open(it) }
                             .contextMenu {
                                 Button(store.isFav(it, kind) ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen") { store.toggleFav(it, kind) }
+                                if kind == .movie {
+                                    Button(resume.isSeen(src, movie: it.id) ? "Als nicht gesehen markieren" : "Als gesehen markieren") { resume.toggleSeen(src, movie: it.id) }
+                                }
                             }
                             .focused($focus, equals: .item(it.id))
                     }
@@ -111,6 +143,13 @@ struct VodScreen: View {
                 .padding(.vertical, 20).padding(.horizontal, 14)
             }
             .place(424, 100, 1470, 980)
+
+            if askPin {
+                PinPrompt(title: "PIN eingeben") { pin in
+                    askPin = false
+                    if let p = pin, Parental.check(p) { store.unlock() }
+                }
+            }
         }
         .frame(width: 1920, height: 1080)
         .defaultFocus($focus, nav.lastFocus[title].flatMap { Int($0) }.map { F.item($0) } ?? .item(list.first?.id ?? 0))
@@ -124,7 +163,10 @@ struct VodScreen: View {
     }
 
     private func row(_ id: String, _ name: String, _ count: Int?) -> some View {
-        CatRow(name: name, count: count, active: cat == id, size: 28) { cat = id }
+        CatRow(name: name, count: count, active: cat == id, size: 28) {
+            cat = id
+            if store.catLocked(kind, id) { askPin = true }
+        }
             .focused($focus, equals: .cat(id))
     }
 
@@ -223,7 +265,7 @@ struct SeriesScreen: View {
                     LazyHStack(alignment: .top, spacing: 22) {
                         ForEach(Array(current.enumerated()), id: \.element.id) { i, e in
                             EpisodeCard(ep: e, color: Self.colors[(e.number - 1 + Self.colors.count * 10) % Self.colors.count],
-                                        minutes: store.episodeMinutes(e)) { play(e) }
+                                        minutes: store.episodeMinutes(e), seen: resume.isSeen(store.sourceName, episode: e.id)) { play(e) }
                                 .focused($focus, equals: .ep(e.id))
                         }
                     }
@@ -238,6 +280,7 @@ struct SeriesScreen: View {
         .task {
             let r = await store.seriesDetails(series)
             episodes = r.episodes; info = r.info
+            store.markSeriesOpened(series, count: r.episodes.count)
             if let s = saved, let ep = s.episode, ep < sortedAll.count { season = sortedAll[ep].season } else { season = seasons.first ?? 1 }
             loading = false
         }
@@ -264,10 +307,11 @@ private struct EpisodeCard: View {
     let ep: Episode
     let color: UInt32
     let minutes: Int?
+    var seen = false
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) { CardBody(ep: ep, color: color, minutes: minutes) }
+        Button(action: action) { CardBody(ep: ep, color: color, minutes: minutes, seen: seen) }
             .buttonStyle(PlainPress())
     }
 
@@ -275,6 +319,7 @@ private struct EpisodeCard: View {
         let ep: Episode
         let color: UInt32
         let minutes: Int?
+        let seen: Bool
         @Environment(\.isFocused) private var focused
 
         var body: some View {
@@ -285,6 +330,12 @@ private struct EpisodeCard: View {
                     } else { tile }
                 }
                 .frame(width: 340, height: 190)
+                .overlay(alignment: .topTrailing) {
+                    if seen {
+                        Text("✓ Gesehen").font(UI.font(16, .heavy)).foregroundColor(UI.dark)
+                            .padding(.horizontal, 8).padding(.vertical, 2).background(Capsule().fill(UI.gold)).padding(8)
+                    }
+                }
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(focused ? UI.gold : .white.opacity(0.08), lineWidth: focused ? 5 : 1).padding(focused ? -3 : 0))
                 .shadow(color: focused ? UI.gold.opacity(0.45) : .clear, radius: 14)

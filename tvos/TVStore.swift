@@ -103,7 +103,12 @@ final class TVStore: ObservableObject {
         case none
         case demo
         case xtream(Account, String)
+        case m3u(String, String)          // Name, Adresse
     }
+
+    /// M3U: Adressen und Serienfolgen (die Liste liefert sie direkt)
+    private var m3uURLs: [Int: URL] = [:]
+    private var m3uEpisodes: [Int: [Episode]] = [:]
 
     @Published var source: Source = .none
     @Published var liveCats: [TVCat] = []
@@ -125,9 +130,82 @@ final class TVStore: ObservableObject {
     static let env = ProcessInfo.processInfo.environment
     static var testMode: Bool { env["IMPTV_TEST"] == "1" }
 
+    /// Serien mit neuen Folgen (seit dem letzten Öffnen)
+    @Published var newEpisodes: Set<Int> = []
+    /// ändert sich beim Entsperren der Kindersicherung (Listen neu zeichnen)
+    @Published var unlockTick = 0
+    private var favKeyName: String { Profiles.currentId == "p0" ? "tv.favs" : "tv.favs." + Profiles.currentId }
+
     init() {
         device = DeviceIdentity.load()
-        favorites = Set(UserDefaults.standard.stringArray(forKey: "tv.favs") ?? [])
+        favorites = []
+        favorites = Set(UserDefaults.standard.stringArray(forKey: favKeyName) ?? [])
+    }
+
+    func setProfile(_ id: String) {
+        favorites = Set(UserDefaults.standard.stringArray(forKey: favKeyName) ?? [])
+        unlockTick += 1
+    }
+
+    func clearFavorites() {
+        favorites = []
+        UserDefaults.standard.set([String](), forKey: favKeyName)
+    }
+
+    /// Adresse für den Verbindungstest (Server der Wiedergabeliste)
+    var serverTestURL: URL? {
+        switch source {
+        case .xtream(let acc, _): return XtreamAPI(account: acc, userAgent: Self.userAgent).accountURL
+        case .m3u(_, let link): return URL(string: link)
+        default: return nil
+        }
+    }
+
+    // MARK: Kindersicherung
+
+    func catName(_ kind: MediaKind, _ id: String) -> String { cats(kind).first { $0.id == id }?.name ?? "" }
+    func catLocked(_ kind: MediaKind, _ id: String) -> Bool { Parental.enabled && Parental.locked(kind, catName(kind, id)) }
+    func catHidden(_ kind: MediaKind, _ id: String) -> Bool { Profiles.isKids && Parental.protected(kind, catName(kind, id)) }
+
+    /// Kategorien ohne die im Kinderprofil versteckten
+    func visibleCats(_ kind: MediaKind) -> [TVCat] {
+        guard Parental.enabled else { return cats(kind) }
+        return cats(kind).filter { !Profiles.isKids || !Parental.protected(kind, $0.name) }
+    }
+
+    /// Einträge ohne gesperrte Kategorien
+    func visible(_ kind: MediaKind) -> [TVItem] {
+        guard Parental.enabled else { return items(kind) }
+        let blocked = Set(cats(kind).filter { Parental.locked(kind, $0.name) }.map(\.id))
+        if blocked.isEmpty { return items(kind) }
+        return items(kind).filter { !blocked.contains($0.cat) }
+    }
+
+    func unlock() {
+        Parental.unlockedUntil = Date().addingTimeInterval(3600)
+        unlockTick += 1
+    }
+
+    // MARK: Neue Folgen (Favoriten und angefangene Serien)
+
+    private func epCountKey(_ id: Int) -> String { "tv.epc.\(sourceName).\(id)" }
+
+    /// Beim Öffnen einer Serie: aktuelle Folgenanzahl merken
+    func markSeriesOpened(_ s: TVItem, count: Int) {
+        UserDefaults.standard.set(count, forKey: epCountKey(s.id))
+        newEpisodes.remove(s.id)
+    }
+
+    func checkNewEpisodes(_ ids: [Int]) async {
+        var out: Set<Int> = []
+        for id in ids.prefix(25) {
+            guard let s = series.first(where: { $0.id == id }) else { continue }
+            let known = UserDefaults.standard.integer(forKey: epCountKey(id))
+            let n = await episodes(s).count
+            if known == 0 { UserDefaults.standard.set(n, forKey: epCountKey(id)) }
+            else if n > known { out.insert(id) }
+        }
+        newEpisodes = out
     }
 
     var hasSource: Bool { source != .none }
@@ -137,6 +215,7 @@ final class TVStore: ObservableObject {
         case .none: return ""
         case .demo: return "Demo"
         case .xtream(_, let n): return n
+        case .m3u(let n, _): return n
         }
     }
 
@@ -171,7 +250,11 @@ final class TVStore: ObservableObject {
 
     func use(_ l: RemotePlaylist) async {
         guard let acc = l.account else {
-            message = "Diese Wiedergabeliste ist ein reiner M3U-Link. Auf dem Apple TV gehen bisher nur Xtream-Zugänge (Server, Benutzer, Passwort)."
+            let link = (l.m3u.isEmpty ? l.server : l.m3u).trimmingCharacters(in: .whitespaces)
+            guard !link.isEmpty else { message = "Diese Wiedergabeliste hat keine Adresse."; return }
+            UserDefaults.standard.set(l.id, forKey: "tv.playlist")
+            source = .m3u(l.name, link)
+            await loadM3U(link)
             return
         }
         UserDefaults.standard.set(l.id, forKey: "tv.playlist")
@@ -183,6 +266,7 @@ final class TVStore: ObservableObject {
         switch source {
         case .demo: useDemo()
         case .xtream(let acc, _): await load(acc)
+        case .m3u(_, let link): await loadM3U(link)
         case .none: await refreshLists()
         }
     }
@@ -221,6 +305,87 @@ final class TVStore: ObservableObject {
                                  rating: $0.rating, year: $0.year, added: $0.added) }
     }
 
+    // MARK: M3U-Liste (ohne Xtream-Zugang)
+
+    func loadM3U(_ link: String) async {
+        loading = true
+        loadingText = "Wiedergabeliste wird geladen …"
+        message = nil
+        defer { loading = false }
+        guard let u = URL(string: link) else { message = "Die Adresse der Wiedergabeliste ist ungültig."; return }
+        var req = URLRequest(url: u)
+        req.timeoutInterval = 90
+        req.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        let text: String
+        do {
+            let (d, r) = try await URLSession.shared.data(for: req)
+            if let h = r as? HTTPURLResponse, !(200..<300).contains(h.statusCode) {
+                message = "Der Server der Wiedergabeliste antwortet mit Fehler \(h.statusCode)."; return
+            }
+            text = String(decoding: d, as: UTF8.self)
+        } catch {
+            message = "Die Wiedergabeliste konnte nicht geladen werden: \(error.localizedDescription)"; return
+        }
+        loadingText = "Sender werden sortiert …"
+        let parsed = await Task.detached { M3UParser.parse(text) }.value
+        if parsed.isEmpty { message = "In der Wiedergabeliste wurden keine Sender gefunden."; return }
+
+        var lCats: [String: String] = [:], vCats: [String: String] = [:], sCats: [String: String] = [:]
+        var lOrder: [String] = [], vOrder: [String] = [], sOrder: [String] = []
+        var l: [TVItem] = [], v: [TVItem] = [], ser: [TVItem] = []
+        var urls: [Int: URL] = [:]
+        var eps: [Int: [Episode]] = [:]
+        var seriesIds: [String: Int] = [:]
+        let epRe = try! NSRegularExpression(pattern: #"^(.*?)[\s._-]*S(\d{1,2})[\s._-]*E(\d{1,3})"#, options: [.caseInsensitive])
+        func catId(_ g: String, _ map: inout [String: String], _ order: inout [String]) -> String {
+            if let id = map[g] { return id }
+            let id = String(map.count + 1); map[g] = id; order.append(g); return id
+        }
+        var nextId = 1
+        for ch in parsed {
+            let path = ch.url.path.lowercased()
+            let ext = ch.url.pathExtension.lowercased()
+            let group = ch.group ?? "Ohne Kategorie"
+            let art = ch.logo.map { Art.url($0) } ?? .none
+            let isSeries = path.contains("/series/")
+            let isMovie = path.contains("/movie/") || (!isSeries && ["mp4", "mkv", "avi", "mov", "m4v", "wmv"].contains(ext))
+            if isSeries {
+                let ns = ch.name as NSString
+                var title = ch.name, season = 1, number = 1
+                if let m = epRe.firstMatch(in: ch.name, range: NSRange(location: 0, length: ns.length)) {
+                    title = ns.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    season = Int(ns.substring(with: m.range(at: 2))) ?? 1
+                    number = Int(ns.substring(with: m.range(at: 3))) ?? 1
+                }
+                if title.isEmpty { title = ch.name }
+                let sid: Int
+                if let e = seriesIds[title] { sid = e } else {
+                    sid = nextId; nextId += 1; seriesIds[title] = sid
+                    ser.append(TVItem(id: sid, name: title, cat: catId(group, &sCats, &sOrder), art: art))
+                }
+                eps[sid, default: []].append(Episode(id: String(nextId), season: season, number: number,
+                                                     title: ch.name, url: ch.url, image: ch.logo))
+                nextId += 1
+            } else if isMovie {
+                let id = nextId; nextId += 1
+                urls[id] = ch.url
+                v.append(TVItem(id: id, name: ch.name, cat: catId(group, &vCats, &vOrder), art: art,
+                                year: VodStreamDTO.yearFromName(ch.name), ext: ext.isEmpty ? "mp4" : ext))
+            } else {
+                let id = nextId; nextId += 1
+                urls[id] = ch.url
+                l.append(TVItem(id: id, name: ch.name, cat: catId(group, &lCats, &lOrder), art: art))
+            }
+        }
+        m3uURLs = urls
+        m3uEpisodes = eps
+        liveCats = lOrder.map { TVCat(id: lCats[$0]!, name: $0) }
+        vodCats = vOrder.map { TVCat(id: vCats[$0]!, name: $0) }
+        seriesCats = sOrder.map { TVCat(id: sCats[$0]!, name: $0) }
+        live = l; vod = v; series = ser
+        expiry = nil
+    }
+
     // MARK: Adressen und Programm
 
     /// Ersatzadresse (nur Demo-Filme)
@@ -240,6 +405,8 @@ final class TVStore: ObservableObject {
             case .movie: return a.movieURL(id: item.id, ext: item.ext)
             case .series: return nil
             }
+        case .m3u:
+            return m3uURLs[item.id]
         case .none:
             return nil
         }
@@ -255,7 +422,7 @@ final class TVStore: ObservableObject {
             let list = (try? await client(acc).shortEPG(streamId: item.id, limit: 6)) ?? []
             epgCache[item.id] = (Date(), list)
             return list
-        case .none: return []
+        case .m3u, .none: return []
         }
     }
 
@@ -274,7 +441,7 @@ final class TVStore: ObservableObject {
             let i = try? await client(acc).vodInfo(vodId: m.id)
             if let i = i { infoCache[m.id] = i }
             return i
-        case .none: return nil
+        case .m3u, .none: return nil
         }
     }
 
@@ -289,6 +456,7 @@ final class TVStore: ObservableObject {
         case .xtream(let acc, _):
             if let r = try? await client(acc).seriesDetails(seriesId: s.id) { return (r.episodes, r.info) }
             return ([], nil)
+        case .m3u: return (m3uEpisodes[s.id] ?? [], nil)
         case .none: return ([], nil)
         }
     }
@@ -303,7 +471,48 @@ final class TVStore: ObservableObject {
         switch source {
         case .demo: return DemoData.episodes()
         case .xtream(let acc, _): return (try? await client(acc).seriesEpisodes(seriesId: s.id)) ?? []
+        case .m3u: return m3uEpisodes[s.id] ?? []
         case .none: return []
+        }
+    }
+
+    // MARK: Ersatzsender (wie Android: derselbe Sender in einer anderen Variante, nur dasselbe Land)
+
+    private static let qualityWords: Set<String> = ["hd", "fhd", "uhd", "4k", "8k", "sd", "hq", "raw", "hevc", "h265", "h264", "x265",
+        "50fps", "60fps", "fps", "backup", "bkp", "alt", "multi", "audio", "1080p", "720p", "1080", "720", "plus", "+", "vip", "premium", "orig"]
+    private static let weakWords: Set<String> = ["mobile", "low", "lq", "sd"]
+
+    private static func words(_ s: String) -> [String] {
+        s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).lowercased()
+            .replacingOccurrences(of: #"\([^)]*\)|\[[^\]]*\]"#, with: " ", options: .regularExpression)
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "+" }).map(String.init)
+    }
+
+    /// Land aus dem Namen („DE: …“, „DE | …“) oder der Kategorie
+    private func country(_ it: TVItem) -> String {
+        let n = it.name.trimmingCharacters(in: .whitespaces)
+        if let r = n.range(of: #"^[A-Za-z]{2,3}\s*[:|]"#, options: .regularExpression) {
+            return n[r].filter { $0.isLetter }.uppercased()
+        }
+        let c = liveCats.first { $0.id == it.cat }?.name ?? ""
+        if let r = c.range(of: #"^[A-Za-z]{2,3}(?=\s*[:|\-]|\s)"#, options: .regularExpression) { return String(c[r]).uppercased() }
+        return ""
+    }
+
+    /// Name ohne Land und Qualitätsangaben: „DE: DAZN 1 FHD“ → „dazn 1“
+    private func baseKey(_ it: TVItem) -> String {
+        var n = it.name
+        if let r = n.range(of: #"^[A-Za-z]{2,3}\s*[:|]"#, options: .regularExpression) { n.removeSubrange(r) }
+        return Self.words(n).filter { !Self.qualityWords.contains($0) && !Self.weakWords.contains($0) }.joined(separator: " ")
+    }
+
+    func alternatives(_ it: TVItem) -> [TVItem] {
+        let key = baseKey(it)
+        guard key.count >= 2 else { return [] }
+        let land = country(it)
+        return live.filter { o in
+            o.id != it.id && baseKey(o) == key && country(o) == land
+                && !Self.words(o.name).contains(where: { Self.weakWords.contains($0) })
         }
     }
 
@@ -314,7 +523,7 @@ final class TVStore: ObservableObject {
     func toggleFav(_ item: TVItem, _ kind: MediaKind) {
         let k = favKey(item, kind)
         if favorites.contains(k) { favorites.remove(k) } else { favorites.insert(k) }
-        UserDefaults.standard.set(Array(favorites), forKey: "tv.favs")
+        UserDefaults.standard.set(Array(favorites), forKey: favKeyName)
     }
 
     func items(_ kind: MediaKind) -> [TVItem] {

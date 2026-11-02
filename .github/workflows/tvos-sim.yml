@@ -25,12 +25,12 @@ jobs:
           xcode-version: latest-stable
       - run: brew install xcodegen
       - name: Projekt erzeugen
-        run: cd tvos && xcodegen generate
+        run: cd tvos && xcodegen generate && pod install
       - name: Für den Apple-TV-Simulator bauen
         run: |
           cd tvos
           set +e
-          xcodebuild -project ImperumTVtv.xcodeproj -scheme ImperumTV -configuration Debug \
+          xcodebuild -workspace ImperumTVtv.xcworkspace -scheme ImperumTV -configuration Debug \
             -sdk appletvsimulator -destination 'generic/platform=tvOS Simulator' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO build > build.log 2>&1
           rc=$?
@@ -63,7 +63,7 @@ jobs:
           APP=$(find build/Build/Products -maxdepth 2 -name "*.app" | head -1)
           xcrun simctl install "$UDID" "$APP"
           rm -rf sim-shots; mkdir -p sim-shots
-          for s in home playlists live movies moviedetail series seriesdetail epg settings football player home; do
+          for s in home playlists live movies moviedetail series seriesdetail epg settings profiles football player home; do
             xcrun simctl terminate "$UDID" tv.imperum.app 2>/dev/null || true
             sleep 3
             SIMCTL_CHILD_IMPTV_TEST=1 SIMCTL_CHILD_IMPTV_SCREEN=$s xcrun simctl launch "$UDID" tv.imperum.app || true

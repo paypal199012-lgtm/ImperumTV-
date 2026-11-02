@@ -46,13 +46,15 @@ struct LiveScreen: View {
     @State private var shown: TVItem?
     @State private var epg: [EPGEntry] = []
     @State private var showProgram = false
+    @State private var askPin = false
 
     private var channels: [TVItem] {
+        _ = store.unlockTick
         var l: [TVItem]
         switch cat {
-        case "all": l = store.live
-        case "fav": l = store.live.filter { store.isFav($0, .live) }
-        default: l = store.live.filter { $0.cat == cat }
+        case "all": l = store.visible(.live)
+        case "fav": l = store.visible(.live).filter { store.isFav($0, .live) }
+        default: l = store.catLocked(.live, cat) ? [] : store.live.filter { $0.cat == cat }
         }
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         if !q.isEmpty { l = l.filter { $0.name.lowercased().contains(q) } }
@@ -71,12 +73,13 @@ struct LiveScreen: View {
                     TextField("Suchen", text: $query)
                         .font(UI.font(27, .medium))
                         .focused($focus, equals: .search)
-                    CatRow(name: "☰ Alle", count: store.live.count, active: cat == "all") { cat = "all" }
+                    CatRow(name: "☰ Alle", count: store.visible(.live).count, active: cat == "all") { cat = "all" }
                         .focused($focus, equals: .cat("all"))
                     CatRow(name: "★ Favoriten", count: store.live.filter { store.isFav($0, .live) }.count, active: cat == "fav") { cat = "fav" }
                         .focused($focus, equals: .cat("fav"))
-                    ForEach(store.liveCats) { c in
-                        CatRow(name: c.name, count: store.live.lazy.filter { $0.cat == c.id }.count, active: cat == c.id) { cat = c.id }
+                    ForEach(store.visibleCats(.live)) { c in
+                        CatRow(name: (store.catLocked(.live, c.id) ? "🔒 " : "") + c.name, count: store.live.lazy.filter { $0.cat == c.id }.count,
+                               active: cat == c.id) { cat = c.id; if store.catLocked(.live, c.id) { askPin = true } }
                             .focused($focus, equals: .cat(c.id))
                     }
                 }
@@ -88,7 +91,8 @@ struct LiveScreen: View {
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     if channels.isEmpty {
-                        Text(cat == "fav" ? "Noch keine Favoriten. Sender auswählen und unten „Favorit“ drücken." : "Keine Sender")
+                        Text(store.catLocked(.live, cat) ? "🔒 Gesperrt – links auf die Kategorie drücken und PIN eingeben."
+                             : cat == "fav" ? "Noch keine Favoriten. Sender auswählen und unten „Favorit“ drücken." : "Keine Sender")
                             .font(UI.font(26)).foregroundColor(UI.muted).padding(30)
                     }
                     ForEach(channels) { ch in
@@ -113,6 +117,14 @@ struct LiveScreen: View {
             preview.place(1000, 120, 880, 495)
             if showProgram { programList.place(1000, 635, 880, 380) } else { nextCards.place(1000, 635, 880, 80) }
             buttons.place(1000, showProgram ? 1020 : 735, 880, 60)
+        }
+        .overlay {
+            if askPin {
+                PinPrompt(title: "PIN eingeben") { pin in
+                    askPin = false
+                    if let p = pin, Parental.check(p) { store.unlock() }
+                }
+            }
         }
         .frame(width: 1920, height: 1080)
         .defaultFocus($focus, .ch(engine.item?.id ?? channels.first?.id ?? 0))
@@ -139,7 +151,7 @@ struct LiveScreen: View {
         ZStack(alignment: .bottomLeading) {
             Color(rgb: 0x1c1d21)
             if engine.item != nil && engine.kind == .live {
-                VideoView(player: engine.player)
+                VideoView(engine: engine)
                 if engine.buffering { ProgressView().scaleEffect(1.6).tint(UI.gold).frame(maxWidth: .infinity, maxHeight: .infinity) }
             } else {
                 Text("OK drücken für die Vorschau").font(UI.font(30)).foregroundColor(UI.muted)

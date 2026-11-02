@@ -44,11 +44,12 @@ struct EpgScreen: View {
     }
 
     private var channels: [TVItem] {
+        _ = store.unlockTick
         var l: [TVItem]
         switch cat {
-        case "all": l = store.live
-        case "fav": l = store.live.filter { store.isFav($0, .live) }
-        default: l = store.live.filter { $0.cat == cat }
+        case "all": l = store.visible(.live)
+        case "fav": l = store.visible(.live).filter { store.isFav($0, .live) }
+        default: l = store.catLocked(.live, cat) ? [] : store.live.filter { $0.cat == cat }
         }
         if onlyWithProgram { l = l.filter { !(epg[$0.id]?.isEmpty ?? false) } }
         return l
@@ -104,7 +105,7 @@ struct EpgScreen: View {
         return ZStack(alignment: .bottomLeading) {
             Color.black
             if engine.item != nil && engine.kind == .live {
-                VideoView(player: engine.player)
+                VideoView(engine: engine)
                 if engine.buffering { ProgressView().scaleEffect(1.4).tint(UI.gold).frame(maxWidth: .infinity, maxHeight: .infinity) }
             }
             if let c = ch {
@@ -180,7 +181,7 @@ struct EpgScreen: View {
                 chip("only", "Nur mit Programm", active: onlyWithProgram) { onlyWithProgram.toggle() }
                 chip("cat:all", "☰  Alle", active: cat == "all") { cat = "all" }
                 chip("cat:fav", "★ Favoriten", active: cat == "fav") { cat = "fav" }
-                ForEach(store.liveCats) { c in chip("cat:" + c.id, c.name, active: cat == c.id) { cat = c.id } }
+                ForEach(store.visibleCats(.live).filter { !store.catLocked(.live, $0.id) }) { c in chip("cat:" + c.id, c.name, active: cat == c.id) { cat = c.id } }
                 chip("t-", "◀ −2 Std.", active: false) { shift -= 120 }
                 chip("t0", "Jetzt", active: false) { shift = 0 }
                 chip("t+", "+2 Std. ▶", active: false) { shift += 120 }

@@ -14,12 +14,12 @@ extension Color {
 }
 
 enum UI {
-    static let gold = Color(rgb: 0xf4dc9e)
-    static let gold2 = Color(rgb: 0xd9b066)
+    static var gold: Color { Theme.color(0xf4dc9e) }
+    static var gold2: Color { Theme.color(0xd9b066) }
     static let text = Color(rgb: 0xf2efe8)
     static let muted = Color(rgb: 0xa7a39a)
-    static let dark = Color(rgb: 0x1a1408)
-    static func tan(_ a: Double) -> Color { Color(rgb: 0xd9b066, opacity: a) }
+    static var dark: Color { Theme.current.hue == nil ? Color(rgb: 0x1a1408) : Color(rgb: 0x101014) }
+    static func tan(_ a: Double) -> Color { Theme.color(0xd9b066, a) }
 
     static func font(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font { .system(size: size, weight: weight) }
 }

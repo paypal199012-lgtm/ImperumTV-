@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum TVRoute: Hashable {
-    case home, live, epg, movies, series, seriesDetail(TVItem), movieDetail(TVItem), continueWatching, player, playlists, settings, favorites, search, football
+    case home, live, epg, movies, series, seriesDetail(TVItem), movieDetail(TVItem), continueWatching, player, playlists, settings, favorites, search, football, profiles, nettest, lockCats
 }
 
 /// Bildschirm-Stapel wie auf Android: Menü-Taste der Fernbedienung = Zurück
@@ -40,6 +40,8 @@ struct RootView: View {
     @EnvironmentObject var store: TVStore
     @EnvironmentObject var nav: Nav
     @EnvironmentObject var engine: PlayerEngine
+    @EnvironmentObject var resume: ResumeBook
+    @AppStorage("tv.theme") private var theme = "gold"
     @State private var started = false
 
     var body: some View {
@@ -60,12 +62,23 @@ struct RootView: View {
         }
         .frame(width: 1920, height: 1080)
         .foregroundColor(UI.text)
+        .id(theme)                    // Farbthema gewechselt: alles neu zeichnen
         .ignoresSafeArea()
         .onExitCommand(perform: nav.stack.count > 1 ? { leave() } : nil)
         .task {
             guard !started else { return }
             started = true
+            // Player: Ersatzsender, Adressen, Hänger melden, Schlaf-Timer
+            engine.altProvider = { [weak store] it in store?.alternatives(it) ?? [] }
+            engine.urlProvider = { [weak store] it in store?.url(it, .live) }
+            engine.onStall = { it, what in Report.stall(it.name, what) }
+            engine.onSleep = { [weak nav] in nav?.reset(.home) }
             await store.start()
+            // Neue Folgen bei Favoriten und angefangenen Serien
+            let src = store.sourceName
+            let favIds = store.series.filter { store.isFav($0, .series) }.map(\.id)
+            let resIds = resume.list(source: src).filter { $0.kind == "series" }.map(\.itemId)
+            Task { await store.checkNewEpisodes(Array(Set(favIds + resIds))) }
             if !store.hasSource { nav.reset(.playlists) }
             testSetup()
         }
@@ -87,6 +100,9 @@ struct RootView: View {
         case .football: FootballScreen()
         case .movieDetail(let m): MovieDetailScreen(movie: m)
         case .continueWatching: ContinueScreen()
+        case .profiles: ProfilesScreen()
+        case .nettest: NetTestScreen()
+        case .lockCats: LockCatsScreen()
         }
     }
 
@@ -121,6 +137,7 @@ struct RootView: View {
         case "search": nav.reset(.home); nav.push(.search)
         case "favorites": nav.reset(.home); nav.push(.favorites)
         case "football": nav.reset(.home); nav.push(.football)
+        case "profiles": nav.reset(.home); nav.push(.profiles)
         case "moviedetail": if let m = store.vod.first { nav.reset(.home); nav.push(.movies); nav.push(.movieDetail(m)) }
         default: nav.reset(.home)
         }
