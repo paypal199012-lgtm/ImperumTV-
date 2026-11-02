@@ -34,10 +34,11 @@ extension View {
 // MARK: - Hintergrund (goldene Lichtstreifen)
 
 private func cssGradient(_ deg: Double, _ stops: [(Color, Double)], _ w: CGFloat, _ h: CGFloat) -> LinearGradient {
-    let a = deg * .pi / 180
-    let vx = sin(a), vy = -cos(a)
-    let len = abs(w * sin(a)) + abs(h * cos(a))
-    let dx = vx * len / 2 / w, dy = vy * len / 2 / h
+    let a: Double = deg * Double.pi / 180
+    let sa: Double = Foundation.sin(a), ca: Double = Foundation.cos(a)
+    let W = Double(w), H = Double(h)
+    let len: Double = Swift.abs(W * sa) + Swift.abs(H * ca)
+    let dx: Double = sa * len / 2 / W, dy: Double = -ca * len / 2 / H
     return LinearGradient(stops: stops.map { Gradient.Stop(color: $0.0, location: $0.1) },
                           startPoint: UnitPoint(x: 0.5 - dx, y: 0.5 - dy),
                           endPoint: UnitPoint(x: 0.5 + dx, y: 0.5 + dy))
