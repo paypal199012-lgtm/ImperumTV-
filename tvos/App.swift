@@ -104,7 +104,7 @@ struct RootView: View {
         case "player":
             nav.reset(.home); nav.push(.movies)
             if let it = store.vod.first, let u = store.url(it, .movie) {
-                engine.play(u, item: it, kind: .movie)
+                engine.play(u, item: it, kind: .movie, fallback: store.altURL(it))
                 nav.push(.player)
             }
         case "movies": nav.reset(.home); nav.push(.movies)

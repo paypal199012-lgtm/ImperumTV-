@@ -284,7 +284,7 @@ struct ResultRows: View {
         case .live, .movie:
             guard let u = store.url(it, kind) else { return }
             if kind == .live { engine.items = items; engine.index = items.firstIndex(of: it) ?? 0 }
-            engine.play(u, item: it, kind: kind)
+            engine.play(u, item: it, kind: kind, fallback: kind == .movie ? store.altURL(it) : nil)
             nav.push(.player)
         }
     }

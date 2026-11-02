@@ -72,6 +72,26 @@ jobs:
             xcrun simctl io "$UDID" screenshot "sim-shots/$s.png" || true
           done
           xcrun simctl spawn "$UDID" log show --last 10m --style compact --predicate 'process == "ImperumTV"' > sim-shots/log.txt 2>/dev/null || true
+          # Absturzberichte (falls die App abgestürzt ist)
+          for f in $(ls -t ~/Library/Logs/DiagnosticReports/ImperumTV* 2>/dev/null | head -5); do
+            python3 - "$f" > "sim-shots/crash-$(basename "$f" | tr ' ' '_').txt" <<'PY' || cp "$f" sim-shots/
+          import json, sys
+          raw = open(sys.argv[1]).read()
+          head, _, body = raw.partition('\n')
+          try:
+              d = json.loads(body)
+          except Exception:
+              print(raw[:20000]); sys.exit(0)
+          print('Ausnahme:', d.get('exception'), d.get('termination'))
+          print('Grund:', d.get('asi'))
+          imgs = d.get('usedImages', [])
+          for t in d.get('threads', []):
+              if not t.get('triggered'): continue
+              for fr in t.get('frames', [])[:40]:
+                  img = imgs[fr.get('imageIndex', 0)].get('name', '?') if imgs else '?'
+                  print(img, fr.get('symbol', ''), fr.get('sourceFile', ''), fr.get('sourceLine', ''))
+          PY
+          done
           ls -la sim-shots
       - name: Bilder ins Repository
         if: always()

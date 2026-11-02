@@ -131,7 +131,7 @@ struct VodScreen: View {
     private func open(_ it: TVItem) {
         if kind == .series { nav.push(.seriesDetail(it)); return }
         guard let u = store.url(it, .movie) else { return }
-        engine.play(u, item: it, kind: .movie)
+        engine.play(u, item: it, kind: .movie, fallback: store.altURL(it))
         nav.push(.player)
     }
 }

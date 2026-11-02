@@ -47,7 +47,11 @@ final class PlayerEngine: ObservableObject {
         }
     }
 
-    func play(_ url: URL, item: TVItem, kind: MediaKind, title: String? = nil, art: Art? = nil) {
+    /// Zweite Adresse, falls die erste nicht abspielbar ist
+    var fallback: URL?
+
+    func play(_ url: URL, item: TVItem, kind: MediaKind, title: String? = nil, art: Art? = nil, fallback: URL? = nil) {
+        self.fallback = fallback
         error = nil
         self.item = item
         self.kind = kind
@@ -61,6 +65,11 @@ final class PlayerEngine: ObservableObject {
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 if it.status == .failed {
+                    if let f = self.fallback, let cur = self.item {
+                        self.fallback = nil
+                        self.play(f, item: cur, kind: self.kind, title: self.title, art: self.art)
+                        return
+                    }
                     self.error = "Sender ließ sich nicht abspielen" + (it.error.map { " (\($0.localizedDescription))" } ?? "")
                 }
             }
