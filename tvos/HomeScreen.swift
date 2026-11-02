@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeScreen: View {
     @EnvironmentObject var nav: Nav
     @EnvironmentObject var store: TVStore
+    @EnvironmentObject var resume: ResumeBook
     @FocusState private var focus: String?
 
     var body: some View {
@@ -27,6 +28,9 @@ struct HomeScreen: View {
             .place(0, 330, 1920, 346, alignment: .center)
 
             HStack(spacing: 20) {
+                if !resume.list(source: store.sourceName).isEmpty {
+                    tile("continue", "resume", "WEITERSCHAUEN") { nav.push(.continueWatching) }
+                }
                 tile("favs", "star", "FAVORITEN") { nav.push(.favorites) }
                 tile("search", "search", "SUCHE") { nav.push(.search) }
                 tile("football", "ball", "FUSSBALL") { nav.push(.football) }

@@ -68,6 +68,13 @@ enum DemoData {
         TVItem(id: 201, name: "Blender Open Movies", cat: "20", art: .demo("Blender Open Movies", 0x7a5a1a), rating: 7.2)
     ]
 
+    static let info: [Int: (plot: String, genre: String, min: Int, dir: String)] = [
+        101: ("Ein freundliches Riesenkaninchen nimmt es mit drei frechen Nagern auf. Kurzfilm der Blender Foundation (CC BY 3.0).", "Animation · Komödie", 10, "Sacha Goedegebure"),
+        102: ("Zwei Männer erkunden eine seltsame, mechanische Welt. Der erste offene Film der Blender Foundation (CC BY 2.5).", "Animation · Sci-Fi", 11, "Bassam Kurdali"),
+        103: ("Eine junge Frau sucht ihren kleinen Drachen. Kurzfilm der Blender Foundation (CC BY 3.0).", "Animation · Fantasy", 15, "Colin Levy"),
+        104: ("Eine Gruppe von Wissenschaftlern versucht in Amsterdam, die Welt vor Robotern zu retten. Blender Foundation (CC BY 3.0).", "Sci-Fi", 12, "Ian Hubert")
+    ]
+
     static func episodes() -> [Episode] {
         vod.enumerated().compactMap { i, m in
             guard let file = vodFiles[m.id], let u = URL(string: films + file) else { return nil }
@@ -249,6 +256,25 @@ final class TVStore: ObservableObject {
             epgCache[item.id] = (Date(), list)
             return list
         case .none: return []
+        }
+    }
+
+    private var infoCache: [Int: MediaInfo] = [:]
+
+    func movieInfo(_ m: TVItem) async -> MediaInfo? {
+        switch source {
+        case .demo:
+            guard let d = DemoData.info[m.id] else { return nil }
+            var i = MediaInfo()
+            i.plot = d.plot; i.genre = d.genre; i.duration = "\(d.min) Min."; i.director = d.dir
+            i.year = m.year.map { String($0) }; i.score = m.rating
+            return i
+        case .xtream(let acc, _):
+            if let c = infoCache[m.id] { return c }
+            let i = try? await client(acc).vodInfo(vodId: m.id)
+            if let i = i { infoCache[m.id] = i }
+            return i
+        case .none: return nil
         }
     }
 

@@ -281,7 +281,8 @@ struct ResultRows: View {
     private func open(_ it: TVItem) {
         switch kind {
         case .series: nav.push(.seriesDetail(it))
-        case .live, .movie:
+        case .movie: nav.push(.movieDetail(it))
+        case .live:
             guard let u = store.url(it, kind) else { return }
             if kind == .live { engine.items = items; engine.index = items.firstIndex(of: it) ?? 0 }
             engine.play(u, item: it, kind: kind, fallback: kind == .movie ? store.altURL(it) : nil)

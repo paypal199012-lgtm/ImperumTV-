@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum TVRoute: Hashable {
-    case home, live, epg, movies, series, seriesDetail(TVItem), player, playlists, settings, favorites, search, football
+    case home, live, epg, movies, series, seriesDetail(TVItem), movieDetail(TVItem), continueWatching, player, playlists, settings, favorites, search, football
 }
 
 /// Bildschirm-Stapel wie auf Android: Menü-Taste der Fernbedienung = Zurück
@@ -22,6 +22,7 @@ struct ImperumTVApp: App {
     @StateObject private var store = TVStore()
     @StateObject private var nav = Nav()
     @StateObject private var engine = PlayerEngine()
+    @StateObject private var resume = ResumeBook()
 
     var body: some Scene {
         WindowGroup {
@@ -29,6 +30,7 @@ struct ImperumTVApp: App {
                 .environmentObject(store)
                 .environmentObject(nav)
                 .environmentObject(engine)
+                .environmentObject(resume)
                 .preferredColorScheme(.dark)
         }
     }
@@ -83,6 +85,8 @@ struct RootView: View {
         case .favorites: FavoritesScreen()
         case .search: SearchScreen()
         case .football: FootballScreen()
+        case .movieDetail(let m): MovieDetailScreen(movie: m)
+        case .continueWatching: ContinueScreen()
         }
     }
 
@@ -117,6 +121,7 @@ struct RootView: View {
         case "search": nav.reset(.home); nav.push(.search)
         case "favorites": nav.reset(.home); nav.push(.favorites)
         case "football": nav.reset(.home); nav.push(.football)
+        case "moviedetail": if let m = store.vod.first { nav.reset(.home); nav.push(.movies); nav.push(.movieDetail(m)) }
         default: nav.reset(.home)
         }
     }

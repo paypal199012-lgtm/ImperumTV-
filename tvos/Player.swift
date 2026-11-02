@@ -21,6 +21,8 @@ final class PlayerEngine: ObservableObject {
     var episodes: [Episode] = []
     var index = 0
     var art: Art = .none
+    /// wird vor dem Wechsel zur nächsten Folge aufgerufen (Stand merken)
+    var onEpisodeEnd: (() -> Void)?
 
     private var timeObs: Any?
     private var statusObs: NSKeyValueObservation?
@@ -50,7 +52,7 @@ final class PlayerEngine: ObservableObject {
     /// Zweite Adresse, falls die erste nicht abspielbar ist
     var fallback: URL?
 
-    func play(_ url: URL, item: TVItem, kind: MediaKind, title: String? = nil, art: Art? = nil, fallback: URL? = nil) {
+    func play(_ url: URL, item: TVItem, kind: MediaKind, title: String? = nil, art: Art? = nil, fallback: URL? = nil, startAt: Double = 0) {
         self.fallback = fallback
         error = nil
         self.item = item
@@ -79,23 +81,36 @@ final class PlayerEngine: ObservableObject {
             MainActor.assumeIsolated { self?.ended() }
         }
         player.replaceCurrentItem(with: pi)
+        if startAt > 5 { player.seek(to: CMTime(seconds: startAt, preferredTimescale: 600)) }
         player.play()
         UIApplication.shared.isIdleTimerDisabled = true
     }
 
     private func ended() {
         // Serie: nächste Folge, Live: neu verbinden
-        if kind == .series, index + 1 < episodes.count { playEpisode(index + 1); return }
+        if kind == .series, index + 1 < episodes.count { onEpisodeEnd?(); playEpisode(index + 1); return }
         if kind == .live, let it = item, let u = (player.currentItem?.asset as? AVURLAsset)?.url {
             play(u, item: it, kind: .live)
         }
     }
 
-    func playEpisode(_ i: Int) {
+    func playEpisode(_ i: Int, startAt: Double = 0) {
         guard i >= 0, i < episodes.count, let it = item else { return }
         index = i
         let e = episodes[i]
-        play(e.url, item: it, kind: .series, title: "\(it.name) · S\(e.season) F\(e.number) · \(e.title)", art: it.art)
+        play(e.url, item: it, kind: .series, title: "\(it.name) · S\(e.season) F\(e.number) · \(e.title)", art: it.art, startAt: startAt)
+    }
+
+    /// Aktueller Stand für „Weiterschauen“
+    func saveResume(_ book: ResumeBook, source: String) {
+        guard let it = item, kind != .live, duration > 0 else { return }
+        if kind == .series, index < episodes.count {
+            let e = episodes[index]
+            book.save(source: source, kind: .series, item: it, pos: position, dur: duration, episode: index,
+                      episodeTitle: "S\(e.season) F\(e.number) · \(e.title)", episodeCount: episodes.count)
+        } else {
+            book.save(source: source, kind: .movie, item: it, pos: position, dur: duration)
+        }
     }
 
     func stop() {
@@ -148,6 +163,7 @@ struct PlayerScreen: View {
     @EnvironmentObject var engine: PlayerEngine
     @EnvironmentObject var nav: Nav
     @EnvironmentObject var store: TVStore
+    @EnvironmentObject var resume: ResumeBook
     @State private var osd = true
     @State private var hideTask: Task<Void, Never>?
     @State private var epgNow: EPGEntry?
@@ -183,6 +199,14 @@ struct PlayerScreen: View {
         }
         .onPlayPauseCommand { engine.toggle(); showOSD() }
         .onExitCommand { close() }
+        .task {
+            // alle 10 s den Stand merken (Filme, Folgen)
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                if Task.isCancelled { break }
+                engine.saveResume(resume, source: store.sourceName)
+            }
+        }
         .task(id: engine.item?.id) {
             guard engine.kind == .live, let it = engine.item else { epgNow = nil; return }
             let l = await store.epg(it)
@@ -260,6 +284,7 @@ struct PlayerScreen: View {
     /// Zurück: Live läuft in der Senderliste als Vorschau weiter, Filme/Folgen halten an
     private func close() {
         hideTask?.cancel()
+        engine.saveResume(resume, source: store.sourceName)
         if engine.kind != .live { engine.stop() }
         nav.pop()
     }

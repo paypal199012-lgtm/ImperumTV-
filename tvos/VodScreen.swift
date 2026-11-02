@@ -130,9 +130,7 @@ struct VodScreen: View {
 
     private func open(_ it: TVItem) {
         if kind == .series { nav.push(.seriesDetail(it)); return }
-        guard let u = store.url(it, .movie) else { return }
-        engine.play(u, item: it, kind: .movie, fallback: store.altURL(it))
-        nav.push(.player)
+        nav.push(.movieDetail(it))
     }
 }
 
@@ -143,6 +141,7 @@ struct SeriesScreen: View {
     @EnvironmentObject var store: TVStore
     @EnvironmentObject var nav: Nav
     @EnvironmentObject var engine: PlayerEngine
+    @EnvironmentObject var resume: ResumeBook
     @State private var episodes: [Episode] = []
     @State private var season = 1
     @State private var loading = true
@@ -165,7 +164,16 @@ struct SeriesScreen: View {
                 }
                 .font(UI.font(26)).foregroundColor(UI.muted)
             }
-            .place(500, 110, 1340, 150)
+            .place(500, 110, 1000, 150)
+
+            if let s = resume.entry(store.sourceName, .series, series.id), let ep = s.episode, ep < sortedAll.count {
+                Button { play(sortedAll[ep], startAt: s.pos) } label: {
+                    Text("▶ Weiter: \(s.episodeTitle ?? "Folge \(ep + 1)")" + (s.pos > 30 ? " ab \(timeText(s.pos))" : ""))
+                        .font(UI.font(24, .bold)).lineLimit(1).padding(.horizontal, 26).frame(height: 56)
+                }
+                .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: UI.gold, ring: false, solid: true))
+                .place(500, 200, 1380, 60)
+            }
 
             if loading {
                 ProgressView().scaleEffect(1.6).tint(UI.gold).place(500, 300, 200, 100)
@@ -209,12 +217,16 @@ struct SeriesScreen: View {
         }
     }
 
-    private func play(_ e: Episode) {
-        let all = episodes.sorted { ($0.season, $0.number) < ($1.season, $1.number) }
+    private var sortedAll: [Episode] { episodes.sorted { ($0.season, $0.number) < ($1.season, $1.number) } }
+
+    private func play(_ e: Episode, startAt: Double = 0) {
+        let all = sortedAll
         engine.episodes = all
         engine.item = series
         engine.index = all.firstIndex(of: e) ?? 0
-        engine.playEpisode(engine.index)
+        let book = resume, src = store.sourceName, eng = engine
+        engine.onEpisodeEnd = { eng.saveResume(book, source: src) }
+        engine.playEpisode(engine.index, startAt: startAt)
         nav.push(.player)
     }
 }
