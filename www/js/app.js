@@ -3786,6 +3786,7 @@
             var target = Focus.byKey(screen.focusKey);
             if (target) Focus.set(target); else Focus.first();
             if (saved) this.restoreScroll(screen, saved);
+            IosBack.update();
         },
 
         replace: function (screen) {
@@ -3936,9 +3937,27 @@
             if (!stage || this.node) return;
             var b = h('div', 'ios-back hidden');
             b.innerHTML = '<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
+            // iPhone: schon beim Loslassen des Fingers auslösen (nicht auf den „Klick“ warten, den iOS manchmal verschluckt)
+            var lastTouch = 0, sx = 0, sy = 0;
+            function goBack() { onKeyDown({ keyCode: KEY.BACK, repeat: false, preventDefault: function () { } }); }
+            b.addEventListener('touchstart', function (e) {
+                var t = e.touches && e.touches[0]; sx = t ? t.clientX : 0; sy = t ? t.clientY : 0;
+                b.classList.add('down'); e.stopPropagation();
+            }, { passive: true });
+            b.addEventListener('touchcancel', function () { b.classList.remove('down'); });
+            b.addEventListener('touchend', function (e) {
+                b.classList.remove('down');
+                var t = e.changedTouches && e.changedTouches[0];
+                if (e.cancelable) e.preventDefault();
+                e.stopPropagation();
+                if (t && (Math.abs(t.clientX - sx) > 40 || Math.abs(t.clientY - sy) > 40)) return;
+                lastTouch = Date.now();
+                goBack();
+            }, { passive: false });
             b.addEventListener('click', function (e) {
                 e.preventDefault(); e.stopPropagation();
-                onKeyDown({ keyCode: KEY.BACK, repeat: false, preventDefault: function () { } });
+                if (Date.now() - lastTouch < 800) return;      // schon per Finger ausgelöst
+                goBack();
             });
             stage.appendChild(b);
             this.node = b;

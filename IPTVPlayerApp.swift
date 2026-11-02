@@ -31,6 +31,7 @@ struct IPTVPlayerApp: App {
                 .preferredColorScheme(.dark)
                 .statusBarHidden(true)
                 .persistentSystemOverlays(.hidden)
+                .defersSystemGestures(on: .all)   // Tippen am oberen Rand (Zurück-Knopf) zuerst an die App
         }
     }
 }

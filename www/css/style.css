@@ -1605,7 +1605,9 @@ body.lite .live-b .cat.focused { box-shadow: 0 0 0 3px #f4dc9e !important; }
 .ios-back { position: absolute; left: 14px; top: 22px; width: 64px; height: 64px; border-radius: 50%; z-index: 60;
     display: flex; align-items: center; justify-content: center; color: #f4dc9e;
     background: rgba(20,20,24,.72); border: 2px solid rgba(244,220,158,.55); cursor: pointer; }
-.ios-back:active { background: rgba(217,176,102,.45); }
+.ios-back:active, .ios-back.down { background: rgba(217,176,102,.45); }
+.ios-back { touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+.ios-back svg { pointer-events: none; }
 body.ios .screen-title { left: 96px; }
 /* Im Vollbild nur zusammen mit der eingeblendeten Leiste */
 body.video-mode:not(.osd) .ios-back { display: none; }

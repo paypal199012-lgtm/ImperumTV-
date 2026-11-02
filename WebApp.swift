@@ -95,6 +95,7 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
             // Live TV öffnen, ersten Sender wählen, Vollbild
             let steps: [(Double, String)] = [
                 (18, "var e=[].slice.call(document.querySelectorAll('#app [data-key]')).filter(function(x){return /LIVE TV/i.test(x.textContent)})[0]; e&&e.click(); 'live:'+!!e"),
+                (20, "var b=document.querySelector('.ios-back'), q=b.getBoundingClientRect(), t=document.elementFromPoint(q.left+q.width/2, q.top+q.height/2); 'zurueck-knopf: '+b.className+' rect='+[q.left|0,q.top|0,q.width|0]+' oben='+(t?(t.closest('.ios-back')?'KNOPF':t.tagName+'.'+t.className):'nichts')"),
                 (21, "var r=document.querySelector('.col-list .row'); r&&r.click(); 'row:'+!!r"),
                 (23, "var b=[].slice.call(document.querySelectorAll('#app [data-key]')).filter(function(x){return /Vollbild/.test(x.textContent)})[0]; b&&b.click(); 'voll:'+!!b"),
                 (38, "JSON.stringify(window.__abState)")
