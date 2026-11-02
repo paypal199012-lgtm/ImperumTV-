@@ -671,6 +671,8 @@ final class NativePlayer {
             if useVLC {
                 pos = Double(max(0, vlc.time.intValue)) / 1000
                 if !isLive, let l = vlc.media?.length.intValue, l > 0 { dur = Double(l) / 1000 }
+                // manche Dateien melden die Länge erst spät: aus der Restzeit berechnen
+                if !isLive, dur == 0, let r = vlc.remainingTime?.intValue, r < 0 { dur = pos + Double(-r) / 1000 }
                 playing = vlc.isPlaying || buffering
                 if let m = vlc.media, let st = (m as NSObject).value(forKey: "stats") as? [String: Any],
                    let b = (st["inputBitrate"] as? NSNumber)?.doubleValue, b > 0 { kbps = Int(b * 8000) }
