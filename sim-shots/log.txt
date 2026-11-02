@@ -1,0 +1,467 @@
+getpwuid_r did not find a match for uid 501
+Timestamp               Ty Process[PID:TID]
+2026-11-02 11:15:32.171 Df IPTVPlayer[9534:7fe2] [com.apple.xpc:connection] [0x600003d081e0] activating connection: mach=true listener=false peer=false name=com.apple.cfprefsd.daemon
+2026-11-02 11:15:32.175 Df IPTVPlayer[9534:7fdc] (Security) SecTaskLoadEntitlements failed error=22 cs_flags=200, pid=9534
+2026-11-02 11:15:32.175 Df IPTVPlayer[9534:7fdc] (Security) SecTaskCopyDebugDescription: IPTVPlayer[9534]/0#-1 LF=22
+2026-11-02 11:15:32.182 A  IPTVPlayer[9534:7fe3] (CoreFoundation) Loading Preferences From User Session CFPrefsD
+2026-11-02 11:15:32.182 Df IPTVPlayer[9534:7fe2] [com.apple.UIKit:BackgroundTask] Creating new assertion because there is no existing background assertion.
+2026-11-02 11:15:32.183 Df IPTVPlayer[9534:7fe2] [com.apple.UIKit:BackgroundTask] Creating new background assertion
+2026-11-02 11:15:32.183 Df IPTVPlayer[9534:7fe2] [com.apple.UIKit:BackgroundTask] Created new background assertion <BKSProcessAssertion: 0x60000210e800>
+2026-11-02 11:15:32.184 Df IPTVPlayer[9534:7fe2] [com.apple.runningboard:connection] Initializing connection
+2026-11-02 11:15:32.185 Df IPTVPlayer[9534:7fe2] [com.apple.runningboard:process] Removing all cached process handles
+2026-11-02 11:15:32.187 Df IPTVPlayer[9534:7fe3] [com.apple.runningboard:connection] Sending handshake request attempt #1 to server
+2026-11-02 11:15:32.189 Df IPTVPlayer[9534:7fe3] [com.apple.runningboard:connection] Creating connection to com.apple.runningboard
+2026-11-02 11:15:32.189 Df IPTVPlayer[9534:7fe3] [com.apple.xpc:connection] [0x600003d083c0] activating connection: mach=true listener=false peer=false name=com.apple.runningboard
+2026-11-02 11:15:32.191 Df IPTVPlayer[9534:7fe4] [com.apple.xpc:connection] [0x10ef06890] activating connection: mach=false listener=false peer=false name=(anonymous)
+2026-11-02 11:15:32.194 A  IPTVPlayer[9534:7fe7] (RunningBoardServices) didChangeInheritances
+2026-11-02 11:15:32.196 Df IPTVPlayer[9534:7fe3] [com.apple.runningboard:connection] Handshake succeeded
+2026-11-02 11:15:32.199 Df IPTVPlayer[9534:7fe9] (libMobileGestalt.dylib) No persisted cache on this platform.
+2026-11-02 11:15:32.201 Df IPTVPlayer[9534:7fe3] [com.apple.runningboard:connection] Identity resolved as app<com.example.iptvplayer((null))>
+2026-11-02 11:15:32.202 Df IPTVPlayer[9534:7fe2] [com.apple.UIKit:BackgroundTask] Incrementing reference count for background assertion <BKSProcessAssertion: 0x60000210e800>
+2026-11-02 11:15:32.203 Df IPTVPlayer[9534:7fe2] [com.apple.UIKit:BackgroundTask] Created background task <_UIBackgroundTaskInfo: 0x600001709580>: taskID = 1, taskName = Launch Background Task for Coalescing, creationTime = 692 (elapsed = 0).
+2026-11-02 11:15:32.203 Df IPTVPlayer[9534:7fe2] [com.apple.FrontBoard:SceneExtension] Realizing settings extension _UIApplicationSceneKeyboardSettings on FBSSceneSettings
+2026-11-02 11:15:32.205 Df IPTVPlayer[9534:7fe2] [com.apple.FrontBoard:SceneExtension] Realizing settings extension <_UISceneOcclusionSettings> on FBSSceneSettings
+2026-11-02 11:15:32.206 Df IPTVPlayer[9534:7fe2] [com.apple.FrontBoard:SceneExtension] Realizing settings extension <_UISceneInterfaceProtectionSceneSettings> on FBSSceneSettings
+2026-11-02 11:15:32.207 Df IPTVPlayer[9534:7fe2] [com.apple.FrontBoard:SceneExtension] Realizing settings extension <_UIHomeAffordanceHostSceneSettings> on FBSSceneSettings
+2026-11-02 11:15:32.208 Df IPTVPlayer[9534:7fe2] [com.apple.FrontBoard:SceneExtension] Realizing settings extension _UISystemShellSceneHostingEnvironmentSettings on FBSSceneSettings
+2026-11-02 11:15:32.208 Df IPTVPlayer[9534:7fe2] [com.apple.FrontBoard:SceneExtension] Realizing settings extension _UISceneRenderingEnvironmentSettings on FBSSceneSettings
+2026-11-02 11:15:32.209 Df IPTVPlayer[9534:7fe2] [com.apple.FrontBoard:SceneExtension] Realizing settings extension <_UISceneTransitioningHostSettings> on FBSSceneSettings
+2026-11-02 11:15:32.210 Df IPTVPlayer[9534:7fe2] [com.apple.FrontBoard:SceneExtension] Realizing settings extension <_UISceneHostingContentSizePreferenceClientSettings> on FBSSceneClientSettings
+2026-11-02 11:15:32.211 Df IPTVPlayer[9534:7fe2] [com.apple.FrontBoard:SceneExtension] Realizing settings extension _UISceneHostingTraitCollectionPropagationSettings on FBSSceneSettings
+2026-11-02 11:15:32.213 Df IPTVPlayer[9534:7fe2] [com.apple.FrontBoard:SceneExtension] Realizing settings extension <_UISceneHostingSheetPresentationSettings> on FBSSceneSettings
+2026-11-02 11:15:32.214 Df IPTVPlayer[9534:7fe2] [com.apple.FrontBoard:SceneExtension] Realizing settings extension <_UISceneHostingSheetPresentationClientSettings> on FBSSceneClientSettings
+2026-11-02 11:15:32.215 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:Application] Deactivation reason added: 10; deactivation reasons: 0 -> 1024; animating application lifecycle event: 0
+2026-11-02 11:15:32.215 Df IPTVPlayer[9534:7fe2] [com.apple.FrontBoard:SceneExtension] Realizing settings extension <_UISceneHostingEventDeferringSettings> on FBSSceneSettings
+2026-11-02 11:15:32.216 Df IPTVPlayer[9534:7fe2] [com.apple.FrontBoard:SceneExtension] Realizing settings extension <UIKit__UITypedKeyValueSceneSettings> on FBSSceneSettings
+2026-11-02 11:15:32.216 E  IPTVPlayer[9534:0] [com.apple.os_debug_log:] assertion failed: 24G830 22G86: libxpc.dylib + 65538 [F39D9312-B14E-3299-8B1A-E335549A0217]: 0x7d
+2026-11-02 11:15:32.216 Df IPTVPlayer[9534:7fe2] [com.apple.FrontBoard:SceneExtension] Realizing settings extension <UIKit__UITypedKeyValueSceneSettings> on FBSSceneClientSettings
+2026-11-02 11:15:32.220 Df IPTVPlayer[9534:7fdc] [com.apple.BoardServices:Injection] activating monitor for service com.apple.frontboard.open
+2026-11-02 11:15:32.235 Df IPTVPlayer[9534:7fdc] [com.apple.BoardServices:Injection] activating monitor for service com.apple.frontboard.workspace-service
+2026-11-02 11:15:32.235 Df IPTVPlayer[9534:7fdc] [com.apple.FrontBoard:Common] FBSWorkspace registering source: com.apple.frontboard.systemappservices
+2026-11-02 11:15:32.244 Df IPTVPlayer[9534:7fdc] [com.apple.FrontBoard:Common] FBSWorkspace connected to endpoint : <BSServiceConnectionEndpoint: 0x60000170b400; target: com.apple.frontboard.systemappservices; service: com.apple.frontboard.workspace-service>
+2026-11-02 11:15:32.382 Df IPTVPlayer[9534:7fdc] [com.apple.FrontBoard:Common] <FBSWorkspaceScenesClient:0x600002c0af00 com.apple.frontboard.systemappservices> attempting immediate handshake from activate
+2026-11-02 11:15:32.383 Df IPTVPlayer[9534:7fdc] [com.apple.FrontBoard:Common] <FBSWorkspaceScenesClient:0x600002c0af00 com.apple.frontboard.systemappservices> sent handshake
+2026-11-02 11:15:32.383 Df IPTVPlayer[9534:7fdc] [com.apple.runningboard:general] Added observer for process assertions expiration warning: <_RBSExpirationWarningClient: 0x600000210dc0>
+2026-11-02 11:15:32.387 Df IPTVPlayer[9534:7fe7] [com.apple.FrontBoard:SceneExtension] Realizing settings extension FBSSceneSettingsCore on FBSSceneSettings
+2026-11-02 11:15:32.390 Df IPTVPlayer[9534:7fe7] [com.apple.FrontBoard:SceneExtension] Realizing settings extension FBSSceneClientSettingsCore on FBSSceneClientSettings
+2026-11-02 11:15:32.393 Df IPTVPlayer[9534:7fe7] [com.apple.FrontBoard:SceneExtension] UIMutableApplicationSceneSettings setting counterpart class: UIApplicationSceneSettings
+2026-11-02 11:15:32.395 Df IPTVPlayer[9534:7fe7] [com.apple.FrontBoard:SceneExtension] UIMutableApplicationSceneClientSettings setting counterpart class: UIApplicationSceneClientSettings
+2026-11-02 11:15:32.396 Df IPTVPlayer[9534:7fe7] [com.apple.FrontBoard:SceneExtension] Realizing settings extension FBSSceneTransitionContextCore on FBSSceneTransitionContext
+2026-11-02 11:15:32.396 Df IPTVPlayer[9534:7fdc] (Security) SecTaskLoadEntitlements failed error=22 cs_flags=200, pid=9534
+2026-11-02 11:15:32.397 Df IPTVPlayer[9534:7fdc] (Security) SecTaskCopyDebugDescription: IPTVPlayer[9534]/0#-1 LF=22
+2026-11-02 11:15:32.398 Df IPTVPlayer[9534:7fdc] (Security) SecTaskLoadEntitlements failed error=22 cs_flags=200, pid=9534
+2026-11-02 11:15:32.398 Df IPTVPlayer[9534:7fdc] (Security) SecTaskCopyDebugDescription: IPTVPlayer[9534]/0#-1 LF=22
+2026-11-02 11:15:32.399 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:UIScreen] Evaluated capturing state as 0 on <UIScreen: 0x10f305610> for initial
+2026-11-02 11:15:32.400 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:UIScreen] Evaluated capturing state as 0 on <UIScreen: 0x10f305610> for CADisplay KVO
+2026-11-02 11:15:32.407 Df IPTVPlayer[9534:7fdc] [com.apple.Accessibility:AXSupportCommon] Read CategoryName: per-app = 1, category name = (null)
+2026-11-02 11:15:32.408 Df IPTVPlayer[9534:7fdc] [com.apple.Accessibility:AXSupportCommon] Read CategoryName: per-app = 0, category name = (null)
+2026-11-02 11:15:32.414 Df IPTVPlayer[9534:7fdc] [com.apple.dt.xctest:Default] Registering for test daemon availability notify post.
+2026-11-02 11:15:32.414 Df IPTVPlayer[9534:7fdc] [com.apple.dt.xctest:Default] notify_get_state check indicated test daemon not ready.
+2026-11-02 11:15:32.414 Df IPTVPlayer[9534:7fdc] [com.apple.dt.xctest:Default] notify_get_state check indicated test daemon not ready.
+2026-11-02 11:15:32.415 Df IPTVPlayer[9534:7fdc] [com.apple.dt.xctest:Default] notify_get_state check indicated test daemon not ready.
+2026-11-02 11:15:32.416 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:Application] Deactivation reason added: 11; deactivation reasons: 1024 -> 3072; animating application lifecycle event: 0
+2026-11-02 11:15:32.417 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:ViewServices] Launching as view service: NO
+2026-11-02 11:15:32.419 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:Application] Deactivation reason removed: 10; deactivation reasons: 3072 -> 2048; animating application lifecycle event: 0
+2026-11-02 11:15:32.421 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:EventBus] Event Timing Profile for Touch: not found, path="/System/Library/EventTimingProfiles/Sim.Touch.plist"
+2026-11-02 11:15:32.421 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:EventBus] Event Timing Profile for Pencil: not found, path="/System/Library/EventTimingProfiles/Sim.Pencil.plist"
+2026-11-02 11:15:32.421 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:UpdateScheduler] Selected display: name=LCD (PurpleMain), id=1
+2026-11-02 11:15:32.451 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:BackgroundTask] Will add backgroundTask with taskName: Persistent SceneSession Map Update, expirationHandler: <__NSGlobalBlock__: 0x7ff84079bae8>
+2026-11-02 11:15:32.451 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:BackgroundTask] Reusing background assertion <BKSProcessAssertion: 0x60000210e800>
+2026-11-02 11:15:32.451 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:BackgroundTask] Incrementing reference count for background assertion <BKSProcessAssertion: 0x60000210e800>
+2026-11-02 11:15:32.451 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:BackgroundTask] Created background task <_UIBackgroundTaskInfo: 0x600001705040>: taskID = 2, taskName = Persistent SceneSession Map Update, creationTime = 693 (elapsed = 0).
+2026-11-02 11:15:32.452 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:Application] Deactivation reason added: 5; deactivation reasons: 2048 -> 2080; animating application lifecycle event: 1
+2026-11-02 11:15:32.452 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:InterfaceStyle] Should send trait collection or coordinate space update, interface style 1 -> 1, <UIWindowScene: 0x10f208e70> (5728D238-CC51-441B-BF8D-F53A7EF9022B)
+2026-11-02 11:15:32.459 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:InterfaceStyle] Not push traits update to screen for new style 1, <UIWindowScene: 0x10f208e70> (5728D238-CC51-441B-BF8D-F53A7EF9022B)
+2026-11-02 11:15:32.460 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:HomeAffordanceObservation] Initializing: <_UIHomeAffordanceSceneNotifier: 0x60000290c460>; with scene: <UIWindowScene: 0x10f208e70>
+2026-11-02 11:15:32.460 Df IPTVPlayer[9534:7fdc] [com.apple.BacklightServices:scenes] 0x600000c0ff00 setDelegate:<0x600000c14960 _UIBacklightEnvironment> hasDelegate:YES for environment:sceneID:com.example.iptvplayer-default
+2026-11-02 11:15:32.460 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:InterfaceStyle] Not push traits update to screen for new style 1, <UIWindowScene: 0x10f208e70> (5728D238-CC51-441B-BF8D-F53A7EF9022B)
+2026-11-02 11:15:32.461 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:EventDeferring] [0x60000290dd50] Initialized with scene: <UIWindowScene: 0x10f208e70>; behavior: <_UIEventDeferringBehavior_iOS: 0x600000211900>; availableForProcess: 1, systemShellManagesKeyboardFocus: 1
+2026-11-02 11:15:32.462 Df IPTVPlayer[9534:7fdc] [com.apple.xpc:connection] [0x10ef099e0] activating connection: mach=false listener=false peer=false name=(anonymous)
+2026-11-02 11:15:32.468 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:EventDelivery] policyStatus:<BKSHIDEventDeliveryPolicyObserver: 0x600002102ad0; process scope; status: target> was:none
+2026-11-02 11:15:32.468 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:KeyWindow] Setting default evaluation strategy for UIUserInterfaceIdiomPhone to LastOneWins
+2026-11-02 11:15:32.468 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:KeyWindow] Scene target of keyboard event deferring environment did change: 1; scene: UIWindowScene: 0x10f208e70; scene identity: com.apple.frontboard.systemappservices/FBSceneManager:sceneID%3Acom.example.iptvplayer-default
+2026-11-02 11:15:32.468 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:EventDeferring] [0x60000290dd50] Scene target of event deferring environments did update: scene: 0x10f208e70; current systemShellManagesKeyboardFocus: 1; systemShellManagesKeyboardFocusForScene: 1; eligibleForRecordRemoval: 1;
+2026-11-02 11:15:32.468 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:KeyWindow] Scene became target of keyboard event deferring environment: UIWindowScene: 0x10f208e70; scene identity: com.apple.frontboard.systemappservices/FBSceneManager:sceneID%3Acom.example.iptvplayer-default
+2026-11-02 11:15:32.468 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:KeyWindow] Setting default evaluation strategy for UIUserInterfaceIdiomPhone to SystemShellManaged
+2026-11-02 11:15:32.468 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:KeyWindow] Key window needs update: 0; currentKeyWindowScene: 0x0; evaluatedKeyWindowScene: 0x10f208e70; currentApplicationKeyWindow: 0x0; evaluatedApplicationKeyWindow: 0x0; reason: UIWindowScene: 0x10f208e70: Window scene became target of keyboard environment
+2026-11-02 11:15:32.468 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:InterfaceStyle] Not push traits update to screen for new style 1, <UIWindowScene: 0x10f208e70> (5728D238-CC51-441B-BF8D-F53A7EF9022B)
+2026-11-02 11:15:32.469 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:InterfaceStyle] Not push traits update to screen for new style 1, <UIWindowScene: 0x10f208e70> (5728D238-CC51-441B-BF8D-F53A7EF9022B)
+2026-11-02 11:15:32.469 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:InterfaceStyle] Not push traits update to screen for new style 1, <UIWindowScene: 0x10f208e70> (5728D238-CC51-441B-BF8D-F53A7EF9022B)
+2026-11-02 11:15:32.973 Df IPTVPlayer[9534:7fe5] [com.apple.UIKit:BackgroundTask] Ending background task with UIBackgroundTaskIdentifier: 2
+2026-11-02 11:15:32.976 Df IPTVPlayer[9534:7fe5] [com.apple.UIKit:BackgroundTask] Ending task with identifier 2 and description: <_UIBackgroundTaskInfo: 0x600001705040>: taskID = 2, taskName = Persistent SceneSession Map Update, creationTime = 693 (elapsed = 0), _expireHandler: <__NSGlobalBlock__: 0x7ff84079bae8>
+2026-11-02 11:15:32.977 Df IPTVPlayer[9534:7fe5] [com.apple.UIKit:BackgroundTask] Decrementing reference count for assertion <BKSProcessAssertion: 0x60000210e800> (used by background task with identifier 2: <_UIBackgroundTaskInfo: 0x600001705040>: taskID = 2, taskName = Persistent SceneSession Map Update, creationTime = 693 (elapsed = 0))
+2026-11-02 11:15:33.172 Df IPTVPlayer[9534:7fdc] [com.apple.FrontBoard:SceneExtension] Realizing settings extension <_UIApplicationSceneDisplaySettings> on FBSSceneSettings
+2026-11-02 11:15:33.192 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:Orientation] <UIWindowScene: 0x10f208e70> (5728D238-CC51-441B-BF8D-F53A7EF9022B) Scene updated orientation preferences: none -> ( Ll Lr )
+2026-11-02 11:15:33.193 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:KeyWindow] Key window API is scene-level: YES
+2026-11-02 11:15:33.194 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:KeyWindow] UIWindowScene: 0x10f208e70: Window became key in scene: UIWindow: 0x10f30c3f0; contextId: 0xEFE3B212: reason: UIWindowScene: 0x10f208e70: Window requested to become key in scene: 0x10f30c3f0
+2026-11-02 11:15:33.194 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:KeyWindow] Key window needs update: 1; currentKeyWindowScene: 0x0; evaluatedKeyWindowScene: 0x10f208e70; currentApplicationKeyWindow: 0x0; evaluatedApplicationKeyWindow: 0x10f30c3f0; reason: UIWindowScene: 0x10f208e70: Window requested to become key in scene: 0x10f30c3f0
+2026-11-02 11:15:33.194 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:KeyWindow] Window did become application key: UIWindow: 0x10f30c3f0; contextId: 0xEFE3B212; scene identity: com.apple.frontboard.systemappservices/FBSceneManager:sceneID%3Acom.example.iptvplayer-default
+2026-11-02 11:15:33.194 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:EventDeferring] [0x60000290dd50] Begin local event deferring requested for token: 0x600002608840; environments: 1; reason: UIWindowScene: 0x10f208e70: Begin event deferring in keyboardFocus for window: 0x10f30c3f0
+2026-11-02 11:15:33.208 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:InterfaceStyle] Not push traits update to screen for new style 1, <UIWindowScene: 0x10f208e70> (5728D238-CC51-441B-BF8D-F53A7EF9022B)
+2026-11-02 11:15:33.209 Df IPTVPlayer[9534:7fe7] [com.apple.BackBoard:EventDelivery] policyStatus:<BKSHIDEventDeliveryPolicyObserver: 0x600002102ad0; token: com.apple.frontboard.systemappservices/FBSceneManager:sceneID%3Acom.example.iptvplayer-default; status: ancestor> was:target
+2026-11-02 11:15:33.209 Df IPTVPlayer[9534:7fe7] [com.apple.BackBoard:EventDelivery] observerPolicyDidChange: 0x600002102ad0 -> <_UIKeyWindowSceneObserver: 0x600000c14e10>
+2026-11-02 11:15:33.213 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:AppLifecycle] sceneOfRecord: sceneID: sceneID:com.example.iptvplayer-default  persistentID: 5728D238-CC51-441B-BF8D-F53A7EF9022B
+2026-11-02 11:15:33.215 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:Application] Ignoring already applied deactivation reason: 5; deactivation reasons: 2080
+2026-11-02 11:15:33.216 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:Application] Deactivation reason added: 12; deactivation reasons: 2080 -> 6176; animating application lifecycle event: 1
+2026-11-02 11:15:33.218 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:Application] Deactivation reason removed: 11; deactivation reasons: 6176 -> 4128; animating application lifecycle event: 1
+2026-11-02 11:15:33.221 Df IPTVPlayer[9534:7fe5] [com.apple.UIIntelligenceSupport:xpc] establishing connection to agent
+2026-11-02 11:15:33.223 Df IPTVPlayer[9534:7fe5] [com.apple.xpc:session] [0x600002110000] Session created.
+2026-11-02 11:15:33.223 Df IPTVPlayer[9534:7fe5] [com.apple.xpc:session] [0x600002110000] Session created from connection [0x600003d084b0]
+2026-11-02 11:15:33.223 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:InterfaceStyle] Not push traits update to screen for new style 1, <UIWindowScene: 0x10f208e70> (5728D238-CC51-441B-BF8D-F53A7EF9022B)
+2026-11-02 11:15:33.223 Df IPTVPlayer[9534:7fe5] [com.apple.xpc:connection] [0x600003d084b0] activating connection: mach=true listener=false peer=false name=com.apple.uiintelligencesupport.agent
+2026-11-02 11:15:33.224 Df IPTVPlayer[9534:7fe5] [com.apple.xpc:session] [0x600002110000] Session activated
+2026-11-02 11:15:33.224 Df IPTVPlayer[9534:7fe7] [com.apple.UIKit:BackgroundTask] Ending background task with UIBackgroundTaskIdentifier: 1
+2026-11-02 11:15:33.225 Df IPTVPlayer[9534:7fe7] [com.apple.UIKit:BackgroundTask] Ending task with identifier 1 and description: <_UIBackgroundTaskInfo: 0x600001709580>: taskID = 1, taskName = Launch Background Task for Coalescing, creationTime = 692 (elapsed = 1), _expireHandler: (null)
+2026-11-02 11:15:33.226 Df IPTVPlayer[9534:7fe7] [com.apple.UIKit:BackgroundTask] Decrementing reference count for assertion <BKSProcessAssertion: 0x60000210e800> (used by background task with identifier 1: <_UIBackgroundTaskInfo: 0x600001709580>: taskID = 1, taskName = Launch Background Task for Coalescing, creationTime = 692 (elapsed = 1))
+2026-11-02 11:15:33.227 Df IPTVPlayer[9534:7fe7] [com.apple.UIKit:BackgroundTask] Will invalidate assertion: <BKSProcessAssertion: 0x60000210e800> for task identifier: 1
+2026-11-02 11:15:33.341 A  IPTVPlayer[9534:7fe7] (RunningBoardServices) didChangeInheritances
+2026-11-02 11:15:33.530 A  IPTVPlayer[9534:7fe2] (RunningBoardServices) didChangeInheritances
+2026-11-02 11:15:33.532 A  IPTVPlayer[9534:7fdc] (CoreFoundation) Updating Key-Value Observers Of Preferences
+2026-11-02 11:15:33.932 A  IPTVPlayer[9534:7fdc] (Security) SecItemCopyMatching_ios
+2026-11-02 11:15:33.937 Df IPTVPlayer[9534:7fdc] [com.apple.securityd:secitemratelimit] Not internal release, disabling SIRL
+2026-11-02 11:15:33.939 Df IPTVPlayer[9534:7fdc] [com.apple.securityd:thread-local-client-debug] SecSecurityClientGet new thread!
+2026-11-02 11:15:33.940 Df IPTVPlayer[9534:7fdc] [com.apple.securityd:keychain] System Keychain Always Supported set via feature flag to disabled
+2026-11-02 11:15:33.940 Df IPTVPlayer[9534:7fdc] [com.apple.xpc:connection] [0x600003d0c0f0] activating connection: mach=true listener=false peer=false name=com.apple.securityd
+2026-11-02 11:15:33.943 A  IPTVPlayer[9534:7fdc] (Security) SecItemCopyMatching_ios
+2026-11-02 11:15:33.953 A  IPTVPlayer[9534:7fdc] (Security) SecItemDelete_ios
+2026-11-02 11:15:33.957 A  IPTVPlayer[9534:7fdc] (Security) SecItemAdd_ios
+2026-11-02 11:15:33.959 A  IPTVPlayer[9534:7fdc] (Security) SecItemDelete_ios
+2026-11-02 11:15:33.964 A  IPTVPlayer[9534:7fdc] (Security) SecItemAdd_ios
+2026-11-02 11:15:33.984 A  IPTVPlayer[9534:7fdc] (TCC) TCCAccessRequest() IPC
+2026-11-02 11:15:33.984 Df IPTVPlayer[9534:7fdc] [com.apple.xpc:connection] [0x600003d001e0] activating connection: mach=true listener=false peer=false name=com.apple.tccd
+2026-11-02 11:15:33.990 Df IPTVPlayer[9534:7fdc] [com.apple.xpc:connection] [0x600003d001e0] invalidated after the last release of the connection object
+2026-11-02 11:15:33.990 A  IPTVPlayer[9534:7fdc] (TCC) TCCAccessRequest() IPC
+2026-11-02 11:15:33.990 Df IPTVPlayer[9534:7fdc] [com.apple.xpc:connection] [0x600003d001e0] activating connection: mach=true listener=false peer=false name=com.apple.tccd
+2026-11-02 11:15:33.996 Df IPTVPlayer[9534:7fdc] [com.apple.xpc:connection] [0x600003d001e0] invalidated after the last release of the connection object
+2026-11-02 11:15:34.005 A  IPTVPlayer[9534:7fdc] (libsystem_containermanager.dylib) container_system_group_path_for_identifier
+2026-11-02 11:15:34.005 Df IPTVPlayer[9534:7fdc] [com.apple.containermanager:xpc] Requesting container lookup; class = 13, identifier = (null), group_identifier = systemgroup.com.apple.configurationprofiles, create = 1, temp = 0, euid = 501, uid = 501
+2026-11-02 11:15:34.005 A  IPTVPlayer[9534:7fdc] (libsystem_containermanager.dylib) container_query_t
+2026-11-02 11:15:34.005 Df IPTVPlayer[9534:7fdc] [com.apple.containermanager:xpc] Query; euid = 501, uid = 501, class = 13, identifier = [(null)](0), flags = 900000003
+2026-11-02 11:15:34.007 E  IPTVPlayer[9534:7fdc] [com.apple.containermanager:unspecified] container_query_get_single_result: error = 2→(98) NOT_CODESIGNED
+2026-11-02 11:15:34.007 E  IPTVPlayer[9534:7fdc] [com.apple.containermanager:unspecified] container_system_group_path_for_identifier: error = ((container_error_t)98) NOT_CODESIGNED
+2026-11-02 11:15:34.007 E  IPTVPlayer[9534:7fdc] [com.apple.ManagedConfiguration:MC] Error getting system group container for systemgroup.com.apple.configurationprofiles: 98
+2026-11-02 11:15:34.008 F  IPTVPlayer[9534:7fdc] [com.apple.ManagedConfiguration:MC] Failed to get profile system group container path. Overriding with expected path: /Users/runner/Library/Developer/CoreSimulator/Devices/BEB0C3A5-7D46-4D50-B4C6-777F0A79718D/data/Containers/Shared/SystemGroup/systemgroup.com.apple.configurationprofiles
+2026-11-02 11:15:34.008 A  IPTVPlayer[9534:7fdc] (libsystem_trace.dylib) Activity for state dumps
+2026-11-02 11:15:34.025 Df IPTVPlayer[9534:7fdc] (WebKit) 0x126000600 - [PID=0] WebProcessCache::updateCapacity: Cache is disabled because process swap on navigation is disabled
+2026-11-02 11:15:34.050 Df IPTVPlayer[9534:7fdc] (libMobileGestalt.dylib) No persisted cache on this platform.
+2026-11-02 11:15:34.064 Df IPTVPlayer[9534:7fe4] [com.apple.xpc:connection] [0x600003d042d0] activating connection: mach=true listener=false peer=false name=com.apple.webprivacyd
+2026-11-02 11:15:34.065 Df IPTVPlayer[9534:7fdc] (Security) SecTaskLoadEntitlements failed error=22 cs_flags=200, pid=9534
+2026-11-02 11:15:34.065 Df IPTVPlayer[9534:7fdc] (Security) SecTaskCopyDebugDescription: IPTVPlayer[9534]/0#-1 LF=22
+2026-11-02 11:15:34.072 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ResourceLoading] 0x10f2122b0 - ResourceMonitorThrottler::Initialized with count: 5, duration: 86400, maxHosts: 100
+2026-11-02 11:15:34.072 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Storage] 0x10f2120b8 - WebsiteDataStore::WebsiteDataStore sessionID=1
+2026-11-02 11:15:34.074 Df IPTVPlayer[9534:7fdc] (Security) SecTaskLoadEntitlements failed error=22 cs_flags=200, pid=9534
+2026-11-02 11:15:34.075 Df IPTVPlayer[9534:7fdc] (Security) SecTaskCopyDebugDescription: IPTVPlayer[9534]/0#-1 LF=22
+2026-11-02 11:15:34.075 Df IPTVPlayer[9534:7fdc] (Security) SecTaskLoadEntitlements failed error=22 cs_flags=200, pid=9534
+2026-11-02 11:15:34.075 Df IPTVPlayer[9534:7fdc] (Security) SecTaskCopyDebugDescription: IPTVPlayer[9534]/0#-1 LF=22
+2026-11-02 11:15:34.081 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x10f30ef68 - PageConfiguration::delaysWebProcessLaunchUntilFirstLoad() -> false because of associated processPool value
+2026-11-02 11:15:34.081 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x111823c08 - WebProcessPool::createWebPage: Not delaying WebProcess launch
+2026-11-02 11:15:34.081 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x126000d80 - [PID=0] WebProcessProxy::constructor:
+2026-11-02 11:15:34.084 Df IPTVPlayer[9534:7fe4] [com.apple.BackBoard:MousePointer] Activating Connection: <(null):0x60000210b840>
+2026-11-02 11:15:34.135 Df IPTVPlayer[9534:7fe3] [com.apple.xpc:connection] [0x10f30f410] activating connection: mach=true listener=false peer=false name=com.apple.lsd.mapdb
+2026-11-02 11:15:34.142 Df IPTVPlayer[9534:7fe3] [com.apple.extensionkit:launch] Launching process with config: bundleID: com.apple.WebKit.WebContent instance ID: Optional([_EXExtensionInstanceIdentifier: D1AF61B3-8976-481F-8677-B93903A34EB7])
+2026-11-02 11:15:34.275 Df IPTVPlayer[9534:7fdc] [com.apple.avkit:AVKit] +[AVPictureInPicturePlatformAdapter isPictureInPictureSupported]_block_invoke isPictureInPictureSupported NO
+2026-11-02 11:15:34.284 Df IPTVPlayer[9534:7fdc] (libMobileGestalt.dylib) No persisted cache on this platform.
+2026-11-02 11:15:34.287 Df IPTVPlayer[9534:7fdc] [com.apple.xpc:connection] [0x600003d0c1e0] activating connection: mach=true listener=false peer=false name=com.apple.IOSurface.Remote
+2026-11-02 11:15:34.291 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126001630 - [PID=0, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'Process initialization'
+2026-11-02 11:15:34.294 Df IPTVPlayer[9534:7fe4] [com.apple.xpc:connection] [0x600003d09950] activating connection: mach=true listener=false peer=false name=com.apple.accessibility.mediaaccessibilityd
+2026-11-02 11:15:34.311 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Loading] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=0] WebPageProxy::constructor:
+2026-11-02 11:15:34.312 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Media] PlaybackSessionManagerProxy::PlaybackSessionManagerProxy(E388FBA4)
+2026-11-02 11:15:34.312 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Fullscreen] PlaybackSessionManagerProxy::VideoPresentationManagerProxy(E388FBA4)
+2026-11-02 11:15:34.316 Df IPTVPlayer[9534:7fdc] (Security) SecTaskLoadEntitlements failed error=22 cs_flags=200, pid=9534
+2026-11-02 11:15:34.317 Df IPTVPlayer[9534:7fdc] (Security) SecTaskCopyDebugDescription: IPTVPlayer[9534]/0#-1 LF=22
+2026-11-02 11:15:34.319 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x126000d80 - [PID=0] WebProcessProxy::addExistingWebPage: webPage=0x110014a20, pageProxyID=10, webPageID=11
+2026-11-02 11:15:34.320 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSwapping] 0x126000600 - [PID=0] WebProcessCache::updateCapacity: Cache is disabled by client
+2026-11-02 11:15:34.323 Df IPTVPlayer[9534:7fdc] (libMobileGestalt.dylib) No persisted cache on this platform.
+2026-11-02 11:15:34.324 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260016c0 - [PID=0, throttler=0x126002490] ProcessThrottler::Activity::Activity: Starting foreground activity / 'Process initialization'
+2026-11-02 11:15:34.328 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:TextInteraction] Conforming to BrowserEngineKit text input protocol
+2026-11-02 11:15:34.423 Df IPTVPlayer[9534:7fe8] [com.apple.xpc:connection] [0x10ef12930] activating connection: mach=true listener=false peer=false name=com.apple.fontservicesd
+2026-11-02 11:15:34.427 Df IPTVPlayer[9534:7fe8] (Security) SecTaskLoadEntitlements failed error=22 cs_flags=200, pid=9534
+2026-11-02 11:15:34.428 Df IPTVPlayer[9534:7fe8] (Security) SecTaskCopyDebugDescription: IPTVPlayer[9534]/0#-1 LF=22
+2026-11-02 11:15:34.456 Df IPTVPlayer[9534:7fdc] [com.apple.runningboard:connection] Creating side-channel connection to com.apple.runningboard
+2026-11-02 11:15:34.456 Df IPTVPlayer[9534:7fdc] [com.apple.xpc:connection] [0x600003d1ed00] activating connection: mach=true listener=false peer=false name=com.apple.runningboard
+2026-11-02 11:15:34.458 Df IPTVPlayer[9534:7fdc] [com.apple.runningboard:process] Hit the server for a process handle 1d8083dd0000253e that resolved to: [app<com.example.iptvplayer((null))>:9534]
+2026-11-02 11:15:34.461 Df IPTVPlayer[9534:7fdc] [com.apple.coremedia:] <<<< AVPlayer >>>> -[AVPlayer setAutomaticallyWaitsToMinimizeStalling:]_block_invoke: P/MN setting timeControlStatus=0, reasonForWaitingToPlay=(null)
+2026-11-02 11:15:34.466 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Loading] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=0] WebPageProxy::loadRequest:
+2026-11-02 11:15:34.468 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=0] WebPageProxy::WebPageProxy::shouldForceForegroundPriorityForClientNavigation() returns 1 based on PageClient::canTakeForegroundAssertions()
+2026-11-02 11:15:34.468 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260036a0 - [PID=0, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'Client navigation'
+2026-11-02 11:15:34.468 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Loading] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=0] WebPageProxy::loadRequestWithNavigationShared:
+2026-11-02 11:15:34.469 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x126005e40 - NetworkProcessProxy::NetworkProcessProxy
+2026-11-02 11:15:34.471 Df IPTVPlayer[9534:7fdc] [com.apple.CFNetwork:Default] Initializing CFHTTPCookieStorage singleton
+2026-11-02 11:15:34.471 Df IPTVPlayer[9534:7fdc] [com.apple.CFNetwork:Default] Creating default cookie storage with process/bundle identifier
+2026-11-02 11:15:34.472 Df IPTVPlayer[9534:7fdc] [com.apple.network:] networkd_settings_read_from_file initialized networkd settings by reading plist directly
+2026-11-02 11:15:34.472 Df IPTVPlayer[9534:7fdc] [com.apple.network:] networkd_settings_read_from_file initialized networkd settings by reading plist directly
+2026-11-02 11:15:34.476 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260036d0 - [PID=0, throttler=0x126005ed0] ProcessThrottler::Activity::Activity: Starting foreground activity / 'Process initialization'
+2026-11-02 11:15:34.478 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126001fc0 - NavigationState is taking a process network assertion because a page load started
+2026-11-02 11:15:34.478 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260062d0 - [PID=0, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting background activity / 'Page Load'
+2026-11-02 11:15:34.584 Df IPTVPlayer[9534:7fdc] (CoreAudio)   HALPlugInManagement.cpp:442    HALPlugInManagement::RegisterPlugIns: loading in-process plug-ins
+2026-11-02 11:15:34.585 E  IPTVPlayer[9534:7fdc] [com.apple.CFBundle:plugin] AddInstanceForFactory: No factory registered for id <CFUUID 0x60000025a580> F8BB1C28-BAE8-11D6-9C31-00039315CD46
+2026-11-02 11:15:34.619 Df IPTVPlayer[9534:7fdc] [com.apple.audio.caulk:alloc] Registered notify signal com.apple.caulk.alloc.rtdump (0)
+2026-11-02 11:15:34.637 Df IPTVPlayer[9534:7fe3] [com.apple.runningboard:process] Starting death monitoring for handle [xpcservice<com.apple.WebKit.WebContent([app<com.example.iptvplayer((null))>:9534])>{vt hash: 71395982}[uuid:D1AF61B3-8976-481F-8677-B93903A34EB7]:9546]
+2026-11-02 11:15:34.651 Df IPTVPlayer[9534:7fe3] [com.apple.extensionkit:launch] Created new process ExtensionProcess: bundleID: com.apple.WebKit.WebContent instance ID: Optional([_EXExtensionInstanceIdentifier: D1AF61B3-8976-481F-8677-B93903A34EB7]) pid: 9546.
+2026-11-02 11:15:34.651 Df IPTVPlayer[9534:7fe3] [com.apple.extensionkit:launch] Launching process with config: bundleID: com.apple.WebKit.GPU instance ID: Optional([_EXExtensionInstanceIdentifier: D597A581-D38D-453C-BDDA-820B7EB4888A])
+2026-11-02 11:15:34.652 Df IPTVPlayer[9534:7fe8] [com.apple.WebKit:Process] AssertionCapability::AssertionCapability: taking assertion Foreground
+2026-11-02 11:15:34.657 Df IPTVPlayer[9534:7fdc] [com.apple.coreaudio:as_client] AVAudioSessionImpl_Simulator.mm:109   Set volume on device 48 to 0.60
+2026-11-02 11:15:34.658 Df IPTVPlayer[9534:7fdc] [com.apple.coreaudio:as_client] AVAudioSessionImpl_Simulator.mm:109   Set volume on device 48 to 0.60
+2026-11-02 11:15:34.667 Df IPTVPlayer[9534:7fdc] [com.apple.coreaudio:ddagg]        AggregateDevice.mm:857   Creating DefaultDeviceAggregate
+2026-11-02 11:15:34.774 Df IPTVPlayer[9534:7fdc] [com.apple.coreaudio:ddagg]        AggregateDevice.mm:644   Built valid aggregate 95
+2026-11-02 11:15:34.774 Df IPTVPlayer[9534:7fdc] [com.apple.coreaudio:ddagg]        AggregateDevice.mm:978   PrimarySessionActiveWithInputEnabled 0 -> 0
+2026-11-02 11:15:34.784 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:InterfaceStyle] Not push traits update to screen for new style 1, <UIWindowScene: 0x10f208e70> (5728D238-CC51-441B-BF8D-F53A7EF9022B)
+2026-11-02 11:15:34.793 Df IPTVPlayer[9534:7fdc] (Security) SecTaskLoadEntitlements failed error=22 cs_flags=200, pid=9534
+2026-11-02 11:15:34.793 Df IPTVPlayer[9534:7fdc] (Security) SecTaskCopyDebugDescription: IPTVPlayer[9534]/0#-1 LF=22
+2026-11-02 11:15:34.793 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ViewState] 0x126000cf0 - ApplicationStateTracker::ApplicationStateTracker(): m_isInBackground=0
+2026-11-02 11:15:34.793 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ViewState] 0x111825400 - WKApplicationStateTrackingView: View with page [0x110014a20, pageProxyID=10] was added to a window, _lastObservedStateWasBackground=0, isNowBackground=0
+2026-11-02 11:15:34.831 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ViewState] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=0] WebPageProxy::updateActivityState: view visibility state changed 0 -> 1
+2026-11-02 11:15:34.837 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:Keyboard] Activating connection to server: (null)
+2026-11-02 11:15:34.838 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:Keyboard] server remote target <BSXPCServiceConnectionProxy<BKSKeyboardServiceClientToServerIPC>: 0x600002920a80>
+2026-11-02 11:15:34.838 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:Keyboard] currently observing: YES
+2026-11-02 11:15:34.839 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x60000023b180> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-02 11:15:34.839 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:Keyboard] currently observing: NO
+2026-11-02 11:15:34.839 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x60000023b180> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-02 11:15:34.840 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:Keyboard] currently observing: YES
+2026-11-02 11:15:34.840 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x60000025c280> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-02 11:15:34.840 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:Keyboard] currently observing: NO
+2026-11-02 11:15:34.840 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x60000025c280> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-02 11:15:34.848 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:HardwareKeyboard] -[UIApplication GSKeyboardForHWLayout:senderID:forceRebuild:createIfNeeded:], New hardware layout is created with US layout and 0 standardType.
+2026-11-02 11:15:34.848 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:Keyboard] currently observing: YES
+2026-11-02 11:15:34.849 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:Keyboard] connected: (
+    "<BKSHIDKeyboardDevice: 0x60000024f900> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-02 11:15:34.849 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:Keyboard] currently observing: NO
+2026-11-02 11:15:34.849 Df IPTVPlayer[9534:7fdc] [com.apple.BackBoard:Keyboard] disconnected: (
+    "<BKSHIDKeyboardDevice: 0x60000024f900> {\134n    senderID: 0xACEFADE00000003;\134n    transport: <nil>;\134n    language: <nil>;\134n    layout: US;\134n    countryCode: 0;\134n    standardType: 4294967295;\134n    subinterfaceID: 0;\134n    capsLockKeyHasLanguageSwitchLabel: NO;\134n    globeKeyLabelHasGlobeSymbol: NO;\134n}"
+)
+2026-11-02 11:15:34.849 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ViewState] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=0] WebPageProxy::viewIsBecomingVisible:
+2026-11-02 11:15:34.849 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=0] WebPageProxy::updateThrottleState: UIProcess is taking a foreground assertion because the view is visible
+2026-11-02 11:15:34.849 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260065a0 - [PID=0, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'View is visible'
+2026-11-02 11:15:34.851 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ViewState] 0x11181ec00 (pageProxyID=10) -[WKWebView _endLiveResize]
+2026-11-02 11:15:34.873 A  IPTVPlayer[9534:7fe2] (RunningBoardServices) didChangeInheritances
+2026-11-02 11:15:34.881 A  IPTVPlayer[9534:8007] (RunningBoardServices) didChangeInheritances
+2026-11-02 11:15:35.087 E  IPTVPlayer[9534:7fdc] [com.apple.os_eligibility:library] load_eligibility_plist: Failed to open /Users/runner/Library/Developer/CoreSimulator/Devices/BEB0C3A5-7D46-4D50-B4C6-777F0A79718D/data/Containers/Data/Application/81208FD4-70F5-4D1A-B525-A5CAA57B1E04/private/var/db/eligibilityd/eligibility.plist: No such file or directory(2)
+2026-11-02 11:15:35.106 A  IPTVPlayer[9534:7fe8] (RunningBoardServices) didChangeInheritances
+2026-11-02 11:15:35.116 Df IPTVPlayer[9534:7fe3] [com.apple.runningboard:process] Starting death monitoring for handle [xpcservice<com.apple.WebKit.GPU([app<com.example.iptvplayer((null))>:9534])>{vt hash: 223737757}[uuid:D597A581-D38D-453C-BDDA-820B7EB4888A]:9548]
+2026-11-02 11:15:35.142 Df IPTVPlayer[9534:7fdc] [com.apple.network:activity] Create activity from XPC object <nw_activity 50:1 [A41445DE-9B41-4774-939E-F6CE6132EAEF] (reporting strategy default)>
+2026-11-02 11:15:35.142 Df IPTVPlayer[9534:7fdc] [com.apple.network:activity] Create activity from XPC object <nw_activity 50:2 [5610FD7D-585C-405A-B506-16770F9296E3] (reporting strategy default)>
+2026-11-02 11:15:35.142 Df IPTVPlayer[9534:7fdc] [com.apple.network:activity] Set activity <nw_activity 50:1 [A41445DE-9B41-4774-939E-F6CE6132EAEF] (reporting strategy default)> as the global parent
+2026-11-02 11:15:35.143 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:UpdateScheduler] Target list changed: <CADisplay:LCD PurpleMain>
+2026-11-02 11:15:35.144 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:AppLifecycle] sceneOfRecord: sceneID: sceneID:com.example.iptvplayer-default  persistentID: 5728D238-CC51-441B-BF8D-F53A7EF9022B
+2026-11-02 11:15:35.145 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:InterfaceStyle] Should not send trait collection or coordinate space update, interface style 2 -> 2, <UIWindowScene: 0x10f208e70> (5728D238-CC51-441B-BF8D-F53A7EF9022B)
+2026-11-02 11:15:35.146 Df IPTVPlayer[9534:7fdc] [com.apple.xpc:connection] [0x10ef09d00] activating connection: mach=false listener=false peer=false name=(anonymous)
+2026-11-02 11:15:35.147 A  IPTVPlayer[9534:7fdc] (CoreFoundation) Updating Key-Value Observers Of Preferences
+2026-11-02 11:15:35.165 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:EventDeferring] [0x60000290dd50] Scene target of event deferring environments did update: scene: 0x10f208e70; current systemShellManagesKeyboardFocus: 1; systemShellManagesKeyboardFocusForScene: 1; eligibleForRecordRemoval: 1;
+2026-11-02 11:15:35.165 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:KeyWindow] Scene became target of keyboard event deferring environment: UIWindowScene: 0x10f208e70; scene identity: com.apple.frontboard.systemappservices/FBSceneManager:sceneID%3Acom.example.iptvplayer-default
+2026-11-02 11:15:35.177 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:AppLifecycle] sceneOfRecord: sceneID: sceneID:com.example.iptvplayer-default  persistentID: 5728D238-CC51-441B-BF8D-F53A7EF9022B
+2026-11-02 11:15:35.178 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:InterfaceStyle] Not push traits update to screen for new style 1, <UIWindowScene: 0x10f208e70> (5728D238-CC51-441B-BF8D-F53A7EF9022B)
+2026-11-02 11:15:35.183 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:AppLifecycle] sceneOfRecord: sceneID: sceneID:com.example.iptvplayer-default  persistentID: 5728D238-CC51-441B-BF8D-F53A7EF9022B
+2026-11-02 11:15:35.184 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:Application] Deactivation reason removed: 12; deactivation reasons: 4128 -> 32; animating application lifecycle event: 1
+2026-11-02 11:15:35.184 Df IPTVPlayer[9534:7fdc] [com.apple.KeyboardArbiter:Client] Send setDeactivating: N (-DeactivationReason:SuspendedEventsOnly)
+2026-11-02 11:15:35.185 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:Application] Deactivation reason removed: 5; deactivation reasons: 32 -> 0; animating application lifecycle event: 0
+2026-11-02 11:15:35.186 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Fullscreen] PlaybackSessionManagerProxy::applicationDidBecomeActive(E388FBA4)
+2026-11-02 11:15:35.186 A  IPTVPlayer[9534:7fe2] (CoreFoundation) Updating Key-Value Observers Of Preferences
+2026-11-02 11:15:35.187 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260065d0 - [PID=0, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:15:35.188 Df IPTVPlayer[9534:7fdc] [com.apple.KeyboardArbiter:Client] startConnection
+2026-11-02 11:15:35.189 Df IPTVPlayer[9534:7fdc] [com.apple.xpc:connection] [0x10f21df90] activating connection: mach=true listener=false peer=false name=com.apple.UIKit.KeyboardManagement.hosted
+2026-11-02 11:15:35.190 A  IPTVPlayer[9534:7fe2] (CoreFoundation) Updating Key-Value Observers Of Preferences
+2026-11-02 11:15:35.192 A  IPTVPlayer[9534:7fe2] (CoreFoundation) Updating Key-Value Observers Of Preferences
+2026-11-02 11:15:35.196 A  IPTVPlayer[9534:7fe2] (CoreFoundation) Updating Key-Value Observers Of Preferences
+2026-11-02 11:15:35.203 A  IPTVPlayer[9534:7fe2] (CoreFoundation) Updating Key-Value Observers Of Preferences
+2026-11-02 11:15:35.206 A  IPTVPlayer[9534:7fe2] (CoreFoundation) Updating Key-Value Observers Of Preferences
+2026-11-02 11:15:35.208 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:AppLifecycle] sceneOfRecord: sceneID: sceneID:com.example.iptvplayer-default  persistentID: 5728D238-CC51-441B-BF8D-F53A7EF9022B
+2026-11-02 11:15:35.210 A  IPTVPlayer[9534:7fe2] (CoreFoundation) Updating Key-Value Observers Of Preferences
+2026-11-02 11:15:35.212 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:AppLifecycle] sceneOfRecord: sceneID: sceneID:com.example.iptvplayer-default  persistentID: 5728D238-CC51-441B-BF8D-F53A7EF9022B
+2026-11-02 11:15:35.214 Df IPTVPlayer[9534:7fdc] [com.apple.KeyboardArbiter:Client] handleKeyboardChange: set currentKeyboard:N (wasKeyboard:N)
+2026-11-02 11:15:35.216 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:KeyboardSceneDelegate] forceReloadInputViews
+2026-11-02 11:15:35.216 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:KeyboardSceneDelegate] Reloading input views for: <(null): 0x0; > force: 1
+2026-11-02 11:15:35.219 A  IPTVPlayer[9534:7fe2] (CoreFoundation) Updating Key-Value Observers Of Preferences
+2026-11-02 11:15:35.220 Df IPTVPlayer[9534:7fdc] [com.apple.UIKit:KeyboardArbiterClientLog] isWritingToolsHandlingKeyboardTracking:Y (WT ready:Y, Arbiter ready:Y)
+2026-11-02 11:15:35.223 A  IPTVPlayer[9534:7fe2] (CoreFoundation) Updating Key-Value Observers Of Preferences
+2026-11-02 11:15:35.261 Df IPTVPlayer[9534:7fe3] [com.apple.extensionkit:launch] Created new process ExtensionProcess: bundleID: com.apple.WebKit.GPU instance ID: Optional([_EXExtensionInstanceIdentifier: D597A581-D38D-453C-BDDA-820B7EB4888A]) pid: 9548.
+2026-11-02 11:15:35.262 Df IPTVPlayer[9534:7fe3] [com.apple.extensionkit:launch] Launching process with config: bundleID: com.apple.WebKit.Networking instance ID: Optional([_EXExtensionInstanceIdentifier: 559E511C-64DE-46E3-B8DC-749EC964CEE8])
+2026-11-02 11:15:35.262 Df IPTVPlayer[9534:7fe2] [com.apple.WebKit:Process] AssertionCapability::AssertionCapability: taking assertion Foreground
+2026-11-02 11:15:35.263 Df IPTVPlayer[9534:7fdc] [com.apple.network:activity] <nw_activity 50:1 [A41445DE-9B41-4774-939E-F6CE6132EAEF] (global parent) (reporting strategy default) complete (reason success)> complete with reason 2 (success), duration 3874ms
+2026-11-02 11:15:35.263 Df IPTVPlayer[9534:7fdc] [com.apple.network:activity] <nw_activity 50:2 [5610FD7D-585C-405A-B506-16770F9296E3] (reporting strategy default) complete (reason success)> complete with reason 2 (success), duration 3875ms
+2026-11-02 11:15:35.263 Df IPTVPlayer[9534:7fdc] [com.apple.network:activity] Unsetting the global parent activity <nw_activity 50:1 [A41445DE-9B41-4774-939E-F6CE6132EAEF] (global parent) (reporting strategy default) complete (reason success)>
+2026-11-02 11:15:35.263 Df IPTVPlayer[9534:7fdc] [com.apple.network:activity] Unset the global parent activity
+2026-11-02 11:15:35.265 E  IPTVPlayer[9534:7fe3] [com.apple.extensionkit:default] Failed to resolve host network app id to config: bundleID: com.apple.WebKit.Networking instance ID: Optional([_EXExtensionInstanceIdentifier: 559E511C-64DE-46E3-B8DC-749EC964CEE8])
+2026-11-02 11:15:35.269 Df IPTVPlayer[9534:7fdc] [com.apple.xpc:connection] [0x10f30f830] activating connection: mach=false listener=false peer=false name=(anonymous)
+2026-11-02 11:15:35.402 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x126000d80 - [PID=9546] WebProcessProxy::didFinishLaunching:
+2026-11-02 11:15:35.402 F  IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] WebContent process (0x126000d80) took 1.320064 seconds to launch
+2026-11-02 11:15:35.402 A  IPTVPlayer[9534:7fdc] (libsystem_trace.dylib) Activity for state dumps
+2026-11-02 11:15:35.402 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126000e10 - [PID=9546] ProcessThrottler::didConnectToProcess
+2026-11-02 11:15:35.402 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126000e10 - [PID=9546] ProcessThrottler::setThrottleState: Updating process assertion type to 3 (foregroundActivities=4, backgroundActivities=5)
+2026-11-02 11:15:35.402 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] AssertionCapability::AssertionCapability: taking assertion Foreground
+2026-11-02 11:15:35.403 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x600001734ac0 - WKProcessAssertionBackgroundTaskManager: beginBackgroundTaskWithName
+2026-11-02 11:15:35.403 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] WKProcessAssertionBackgroundTaskManager: Took a FinishTaskInterruptable assertion for own process
+2026-11-02 11:15:35.404 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126000d80 - [PID=9546] WebProcessProxy::didChangeThrottleState: type=2
+2026-11-02 11:15:35.404 Df IPTVPlayer[9534:802c] [com.apple.WebKit:ProcessSuspension] 0x126009100 - ProcessAssertion::acquireSync Trying to take RBS assertion 'WebProcess Foreground Assertion' for process with PID=9546
+2026-11-02 11:15:35.404 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126000d80 - [PID=9546] WebProcessProxy::didChangeThrottleState(Foreground) Taking foreground assertion for network process
+2026-11-02 11:15:35.404 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260090a0 - [PID=0, throttler=0x126005ed0] ProcessThrottler::Activity::Activity: Starting foreground activity / 'Networking for foreground view(s)'
+2026-11-02 11:15:35.404 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260090d0 - [PID=0, throttler=0x126002490] ProcessThrottler::Activity::Activity: Starting foreground activity / 'GPU for foreground view(s)'
+2026-11-02 11:15:35.404 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x126005e40 - NetworkProcessProxy::sendXPCEndpointToProcess(0x126000d80) state = 1 has connection = 1 XPC endpoint message = 0x0
+2026-11-02 11:15:35.405 Sd IPTVPlayer[9534:0] (19E14813-313E-37D5-88F7-2A474DA09980) UAUserActivity
+UAUserActivityManager supportsActivityContinuation=YES isEnabled=YES serverPid=0 PROJECT:UserActivity-551
+2026-11-02 11:15:35.405 Sd IPTVPlayer[9534:0] (19E14813-313E-37D5-88F7-2A474DA09980) UAUserActivity
+[14EB87B7-0436-40A5-991D-15C06D3BB5A3 userInfo.count=1 dirty 
+2026-11-02 11:15:35.423 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126001630 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'Process initialization'
+2026-11-02 11:15:35.425 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126005e40 - NetworkProcessProxy::getNetworkProcessConnection: Taking a background assertion because web process pid 9546 (core identifier 9) is requesting a connection
+2026-11-02 11:15:35.427 Df IPTVPlayer[9534:802c] [com.apple.WebKit:ProcessSuspension] 0x126009100 - ProcessAssertion() Successfully granted capability
+2026-11-02 11:15:35.479 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126009430 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:15:35.510 Df IPTVPlayer[9534:7fe3] [com.apple.runningboard:process] Starting death monitoring for handle [xpcservice<com.apple.WebKit.Networking([app<com.example.iptvplayer((null))>:9534])>{vt hash: 114736818}[uuid:559E511C-64DE-46E3-B8DC-749EC964CEE8]:9549]
+2026-11-02 11:15:35.526 Df IPTVPlayer[9534:7fe3] [com.apple.extensionkit:launch] Created new process ExtensionProcess: bundleID: com.apple.WebKit.Networking instance ID: Optional([_EXExtensionInstanceIdentifier: 559E511C-64DE-46E3-B8DC-749EC964CEE8]) pid: 9549.
+2026-11-02 11:15:35.526 Df IPTVPlayer[9534:7fe8] [com.apple.WebKit:Process] AssertionCapability::AssertionCapability: taking assertion Foreground
+2026-11-02 11:15:35.527 Df IPTVPlayer[9534:7fdc] [com.apple.xpc:connection] [0x10f109280] activating connection: mach=false listener=false peer=false name=(anonymous)
+2026-11-02 11:15:35.648 E  IPTVPlayer[9534:7fdc] [com.apple.WebKit:ResourceLoadStatistics] Failed to request storage access quirks from WebPrivacy.
+2026-11-02 11:15:35.648 E  IPTVPlayer[9534:7fdc] [com.apple.WebKit:ResourceLoadStatistics] Failed to request storage access user agent string quirks from WebPrivacy.
+2026-11-02 11:15:35.648 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x126002400 - GPUProcessProxy::didFinishLaunching:
+2026-11-02 11:15:35.648 F  IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] GPU process (0x126002400) took 1.326339 seconds to launch
+2026-11-02 11:15:35.648 A  IPTVPlayer[9534:7fdc] (libsystem_trace.dylib) Activity for state dumps
+2026-11-02 11:15:35.648 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x126002400 - GPUProcessProxy::connectionWillOpen:
+2026-11-02 11:15:35.648 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126002490 - [PID=9548] ProcessThrottler::didConnectToProcess
+2026-11-02 11:15:35.648 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126002490 - [PID=9548] ProcessThrottler::setThrottleState: Updating process assertion type to 3 (foregroundActivities=2, backgroundActivities=1)
+2026-11-02 11:15:35.649 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] AssertionCapability::AssertionCapability: taking assertion Foreground
+2026-11-02 11:15:35.649 Df IPTVPlayer[9534:7fe8] [com.apple.WebKit:ProcessSuspension] 0x1260091c0 - ProcessAssertion::acquireSync Trying to take RBS assertion 'GPUProcess Foreground Assertion' for process with PID=9548
+2026-11-02 11:15:35.649 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x126005e40 - NetworkProcessProxy::sendXPCEndpointToProcess(0x126002400) state = 1 has connection = 1 XPC endpoint message = 0x0
+2026-11-02 11:15:35.650 A  IPTVPlayer[9534:8007] (CoreServicesInternal) CFURLCreateBookmarkData
+2026-11-02 11:15:35.651 Df IPTVPlayer[9534:7fe8] [com.apple.WebKit:ProcessSuspension] 0x1260091c0 - ProcessAssertion() Successfully granted capability
+2026-11-02 11:15:35.779 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260016c0 - [PID=9548, throttler=0x126002490] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'Process initialization'
+2026-11-02 11:15:35.814 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x126005e40 - NetworkProcessProxy::didFinishLaunching
+2026-11-02 11:15:35.815 F  IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] Networking process (0x126005e40) took 1.345774 seconds to launch
+2026-11-02 11:15:35.815 A  IPTVPlayer[9534:7fdc] (libsystem_trace.dylib) Activity for state dumps
+2026-11-02 11:15:35.815 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126005ed0 - [PID=9549] ProcessThrottler::didConnectToProcess
+2026-11-02 11:15:35.815 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126005ed0 - [PID=9549] ProcessThrottler::setThrottleState: Updating process assertion type to 3 (foregroundActivities=2, backgroundActivities=2)
+2026-11-02 11:15:35.815 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] AssertionCapability::AssertionCapability: taking assertion Foreground
+2026-11-02 11:15:35.815 Df IPTVPlayer[9534:8007] [com.apple.WebKit:ProcessSuspension] 0x126009640 - ProcessAssertion::acquireSync Trying to take RBS assertion 'NetworkProcess Foreground Assertion' for process with PID=9549
+2026-11-02 11:15:35.816 Df IPTVPlayer[9534:8007] [com.apple.WebKit:ProcessSuspension] 0x126009640 - ProcessAssertion() Successfully granted capability
+2026-11-02 11:15:35.825 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x126005e40 - NetworkProcessProxy::sendXPCEndpointToProcess(0x126000d80) state = 1 has connection = 1 XPC endpoint message = 0x600003d1efd0
+2026-11-02 11:15:35.825 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x126005e40 - NetworkProcessProxy::sendXPCEndpointToProcess(0x126002400) state = 1 has connection = 1 XPC endpoint message = 0x600003d1efd0
+2026-11-02 11:15:35.979 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126001630 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:15:36.028 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260036d0 - [PID=9549, throttler=0x126005ed0] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'Process initialization'
+2026-11-02 11:15:36.188 Df IPTVPlayer[9534:7fe5] [com.apple.xpc:connection] [0x10ef09d00] Re-initialization successful; calling out to event handler with XPC_ERROR_CONNECTION_INTERRUPTED
+2026-11-02 11:15:36.480 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260016c0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:15:36.707 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Loading] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=9546] WebPageProxy::decidePolicyForNavigationAction: frameID=14, isMainFrame=1, navigationID=16
+2026-11-02 11:15:36.715 A  IPTVPlayer[9534:7fe5] (CoreFoundation) Loading Preferences From User Session CFPrefsD
+2026-11-02 11:15:36.725 Df IPTVPlayer[9534:7fe5] [com.apple.xpc:connection] [0x600003d11fe0] activating connection: mach=true listener=false peer=false name=com.apple.Safari.SafeBrowsing.Service
+2026-11-02 11:15:36.726 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:AppSSO] 0x126000230 - SOAuthorizationCoordinator::tryAuthorize
+2026-11-02 11:15:36.736 A  IPTVPlayer[9534:7fdc] (AppSSO) canPerformAuthorizationWithURL
+2026-11-02 11:15:36.738 A  IPTVPlayer[9534:7fdc] (AppSSOCore) canPerformAuthorizationWithURL
+2026-11-02 11:15:36.739 A  IPTVPlayer[9534:7fdc] (AppSSOCore) canPerformAuthorizationWithURL
+2026-11-02 11:15:36.739 A  IPTVPlayer[9534:7fdc] (AppSSOCore) canPerformAuthorizationWithURL
+2026-11-02 11:15:36.745 Df IPTVPlayer[9534:7fdc] [com.apple.authkit:siwa] Should process URL called
+2026-11-02 11:15:36.748 Df IPTVPlayer[9534:7fdc] [com.apple.authkit:siwa] Fetching native takeover URLs
+2026-11-02 11:15:36.754 Df IPTVPlayer[9534:7fdc] [com.apple.xpc:connection] [0x10f11ac40] activating connection: mach=true listener=false peer=false name=com.apple.ak.authorizationservices.xpc
+2026-11-02 11:15:36.804 Df IPTVPlayer[9534:7fdc] [com.apple.authkit:siwa] Native takeover URLs fetched
+2026-11-02 11:15:36.820 Df IPTVPlayer[9534:7fdc] [com.apple.authkit:siwa] URL shouldn't be processed
+2026-11-02 11:15:36.829 Df IPTVPlayer[9534:7fdc] [com.apple.AppSSO:SOConfigurationClient] -[SOConfigurationClient init]  on <SOConfigurationClient: 0x60000025df20>
+2026-11-02 11:15:36.831 Df IPTVPlayer[9534:7fdc] [com.apple.xpc:connection] [0x10f111930] activating connection: mach=true listener=false peer=false name=com.apple.AppSSO.service-xpc
+2026-11-02 11:15:36.832 Df IPTVPlayer[9534:7fdc] [com.apple.AppSSO:SOServiceConnection] <SOServiceConnection: 0x600000261540>: new XPC connection
+2026-11-02 11:15:36.833 Df IPTVPlayer[9534:7fdc] [com.apple.AppSSO:SOConfigurationClient] -[SOConfigurationClient _reloadConfig]  on <SOConfigurationClient: 0x60000025df20>
+2026-11-02 11:15:36.834 Df IPTVPlayer[9534:7fdc] [com.apple.AppSSO:SOClient] -[SOClient configurationWithCompletion:]  on <SOClient: 0x60000000d810>
+2026-11-02 11:16:36.116 A  IPTVPlayer[9534:96c5] (CoreFoundation) Loading Preferences From User Session CFPrefsD
+2026-11-02 11:16:41.678 Df IPTVPlayer[9534:7fdc] [com.apple.AppSSO:SOClient] configurationWithCompletion: success = YES, error = (null)
+2026-11-02 11:16:41.678 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:AppSSO] 0x126000230 - SOAuthorizationCoordinator::tryAuthorize: The requested URL is not registered for AppSSO handling. No further action needed.
+2026-11-02 11:16:41.682 E  IPTVPlayer[9534:7fdc] [com.apple.WebKit:ResourceLoadStatistics] Failed to request query parameters from WebPrivacy.
+2026-11-02 11:16:41.684 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260065d0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:41.684 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126009430 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:41.684 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126001630 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:41.684 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260016c0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:41.685 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126002400 - GPUProcessProxy is taking a background assertion because a web process is requesting a connection
+2026-11-02 11:16:41.685 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Loading] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=9546] WebPageProxy::decidePolicyForNavigationAction: listener called: frameID=14, isMainFrame=1, navigationID=16, policyAction=0, safeBrowsingWarning=0, isAppBoundDomain=0, wasNavigationIntercepted=0
+2026-11-02 11:16:41.689 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Loading] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=9546] WebPageProxy::receivedNavigationActionPolicyDecision: frameID=14, isMainFrame=1, navigationID=16, policyAction=0
+2026-11-02 11:16:41.709 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ViewState] 0x11181ec00 (pageProxyID=10) -[WKWebView _didCommitLayerTree:] - finally received commit 67.36s after visible content rect update request; transactionID 1
+2026-11-02 11:16:41.711 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSwapping] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=9546] WebPageProxy::decidePolicyForNavigationAction: keep using process 9546 for navigation, reason=Process has not yet committed any provisional loads
+2026-11-02 11:16:41.713 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x126000d80 - [PID=9546] WebProcessProxy::canTerminateAuxiliaryProcess: returns false (pageCount=1, provisionalPageCount=0, suspendedPageCount=0, m_isInProcessCache=0, m_shutdownPreventingScopeCounter=0)
+2026-11-02 11:16:41.716 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ResourceLoadStatistics] StorageAccessPromptQuirkController::didUpdateCachedListData: Loaded 1 storage access prompt(s) quirks from WebPrivacy.
+2026-11-02 11:16:41.718 A  IPTVPlayer[9534:7fdc] (libsystem_containermanager.dylib) container_system_group_path_for_identifier
+2026-11-02 11:16:41.718 Df IPTVPlayer[9534:7fdc] [com.apple.containermanager:xpc] Requesting container lookup; class = 13, identifier = com.apple.nsurlsessiond, group_identifier = systemgroup.com.apple.nsurlstoragedresources, create = 1, temp = 0, euid = 501, uid = 501
+2026-11-02 11:16:41.718 A  IPTVPlayer[9534:7fdc] (libsystem_containermanager.dylib) container_query_t
+2026-11-02 11:16:41.718 Df IPTVPlayer[9534:7fdc] [com.apple.containermanager:xpc] Query; euid = 501, uid = 501, class = 13, identifier = [com.apple.nsurlsessiond](1), flags = 900000003
+2026-11-02 11:16:41.719 E  IPTVPlayer[9534:7fdc] [com.apple.containermanager:unspecified] container_query_get_single_result: error = 2→(98) NOT_CODESIGNED
+2026-11-02 11:16:41.719 E  IPTVPlayer[9534:7fdc] [com.apple.containermanager:unspecified] container_system_group_path_for_identifier: error = ((container_error_t)98) NOT_CODESIGNED
+2026-11-02 11:16:43.399 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] 0x126002400 - GPUProcessProxy::didCreateContextForVisibilityPropagation: webPageProxyID: 10, pagePID: 11, contextID: 3694191915
+2026-11-02 11:16:43.399 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Process] Created visibility propagation interaction <_UIVisibilityPropagationInteraction: 0x600002615920> for process with PID=9548
+2026-11-02 11:16:43.401 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Loading] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=9546] WebPageProxy::didStartProvisionalLoadForFrame: frameID=14, isMainFrame=1
+2026-11-02 11:16:43.401 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Loading] 0x126000d80 - [PID=9546] WebProcessProxy::didStartProvisionalLoadForMainFrame:
+2026-11-02 11:16:43.403 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ViewState] 0x11181ec00 -[WKWebView _updateVisibleContentRects:] finally ran 1.69s after being scheduled
+2026-11-02 11:16:43.404 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126001630 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:43.404 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126003370 - ProcessThrottlerTimedActivity::activityTimedOut: Client navigation (timeout: 30 sec)
+2026-11-02 11:16:43.404 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260036a0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'Client navigation'
+2026-11-02 11:16:43.414 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126001630 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:43.434 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Loading] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=9546] WebPageProxy::didNavigateWithNavigationDataShared:
+2026-11-02 11:16:43.454 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Loading] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=9546] WebPageProxy::didCommitLoadForFrame: frameID=14, isMainFrame=1
+2026-11-02 11:16:44.108 E  IPTVPlayer[9534:7fdc] [com.apple.WebKit:ResourceLoadStatistics] Failed to request allowed query parameters from WebPrivacy.
+2026-11-02 11:16:44.121 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126001630 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:44.479 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260016c0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:44.979 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126003670 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:45.480 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260036d0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:46.480 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126006570 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:46.979 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126009070 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:47.478 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126009430 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:47.979 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126009490 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:48.478 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260094f0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:48.980 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600ac50 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:49.479 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600acb0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:49.980 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600ad10 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:50.979 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600ad70 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:51.479 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600add0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:51.979 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600ae30 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:52.979 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600ae90 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:53.479 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600aef0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:53.979 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600af50 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:54.479 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600afb0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:54.979 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b010 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:55.478 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b070 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:55.978 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b0d0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:56.478 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b130 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:56.980 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b190 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:57.979 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b1f0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:58.479 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b250 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:59.479 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b2b0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:16:59.979 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1241180c0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.479 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x124118120 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.607 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Loading] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=9546] WebPageProxy::didFinishDocumentLoadForFrame: frameID=14, isMainFrame=1
+2026-11-02 11:17:00.609 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126001630 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.716 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ViewState] 0x11181ec00 (pageProxyID=10) -[WKWebView _didCommitLayerTree:] - finally received commit 17.31s after visible content rect update request; transactionID 2
+2026-11-02 11:17:00.718 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ViewState] -[WKWebView 0x11181ec00 _scheduleVisibleContentRectUpdateAfterScrollInView]: hasScheduledVisibleRectUpdate is true but haven't updated visible content rects for 17.26s (last update was 17.32s ago) - valid 1
+2026-11-02 11:17:00.718 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ViewState] -[WKWebView 0x11181ec00 _scheduleVisibleContentRectUpdateAfterScrollInView]: hasScheduledVisibleRectUpdate is true but haven't updated visible content rects for 17.26s (last update was 17.32s ago) - valid 1
+2026-11-02 11:17:00.718 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ViewState] -[WKWebView 0x11181ec00 _scheduleVisibleContentRectUpdateAfterScrollInView]: hasScheduledVisibleRectUpdate is true but haven't updated visible content rects for 17.26s (last update was 17.32s ago) - valid 1
+2026-11-02 11:17:00.719 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260016c0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.719 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ViewState] 0x11181ec00 -[WKWebView _updateVisibleContentRects:] finally ran 17.26s after being scheduled
+2026-11-02 11:17:00.720 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126003670 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.724 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260036d0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.732 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:Loading] 0x110014a20 - [pageProxyID=10, webPageID=11, PID=9546] WebPageProxy::didFinishLoadForFrame: frameID=14, isMainFrame=1
+2026-11-02 11:17:00.732 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126001fc0 - NavigationState will release its process network assertion soon because the page load completed
+2026-11-02 11:17:00.734 E  IPTVPlayer[9534:7fdc] [com.apple.WebKit:ResourceLoadStatistics] Failed to request restricted opener domains from WebPrivacy
+2026-11-02 11:17:00.734 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126006570 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.736 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126009070 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.736 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126009430 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.736 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126009490 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.736 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1260094f0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.736 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600ac50 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.736 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600acb0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.737 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600ad10 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.740 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600ad70 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.741 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600add0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.741 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600ae30 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.741 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600ae90 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.741 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600aef0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.741 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600af50 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.742 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600afb0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.742 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b010 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.742 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b070 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.742 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b0d0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.744 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b130 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.744 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b190 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.745 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b1f0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.745 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b250 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.745 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x12600b2b0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.745 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x1241180c0 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.745 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x124118120 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.979 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126001630 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::Activity: Starting foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
+2026-11-02 11:17:00.983 Df IPTVPlayer[9534:7fdc] [com.apple.WebKit:ProcessSuspension] 0x126001630 - [PID=9546, throttler=0x126000e10] ProcessThrottler::Activity::invalidate: Ending foreground activity / 'WebPageProxy::runJavaScriptInFrameInScriptWorld'
