@@ -161,8 +161,8 @@ struct SeriesScreen: View {
             Text(series.name)
                 .font(.system(size: 230, weight: .heavy))
                 .foregroundColor(.white.opacity(0.045))
-                .lineLimit(2).multilineTextAlignment(.center)
-                .place(300, 200, 1500, 520, alignment: .center)
+                .lineLimit(2).minimumScaleFactor(0.5).multilineTextAlignment(.center)
+                .place(300, 150, 1560, 620, alignment: .center)
 
             ArtView(art: info?.cover.map { .url($0) } ?? series.art, poster: true)
                 .frame(width: 304, height: 444).clipShape(RoundedRectangle(cornerRadius: 10))

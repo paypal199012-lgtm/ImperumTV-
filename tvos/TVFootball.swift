@@ -292,7 +292,7 @@ struct FootballScreen: View {
 
     private func row(_ m: FMatch) -> some View {
         let chs = found[m.id] ?? []
-        let time = m.date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+        let time = hhmm.string(from: m.date)
         return Button { open(m) } label: {
             HStack(spacing: 18) {
                 Text(time).font(.system(size: 26, weight: .bold).monospacedDigit()).frame(width: 90, alignment: .leading)

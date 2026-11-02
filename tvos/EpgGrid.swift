@@ -7,9 +7,17 @@ private let windowMin: Double = 150                 // 2,5 Stunden sichtbar
 private let gridX: CGFloat = 440
 private let rowH: CGFloat = 74
 
+/// immer 24-Stunden-Uhr (auch wenn das Apple TV auf 12 Stunden steht)
+let hhmm: DateFormatter = {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "de_DE")
+    f.dateFormat = "HH:mm"
+    return f
+}()
+
 private func fmt(_ d: Date?) -> String {
     guard let d = d else { return "" }
-    return d.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+    return hhmm.string(from: d)
 }
 
 private func isNow(_ e: EPGEntry, _ now: Date = Date()) -> Bool {
