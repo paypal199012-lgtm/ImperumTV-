@@ -229,6 +229,7 @@ struct SettingsScreen: View {
             HStack(spacing: 22) {
                 action("refresh", "Neu laden", "Sender, Filme, Serien") { Task { await store.reload(); show("Neu geladen") } }
                 action("clean", "Cache leeren", "Bilder & Programm") { store.clearCache(); show("Cache geleert") }
+                action("up", "Updates", "Version " + appVersion) { show("Updates kommen automatisch über den App Store") }
                 action("speed", "Verbindungstest", "Internet & Sender") { nav.push(.nettest) }
             }
             .place(70, 946, 1780, 104)
@@ -329,11 +330,16 @@ struct SettingsScreen: View {
                 }
                 Spacer()
             }
-            .padding(.horizontal, 24).frame(width: 578, height: 102)
+            .padding(.horizontal, 24).frame(width: 428, height: 102)
         }
         .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 16)), normal: .black.opacity(0.35), focusFill: UI.tan(0.3),
                                border: UI.tan(0.5), borderWidth: 2))
         .focused($focus, equals: title)
+    }
+
+    private var appVersion: String {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0") + " ("
+            + (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1") + ")"
     }
 
     private func show(_ t: String) {
