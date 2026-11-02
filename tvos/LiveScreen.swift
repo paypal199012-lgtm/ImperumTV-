@@ -54,7 +54,7 @@ struct LiveScreen: View {
         switch cat {
         case "all": l = store.visible(.live)
         case "fav": l = store.visible(.live).filter { store.isFav($0, .live) }
-        default: l = store.catLocked(.live, cat) ? [] : store.live.filter { $0.cat == cat }
+        default: l = store.catLocked(.live, cat) ? [] : store.visible(.live).filter { $0.cat == cat }
         }
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         if !q.isEmpty { l = l.filter { $0.name.lowercased().contains(q) } }
@@ -108,6 +108,10 @@ struct LiveScreen: View {
                         }
                         .buttonStyle(GoldStyle(active: engine.item?.id == ch.id && engine.kind == .live))
                         .focused($focus, equals: .ch(ch.id))
+                        .contextMenu {
+                            Button(store.isFav(ch, .live) ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen") { store.toggleFav(ch, .live) }
+                            Button("Sender ausblenden", role: .destructive) { store.hide(ch) }
+                        }
                     }
                 }
                 .padding(.vertical, 20).padding(.horizontal, 6)

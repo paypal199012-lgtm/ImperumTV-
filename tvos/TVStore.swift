@@ -161,6 +161,22 @@ final class TVStore: ObservableObject {
         }
     }
 
+    // MARK: Live-Format (HLS oder TS), ausgeblendete Sender
+
+    var liveExt: String {
+        get { UserDefaults.standard.string(forKey: "tv.liveExt") ?? "m3u8" }
+        set { UserDefaults.standard.set(newValue, forKey: "tv.liveExt"); objectWillChange.send() }
+    }
+
+    private var hiddenKey: String { Profiles.currentId == "p0" ? "tv.hidden" : "tv.hidden." + Profiles.currentId }
+    var hidden: Set<String> { Set(UserDefaults.standard.stringArray(forKey: hiddenKey) ?? []) }
+    func isHidden(_ it: TVItem) -> Bool { hidden.contains("\(sourceName)|\(it.id)") }
+    func hide(_ it: TVItem) {
+        var h = hidden; h.insert("\(sourceName)|\(it.id)")
+        UserDefaults.standard.set(Array(h), forKey: hiddenKey); unlockTick += 1
+    }
+    func unhideAll() { UserDefaults.standard.set([String](), forKey: hiddenKey); unlockTick += 1 }
+
     // MARK: Kindersicherung
 
     func catName(_ kind: MediaKind, _ id: String) -> String { cats(kind).first { $0.id == id }?.name ?? "" }
@@ -175,6 +191,18 @@ final class TVStore: ObservableObject {
 
     /// Einträge ohne gesperrte Kategorien
     func visible(_ kind: MediaKind) -> [TVItem] {
+        if kind == .live {
+            let h = hidden
+            if !h.isEmpty {
+                let src = sourceName
+                let base = Parental.enabled ? visibleLocked(kind) : items(kind)
+                return base.filter { !h.contains("\(src)|\($0.id)") }
+            }
+        }
+        return visibleLocked(kind)
+    }
+
+    private func visibleLocked(_ kind: MediaKind) -> [TVItem] {
         guard Parental.enabled else { return items(kind) }
         let blocked = Set(cats(kind).filter { Parental.locked(kind, $0.name) }.map(\.id))
         if blocked.isEmpty { return items(kind) }
@@ -401,7 +429,9 @@ final class TVStore: ObservableObject {
         case .xtream(let acc, _):
             let a = client(acc)
             switch kind {
-            case .live: return a.streamURL(id: item.id)
+            case .live:
+                guard let u = a.streamURL(id: item.id) else { return nil }
+                return liveExt == "ts" ? u.deletingPathExtension().appendingPathExtension("ts") : u
             case .movie: return a.movieURL(id: item.id, ext: item.ext)
             case .series: return nil
             }

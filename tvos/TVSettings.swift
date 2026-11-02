@@ -169,6 +169,8 @@ struct SettingsScreen: View {
     @AppStorage("tv.theme") private var theme = "gold"
     @AppStorage("tv.clock") private var clock = "sec"
     @AppStorage("tv.autonext") private var autoNext = true
+    @AppStorage("tv.intro") private var introBtn = true
+    @AppStorage("tv.netq") private var netq = "always"
     @State private var pinMode: String?          // "set", "check-off"
     @State private var note: String?
     @FocusState private var focus: String?
@@ -181,17 +183,21 @@ struct SettingsScreen: View {
 
             HStack(alignment: .top, spacing: 30) {
                 section("play", "Wiedergabe") {
-                    row("tv", "Player Live TV", engine.liveEngine == "vlc" ? "VLC" : "Automatisch") {
+                    row("tv", "Live-Format", store.liveExt.uppercased() == "TS" ? "TS" : "HLS") {
+                        store.liveExt = store.liveExt == "ts" ? "m3u8" : "ts"
+                    }
+                    row("play", "Player Live TV", engine.liveEngine == "vlc" ? "VLC" : "Automatisch") {
                         engine.liveEngine = engine.liveEngine == "vlc" ? "auto" : "vlc"
                     }
-                    row("next", "Ersatzsender", engine.autoAlt ? "An · automatisch" : "Aus") { engine.autoAlt.toggle() }
-                    row("next", "Nächste Folge", autoNext ? "An" : "Aus") { autoNext.toggle() }
-                    row("clock", "Puffer", engine.bufferMode == "small" ? "Klein" : engine.bufferMode == "large" ? "Groß" : "Normal") {
+                    row("tv", "Ersatzsender", engine.autoAlt ? "An · automatisch" : "Aus") { engine.autoAlt.toggle() }
+                    row("up", "Puffer", engine.bufferMode == "small" ? "Klein · 1 s" : engine.bufferMode == "large" ? "Groß · 5 s" : "Normal · 2,5 s") {
                         engine.bufferMode = engine.bufferMode == "normal" ? "large" : engine.bufferMode == "large" ? "small" : "normal"
                     }
-                    row("tv", "Bildformat", engine.gravity == "fill" ? "Zoomen" : engine.gravity == "stretch" ? "Strecken" : "Ganzes Bild") {
-                        engine.setGravity(engine.gravity == "fit" ? "fill" : engine.gravity == "fill" ? "stretch" : "fit")
+                    row("play", "Player Filme & Serien", engine.vodEngine == "vlc" ? "VLC" : "Automatisch") {
+                        engine.vodEngine = engine.vodEngine == "vlc" ? "auto" : "vlc"
                     }
+                    row("next", "Nächste Folge", autoNext ? "An · 10 s" : "Aus") { autoNext.toggle() }
+                    row("next", "Intro überspringen", introBtn ? "An · 20 s" : "Aus") { introBtn.toggle() }
                 }
                 section("clock", "Anzeige & Familie") {
                     row("tv", "Farbthema", Theme.current.name) {
@@ -203,25 +209,32 @@ struct SettingsScreen: View {
                     row("clock", "Uhrzeit oben rechts", clock == "sec" ? "Mit Sekunden" : clock == "min" ? "Ohne Sekunden" : "Aus") {
                         clock = clock == "sec" ? "min" : clock == "min" ? "off" : "sec"
                     }
+                    row("speed", "Verbindungsanzeige", netq == "always" ? "Immer" : netq == "problems" ? "Bei Problemen" : "Aus") {
+                        netq = netq == "always" ? "problems" : netq == "problems" ? "off" : "always"
+                    }
                     row("clock", "Schlaf-Timer", engine.sleepAt.map { "noch \(max(1, Int($0.timeIntervalSinceNow / 60))) Min" } ?? "Aus") {
                         let steps: [Int] = [0, 30, 60, 90, 120]
                         let cur = engine.sleepAt.map { Int(($0.timeIntervalSinceNow / 60).rounded()) } ?? 0
                         let next = steps.first { $0 > cur + 1 } ?? 0
                         engine.sleepAt = next == 0 ? nil : Date().addingTimeInterval(Double(next) * 60)
                     }
-                    row("lock", "Kinderschutz", Parental.hasPin ? "An" : "Aus") { pinMode = Parental.hasPin ? "check-off" : "set" }
-                    if Parental.hasPin {
-                        row("lock", "Erwachsenen-Kategorien", Parental.autoAdult ? "Gesperrt" : "Frei") {
-                            Parental.autoAdult.toggle(); store.objectWillChange.send()
-                        }
-                        row("list", "Gesperrte Kategorien", Parental.lockedCats.isEmpty ? "Keine" : "\(Parental.lockedCats.count)") { nav.push(.lockCats) }
+                    row("lock", "Kinderschutz", Parental.hasPin ? "An" : "Aus") {
+                        if Parental.hasPin { nav.push(.lockCats) } else { pinMode = "set" }
+                    }
+                    row("list", "Ausgeblendete Sender", store.hidden.isEmpty ? "Keine" : "\(store.hidden.count)") {
+                        if !store.hidden.isEmpty { store.unhideAll(); show("Alle Sender wieder eingeblendet") }
+                        else { show("Sender ausblenden: in Live TV auf einem Sender OK lange drücken") }
                     }
                     row("users", "Profile", Profiles.list.count > 1 ? Profiles.current.name : "Aus") { nav.push(.profiles) }
                 }
                 section("shield", "Konto") {
                     row("list", "Wiedergabelisten", "Wechseln") { nav.push(.playlists) }
+                    row("user", "Konto", "Kostenlos") { show("ImperumTV für Apple TV ist kostenlos") }
                     row("resume", "Weiterschauen löschen", "\(resume.entries.count + resume.seen.count)") { resume.clearAll(); show("Weiterschauen und Gesehen gelöscht") }
                     row("star", "Favoriten löschen", "\(store.favorites.count)") { store.clearFavorites(); show("Favoriten gelöscht") }
+                    if Parental.hasPin {
+                        row("lock", "Kinderschutz ausschalten", "PIN") { pinMode = "check-off" }
+                    }
                 }
             }
             .place(70, 298, 1780, 620)
@@ -251,7 +264,7 @@ struct SettingsScreen: View {
             }
         }
         .frame(width: 1920, height: 1080)
-        .defaultFocus($focus, "Player Live TV")
+        .defaultFocus($focus, "Live-Format")
     }
 
     // MARK: Kopfkarte
@@ -264,12 +277,13 @@ struct SettingsScreen: View {
                 .overlay(Circle().stroke(UI.gold2, lineWidth: 3))
             VStack(alignment: .leading, spacing: 6) {
                 Text("ImperumTV").font(UI.font(42, .bold))
-                Text("\(store.sourceName.isEmpty ? "Keine Wiedergabeliste" : store.sourceName) · \(store.favorites.count) Favoriten · Profil \(Profiles.current.name)")
+                Text("Konto aktiviert · Version \(appVersion) · \(store.favorites.count) Favoriten")
                     .font(UI.font(24)).foregroundColor(UI.text.opacity(0.85)).lineLimit(1)
             }
             Spacer(minLength: 10)
+            chip("users", "Profil", Profiles.current.name)
             chip("lock", "Kinderschutz", Parental.hasPin ? "An" : "Aus")
-            chip("list", "Abo", store.expiry.map { "bis " + $0.formatted(.dateTime.day(.twoDigits).month(.twoDigits).year()) } ?? "unbegrenzt")
+            chip("list", store.expiry == nil ? "Abo" : "Abo bis", store.expiry.map { $0.formatted(.dateTime.day(.twoDigits).month(.twoDigits).year()) } ?? "unbegrenzt")
             chip("device", "Gerät", store.device.mac.lowercased())
         }
         .padding(.horizontal, 30)
@@ -281,7 +295,7 @@ struct SettingsScreen: View {
     private func chip(_ icon: String, _ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) { Icon(icon, 22); Text(label).font(UI.font(20)) }.foregroundColor(UI.text.opacity(0.8))
-            Text(value).font(UI.font(value.count > 14 ? 22 : 28, .bold)).lineLimit(1)
+            Text(value).font(UI.font(value.count > 14 ? 22 : 28, .bold)).lineLimit(1).foregroundColor(label == "Profil" ? UI.gold : UI.text)
         }
         .padding(.horizontal, 22)
         .frame(height: 92, alignment: .leading)

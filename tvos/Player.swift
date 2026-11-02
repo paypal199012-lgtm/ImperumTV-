@@ -86,6 +86,24 @@ final class PlayerEngine: ObservableObject {
         get { UserDefaults.standard.object(forKey: "tv.autoAlt") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "tv.autoAlt"); objectWillChange.send() }
     }
+    var vodEngine: String {
+        get { UserDefaults.standard.string(forKey: "tv.vodEngine") ?? "auto" }
+        set { UserDefaults.standard.set(newValue, forKey: "tv.vodEngine"); objectWillChange.send() }
+    }
+
+    /// Datenrate in Mbit/s (für die Verbindungsanzeige), 0 = unbekannt
+    var mbit: Double {
+        #if canImport(TVVLCKit)
+        if usingVLC, let m = vlc.media {
+            let st = (m as NSObject).value(forKey: "stats") as? [String: Any]
+            return ((st?["inputBitrate"] as? NSNumber)?.doubleValue ?? 0) * 8
+        }
+        #endif
+        guard let ev = player.currentItem?.accessLog()?.events.last else { return 0 }
+        let b = ev.observedBitrate > 0 ? ev.observedBitrate : ev.indicatedBitrate
+        return b > 0 ? b / 1_000_000 : 0
+    }
+
     var bufferMode: String {
         get { UserDefaults.standard.string(forKey: "tv.buffer") ?? "normal" }
         set { UserDefaults.standard.set(newValue, forKey: "tv.buffer"); objectWillChange.send() }
@@ -136,7 +154,7 @@ final class PlayerEngine: ObservableObject {
         triedVLC = forceVLC
         stallTask?.cancel()
         let ext = url.pathExtension.lowercased()
-        let wantVLC = Self.hasVLC && (forceVLC || (kind == .live && liveEngine == "vlc") || Self.vlcExt.contains(ext))
+        let wantVLC = Self.hasVLC && (forceVLC || (kind == .live && liveEngine == "vlc") || (kind != .live && vodEngine == "vlc") || Self.vlcExt.contains(ext))
         if wantVLC { playVLC(url, startAt: startAt) } else { playAV(url, startAt: startAt) }
         UIApplication.shared.isIdleTimerDisabled = true
     }
@@ -445,11 +463,30 @@ struct PlayerScreen: View {
     @State private var hideTask: Task<Void, Never>?
     @State private var epgNow: EPGEntry?
     @State private var menu: String?            // nil, "main", "audio", "text", "format", "sleep"
+    @State private var introDone = false
+    @State private var nextCancelled = false
+    @State private var nextCount = 10
+    @AppStorage("tv.intro") private var introBtn = true
+    @AppStorage("tv.autonext") private var autoNext = true
+    @AppStorage("tv.netq") private var netq = "always"
     @FocusState private var focused: Bool
+
+    /// „Intro überspringen“ (Sekunde 2–10) bzw. „Nächste Folge in …“ (letzte 30 s)
+    private var pop: String? {
+        guard engine.kind == .series, menu == nil else { return nil }
+        let t = engine.position, d = engine.duration
+        if autoNext && !nextCancelled && engine.index + 1 < engine.episodes.count && d > 300 && d - t <= 30 && d - t > 1 { return "next" }
+        if introBtn && !introDone && t >= 2 && t < 10 { return "intro" }
+        return nil
+    }
 
     var body: some View {
         ZStack {
-            Button(action: { openMenu() }) {
+            Button(action: {
+                if pop == "intro" { engine.seek(by: 20); introDone = true; engine.notice("Intro übersprungen (+20 s)") }
+                else if pop == "next" { goNext() }
+                else { openMenu() }
+            }) {
                 ZStack {
                     Color.black
                     VideoView(engine: engine)
@@ -468,6 +505,8 @@ struct PlayerScreen: View {
                             .frame(maxHeight: .infinity, alignment: .top).padding(.top, 60)
                     }
                     if osd && menu == nil { bar.transition(.opacity) }
+                    if let p = pop { popView(p) }
+                    if netq != "off" && engine.item != nil && (osd || netq == "problems") { netBadge }
                 }
                 .frame(width: 1920, height: 1080)
             }
@@ -489,7 +528,21 @@ struct PlayerScreen: View {
         }
         .onAppear { focused = true; showOSD() }
         .onExitCommand {
-            if menu != nil { withAnimation { menu = nil }; focused = true } else { close() }
+            if menu != nil { withAnimation { menu = nil }; focused = true }
+            else if pop == "next" { nextCancelled = true }
+            else { close() }
+        }
+        .onChange(of: engine.item?.id) { _, _ in introDone = false; nextCancelled = false }
+        .onChange(of: engine.index) { _, _ in introDone = false; nextCancelled = false }
+        .task(id: pop) {
+            guard pop == "next" else { nextCount = 10; return }
+            nextCount = 10
+            while nextCount > 0 && !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                if Task.isCancelled { return }
+                if engine.playing { nextCount -= 1 }
+            }
+            if !Task.isCancelled && pop == "next" { goNext() }
         }
         .task {
             // alle 10 s den Stand merken (Filme, Folgen)
@@ -548,6 +601,61 @@ struct PlayerScreen: View {
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(UI.tan(0.5), lineWidth: 1.5))
         .frame(maxHeight: .infinity, alignment: .bottom)
         .padding(.bottom, 36)
+    }
+
+    // MARK: Einblendungen
+
+    private func popView(_ p: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if p == "intro" {
+                Text("⏭  Intro überspringen").font(UI.font(28, .bold)).foregroundColor(UI.dark)
+                    .padding(.horizontal, 30).frame(height: 64).background(Capsule().fill(UI.gold))
+                Text("OK drücken").font(UI.font(20)).foregroundColor(UI.muted)
+            } else {
+                let n = engine.index + 1 < engine.episodes.count ? engine.episodes[engine.index + 1] : nil
+                Text("Nächste Folge in \(nextCount) s").font(UI.font(30, .bold))
+                if let n = n { Text("S\(n.season) F\(n.number) · \(n.title)").font(UI.font(22)).foregroundColor(UI.muted).lineLimit(1) }
+                GeometryReader { g in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.2))
+                        Capsule().fill(UI.gold2).frame(width: g.size.width * Double(10 - nextCount) / 10)
+                    }
+                }
+                .frame(height: 5)
+                Text("OK: Jetzt ansehen · Zurück: Abbrechen").font(UI.font(20)).foregroundColor(UI.muted)
+            }
+        }
+        .padding(28)
+        .frame(width: 560, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 18).fill(Color(rgb: 0x0c0c0e, opacity: 0.9)))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(UI.tan(0.5), lineWidth: 1.5))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        .padding(.trailing, 80).padding(.bottom, osd ? 220 : 80)
+    }
+
+    /// Verbindungsanzeige oben (Datenrate)
+    private var netBadge: some View {
+        TimelineView(.periodic(from: .now, by: 2)) { _ in
+            let m = engine.mbit
+            let bad = engine.buffering || (m > 0 && m < 3)
+            if netq == "always" || bad {
+                HStack(spacing: 10) {
+                    Circle().fill(engine.buffering ? Color(rgb: 0xff6b5e) : m == 0 ? UI.muted : m < 3 ? Color(rgb: 0xf4c35a) : Color(rgb: 0x7ee08a))
+                        .frame(width: 14, height: 14)
+                    Text(engine.buffering ? "Lädt …" : m > 0 ? String(format: "%.1f Mbit/s", m) : "Verbindung …")
+                        .font(UI.font(22, .semibold))
+                }
+                .padding(.horizontal, 22).padding(.vertical, 10)
+                .background(Capsule().fill(.black.opacity(0.7)))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).padding(.top, 30)
+            }
+        }
+    }
+
+    private func goNext() {
+        nextCancelled = true
+        engine.onEpisodeEnd?()
+        engine.playEpisode(engine.index + 1)
     }
 
     // MARK: Menü (Ton, Untertitel, Bildformat, Schlaf-Timer)
