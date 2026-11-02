@@ -211,7 +211,7 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         case "setAudioLangs": player.audioLangs = s(0).split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
         case "setBuffer": UserDefaults.standard.set(s(0), forKey: "web.buffer")
         case "setLiveEngine": UserDefaults.standard.set(s(0) == "vlc" ? "vlc" : "exo", forKey: "web.liveEngine")
-        case "setNextEngine": player.forceVLCNext = s(0) == "vlc"
+        case "setNextEngine": player.forceVLCNext = s(0) == "vlc"; player.forceAVNext = s(0) == "apple"
         case "keepAwake": UIApplication.shared.isIdleTimerDisabled = (a.first as? Bool) ?? true
         case "openUrl": if let u = URL(string: s(0)) { UIApplication.shared.open(u) }
         case "log": NSLog("[ImperumTV-Web] %@", s(0))
@@ -304,6 +304,7 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
             appVersion: function () { return S.version; },
             deviceName: function () { return S.device; },
             deviceMacKey: function () { return S.mk; },
+            usingVlc: function () { return !!S.vlcNow; },
             tzMinutes: function () { return S.tz; },
             netInfo: function () { return '{"kbps":' + (S.kbps || 0) + '}'; },
             getBuffer: function () { return S.buffer; },
@@ -413,6 +414,7 @@ final class NativePlayer {
     private lazy var vlc = VLCMediaPlayer()
     var emit: ((String, Any?) -> Void)?
     var forceVLCNext = false
+    var forceAVNext = false
     var audioLangs: [String] = []
 
     private var useVLC = false
@@ -476,8 +478,9 @@ final class NativePlayer {
         readySent = false; buffering = false; triedVLC = false; langPicked = false
         place(r, in: bounds, full: full)
         let ext = url.pathExtension.lowercased()
-        let wantVLC = forceVLCNext || (isLive && liveEngine == "vlc") || (!isLive && ["mkv", "avi", "wmv", "flv", "ts", "divx", "webm"].contains(ext))
-        forceVLCNext = false
+        let wantVLC = !forceAVNext && (forceVLCNext || (isLive && liveEngine == "vlc") || (!isLive && ["mkv", "avi", "wmv", "flv", "ts", "divx", "webm"].contains(ext)))
+        if forceAVNext { triedVLC = true }        // ausdrücklich Apple-Player: nicht still auf VLC wechseln
+        forceVLCNext = false; forceAVNext = false
         if wantVLC { playVLC(url) } else { playAV(isLive && ext == "ts" ? Self.asHLS(url) : url) }
     }
 
@@ -669,6 +672,8 @@ final class NativePlayer {
                 pos = Double(max(0, vlc.time.intValue)) / 1000
                 if !isLive, let l = vlc.media?.length.intValue, l > 0 { dur = Double(l) / 1000 }
                 playing = vlc.isPlaying || buffering
+                if let m = vlc.media, let st = (m as NSObject).value(forKey: "stats") as? [String: Any],
+                   let b = (st["inputBitrate"] as? NSNumber)?.doubleValue, b > 0 { kbps = Int(b * 8000) }
             } else {
                 pos = max(0, av.currentTime().seconds.isFinite ? av.currentTime().seconds : 0)
                 if !isLive, let d = av.currentItem?.duration.seconds, d.isFinite, d > 0 { dur = d }
@@ -676,7 +681,7 @@ final class NativePlayer {
                 if let e = av.currentItem?.accessLog()?.events.last, e.observedBitrate > 0 { kbps = Int(e.observedBitrate / 1000) }
             }
         }
-        return ["playing": playing, "pos": (pos * 10).rounded() / 10, "dur": dur.rounded(), "kbps": kbps,
+        return ["playing": playing, "pos": (pos * 10).rounded() / 10, "dur": dur.rounded(), "kbps": kbps, "vlcNow": active && useVLC,
                 "audio": json(tracks("audio")), "text": json(tracks("text"))]
     }
 }

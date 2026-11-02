@@ -1906,7 +1906,7 @@
         },
         macText: function () { return this.mac.toLowerCase(); },
         link: function () {
-            return REMOTE.website + '?mac=' + encodeURIComponent(this.macText()) + '&key=' + this.key;
+            return REMOTE.website + '?mac=' + encodeURIComponent(this.macText()) + '&key=' + this.key + (STORE_BUILD ? '&app=apple' : '');
         }
     };
 
@@ -9074,7 +9074,7 @@
         if (this.kind === 'live' && Rec.available()) {
             btn('pl-rec', '●', 'Aufnehmen', function () { self.recordNow(); });
         }
-        if (this.kind !== 'live' && this.resumable() && VodPlayer.available()) {
+        if (this.kind !== 'live' && this.resumable() && (VodPlayer.available() || (AB && AB.usingVlc))) {
             btn('pl-switch', '⇄', 'Anderer Player', function () { self.switchPlayer(); });
         }
         btn('pl-aspect', '▭', 'Bildformat', function () { self.aspectMenu(); });
@@ -9214,6 +9214,20 @@
     PlayerScreen.prototype.switchPlayer = function () {
         var self = this, list = VodPlayer.list();
         clearTimeout(this.hideTimer);
+        // iPhone: zwei eingebaute Player (Apple-Player und VLC), an derselben Stelle weiter
+        if (!VodPlayer.available() && AB && AB.usingVlc && AB.setNextEngine) {
+            var vlcNow = AB.usingVlc();
+            Modal.open('Anderer Player', 'Ab ' + fmtTime(Player.current()), [
+                { label: '▶  ' + (vlcNow ? 'Apple-Player' : 'VLC'), primary: true, action: function () {
+                    self.startAt = Player.current();
+                    AB.setNextEngine(vlcNow ? 'apple' : 'vlc');
+                    self.start();
+                } },
+                { label: 'Abbrechen', action: function () { self.showOverlay(); } }
+            ]);
+            if (Modal.node) Modal.node.classList.add('modal-list');
+            return;
+        }
         if (!list.length) {
             toast('Kein anderer Player installiert. Installiere z. B. VLC oder MX Player aus dem Store.', 6000);
             this.showOverlay();
