@@ -428,6 +428,11 @@ final class TVStore: ObservableObject {
 
     private var infoCache: [Int: MediaInfo] = [:]
 
+    func clearCache() {
+        epgCache = [:]; infoCache = [:]
+        URLCache.shared.removeAllCachedResponses()
+    }
+
     func movieInfo(_ m: TVItem) async -> MediaInfo? {
         switch source {
         case .demo:

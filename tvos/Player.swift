@@ -275,7 +275,7 @@ final class PlayerEngine: ObservableObject {
 
     private func ended() {
         // Serie: nächste Folge, Live: neu verbinden
-        if kind == .series, index + 1 < episodes.count { onEpisodeEnd?(); playEpisode(index + 1); return }
+        if kind == .series, index + 1 < episodes.count, UserDefaults.standard.object(forKey: "tv.autonext") as? Bool ?? true { onEpisodeEnd?(); playEpisode(index + 1); return }
         if kind == .live { reconnect() }
     }
 

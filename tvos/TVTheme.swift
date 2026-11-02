@@ -63,18 +63,22 @@ struct ClockView: View {
     private static let days = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"]
     private static let months = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]
 
+    @AppStorage("tv.clock") private var mode = "sec"
+
     var body: some View {
+        if mode != "off" {
         TimelineView(.periodic(from: .now, by: 1)) { ctx in
             let c = Calendar.current.dateComponents([.hour, .minute, .second, .weekday, .day, .month], from: ctx.date)
             VStack(alignment: .trailing, spacing: 5) {
                 (Text(String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)).foregroundColor(UI.text)
-                 + Text(String(format: ":%02d", c.second ?? 0)).foregroundColor(UI.gold))
+                 + Text(mode == "sec" ? String(format: ":%02d", c.second ?? 0) : "").foregroundColor(UI.gold))
                     .font(UI.font(30, .bold))
                 Text("\(Self.days[((c.weekday ?? 1) - 1) % 7]), \(c.day ?? 1). \(Self.months[((c.month ?? 1) - 1) % 12])")
                     .font(UI.font(17))
                     .foregroundColor(Color(rgb: 0xb9b4a9))
             }
             .shadow(color: .black.opacity(0.75), radius: 3, y: 2)
+        }
         }
     }
 }

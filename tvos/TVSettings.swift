@@ -159,7 +159,7 @@ struct PinPrompt: View {
     }
 }
 
-// MARK: - Einstellungen
+// MARK: - Einstellungen (Aufbau wie Android: Kopfkarte, drei Spalten, Aktionen unten)
 
 struct SettingsScreen: View {
     @EnvironmentObject var store: TVStore
@@ -167,29 +167,41 @@ struct SettingsScreen: View {
     @EnvironmentObject var engine: PlayerEngine
     @EnvironmentObject var resume: ResumeBook
     @AppStorage("tv.theme") private var theme = "gold"
+    @AppStorage("tv.clock") private var clock = "sec"
+    @AppStorage("tv.autonext") private var autoNext = true
     @State private var pinMode: String?          // "set", "check-off"
     @State private var note: String?
+    @FocusState private var focus: String?
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            ScreenTitle(text: "Einstellungen")
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionHead(text: "Wiedergabe & Listen")
-                    row("list", "Wiedergabelisten", store.sourceName.isEmpty ? "Keine gewählt" : store.sourceName) { nav.push(.playlists) }
-                    row("users", "Profil", Profiles.current.name + (Profiles.isKids ? " · Kinder" : "")) { nav.push(.profiles) }
-                    row("refresh", "Neu laden", "Sender, Filme, Serien") { Task { await store.reload() } }
+            Text("Einstellungen").font(UI.font(40, .bold)).foregroundColor(UI.gold).place(70, 34, 900, 56)
 
-                    SectionHead(text: "Player")
+            header.place(70, 110, 1780, 168)
+
+            HStack(alignment: .top, spacing: 30) {
+                section("play", "Wiedergabe") {
                     row("tv", "Player Live TV", engine.liveEngine == "vlc" ? "VLC" : "Automatisch") {
                         engine.liveEngine = engine.liveEngine == "vlc" ? "auto" : "vlc"
                     }
-                    row("refresh", "Ersatzsender bei Hängern", engine.autoAlt ? "An" : "Aus") { engine.autoAlt.toggle() }
-                    row("clock", "Puffer", engine.bufferMode == "small" ? "Klein · schneller Start" : engine.bufferMode == "large" ? "Groß · stabiler" : "Normal") {
+                    row("next", "Ersatzsender", engine.autoAlt ? "An · automatisch" : "Aus") { engine.autoAlt.toggle() }
+                    row("next", "Nächste Folge", autoNext ? "An" : "Aus") { autoNext.toggle() }
+                    row("clock", "Puffer", engine.bufferMode == "small" ? "Klein" : engine.bufferMode == "large" ? "Groß" : "Normal") {
                         engine.bufferMode = engine.bufferMode == "normal" ? "large" : engine.bufferMode == "large" ? "small" : "normal"
                     }
-                    row("device", "Bildformat", engine.gravity == "fill" ? "Zoomen" : engine.gravity == "stretch" ? "Strecken" : "Ganzes Bild") {
+                    row("tv", "Bildformat", engine.gravity == "fill" ? "Zoomen" : engine.gravity == "stretch" ? "Strecken" : "Ganzes Bild") {
                         engine.setGravity(engine.gravity == "fit" ? "fill" : engine.gravity == "fill" ? "stretch" : "fit")
+                    }
+                }
+                section("clock", "Anzeige & Familie") {
+                    row("tv", "Farbthema", Theme.current.name) {
+                        let ids = Theme.all.map(\.id)
+                        let i = ids.firstIndex(of: theme) ?? 0
+                        Theme.currentId = ids[(i + 1) % ids.count]
+                        theme = Theme.currentId
+                    }
+                    row("clock", "Uhrzeit oben rechts", clock == "sec" ? "Mit Sekunden" : clock == "min" ? "Ohne Sekunden" : "Aus") {
+                        clock = clock == "sec" ? "min" : clock == "min" ? "off" : "sec"
                     }
                     row("clock", "Schlaf-Timer", engine.sleepAt.map { "noch \(max(1, Int($0.timeIntervalSinceNow / 60))) Min" } ?? "Aus") {
                         let steps: [Int] = [0, 30, 60, 90, 120]
@@ -197,78 +209,136 @@ struct SettingsScreen: View {
                         let next = steps.first { $0 > cur + 1 } ?? 0
                         engine.sleepAt = next == 0 ? nil : Date().addingTimeInterval(Double(next) * 60)
                     }
-                    row("speed", "Verbindungstest", "Internet & Sender") { nav.push(.nettest) }
-
-                    SectionHead(text: "Anzeige & Familie")
-                    row("star", "Farbthema", Theme.current.name) {
-                        let ids = Theme.all.map(\.id)
-                        let i = ids.firstIndex(of: theme) ?? 0
-                        theme = ids[(i + 1) % ids.count]
-                        Theme.currentId = theme
-                    }
-                    row("lock", "Kindersicherung", Parental.hasPin ? "An · PIN gesetzt" : "Aus") {
-                        pinMode = Parental.hasPin ? "check-off" : "set"
-                    }
+                    row("lock", "Kinderschutz", Parental.hasPin ? "An" : "Aus") { pinMode = Parental.hasPin ? "check-off" : "set" }
                     if Parental.hasPin {
-                        row("lock", "Erwachsenen-Kategorien sperren", Parental.autoAdult ? "An" : "Aus") {
+                        row("lock", "Erwachsenen-Kategorien", Parental.autoAdult ? "Gesperrt" : "Frei") {
                             Parental.autoAdult.toggle(); store.objectWillChange.send()
                         }
-                        row("lock", "Kategorien sperren", "\(Parental.lockedCats.count) gesperrt") { nav.push(.lockCats) }
+                        row("list", "Gesperrte Kategorien", Parental.lockedCats.isEmpty ? "Keine" : "\(Parental.lockedCats.count)") { nav.push(.lockCats) }
                     }
-
-                    SectionHead(text: "Daten")
-                    row("resume", "Weiterschauen & Gesehen löschen", "\(resume.entries.count) angefangen · \(resume.seen.count) gesehen") {
-                        resume.clearAll(); show("Gelöscht")
-                    }
-                    row("star", "Favoriten löschen", "\(store.favorites.count) gespeichert") {
-                        store.clearFavorites(); show("Favoriten gelöscht")
-                    }
-                    row("device", "Gerät", "MAC \(store.device.mac.lowercased()) · Schlüssel \(store.device.key)") { nav.push(.playlists) }
-                    let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
-                    let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
-                    Text("ImperumTV für Apple TV · Version \(v) (\(b))" + (PlayerEngine.hasVLC ? " · VLC" : ""))
-                        .font(UI.font(22)).foregroundColor(UI.muted).padding(.top, 20)
+                    row("users", "Profile", Profiles.list.count > 1 ? Profiles.current.name : "Aus") { nav.push(.profiles) }
                 }
-                .padding(.vertical, 20).padding(.horizontal, 20)
+                section("shield", "Konto") {
+                    row("list", "Wiedergabelisten", "Wechseln") { nav.push(.playlists) }
+                    row("resume", "Weiterschauen löschen", "\(resume.entries.count + resume.seen.count)") { resume.clearAll(); show("Weiterschauen und Gesehen gelöscht") }
+                    row("star", "Favoriten löschen", "\(store.favorites.count)") { store.clearFavorites(); show("Favoriten gelöscht") }
+                }
             }
-            .place(260, 110, 1400, 960)
+            .place(70, 298, 1780, 620)
+
+            HStack(spacing: 22) {
+                action("refresh", "Neu laden", "Sender, Filme, Serien") { Task { await store.reload(); show("Neu geladen") } }
+                action("clean", "Cache leeren", "Bilder & Programm") { store.clearCache(); show("Cache geleert") }
+                action("speed", "Verbindungstest", "Internet & Sender") { nav.push(.nettest) }
+            }
+            .place(70, 946, 1780, 104)
 
             if let n = note {
                 Text(n).font(UI.font(26, .semibold)).padding(.horizontal, 30).padding(.vertical, 16)
                     .background(Capsule().fill(.black.opacity(0.85))).overlay(Capsule().stroke(UI.tan(0.5), lineWidth: 1.5))
-                    .place(0, 980, 1920, 70, alignment: .center)
+                    .place(0, 860, 1920, 70, alignment: .center)
             }
             if let m = pinMode {
-                PinPrompt(title: m == "set" ? "Neue PIN festlegen" : "PIN eingeben (Kindersicherung aus)") { pin in
+                PinPrompt(title: m == "set" ? "Neue PIN festlegen" : "PIN eingeben (Kinderschutz aus)") { pin in
                     pinMode = nil
                     guard let pin = pin, pin.count >= 4, pin.allSatisfy(\.isNumber) else { if pin != nil { show("Die PIN braucht 4 Ziffern") }; return }
-                    if m == "set" { Parental.pinHash = Parental.hash(pin); show("Kindersicherung an") }
-                    else if Parental.check(pin) { Parental.pinHash = ""; show("Kindersicherung aus") }
+                    if m == "set" { Parental.pinHash = Parental.hash(pin); show("Kinderschutz an") }
+                    else if Parental.check(pin) { Parental.pinHash = ""; show("Kinderschutz aus") }
                     else { show("Falsche PIN") }
                     store.objectWillChange.send()
                 }
             }
         }
         .frame(width: 1920, height: 1080)
+        .defaultFocus($focus, "Player Live TV")
+    }
+
+    // MARK: Kopfkarte
+
+    private var header: some View {
+        HStack(spacing: 26) {
+            Image("Logo").resizable().scaledToFit().themedLogo().padding(10)
+                .frame(width: 112, height: 112)
+                .background(Circle().fill(Color(rgb: 0x10141c)))
+                .overlay(Circle().stroke(UI.gold2, lineWidth: 3))
+            VStack(alignment: .leading, spacing: 6) {
+                Text("ImperumTV").font(UI.font(42, .bold))
+                Text("\(store.sourceName.isEmpty ? "Keine Wiedergabeliste" : store.sourceName) · \(store.favorites.count) Favoriten · Profil \(Profiles.current.name)")
+                    .font(UI.font(24)).foregroundColor(UI.text.opacity(0.85)).lineLimit(1)
+            }
+            Spacer(minLength: 10)
+            chip("lock", "Kinderschutz", Parental.hasPin ? "An" : "Aus")
+            chip("list", "Abo", store.expiry.map { "bis " + $0.formatted(.dateTime.day(.twoDigits).month(.twoDigits).year()) } ?? "unbegrenzt")
+            chip("device", "Gerät", store.device.mac.lowercased())
+        }
+        .padding(.horizontal, 30)
+        .frame(width: 1780, height: 168)
+        .background(RoundedRectangle(cornerRadius: 22).fill(LinearGradient(colors: [UI.tan(0.32), UI.tan(0.08)], startPoint: .leading, endPoint: .trailing)))
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(UI.tan(0.6), lineWidth: 2))
+    }
+
+    private func chip(_ icon: String, _ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) { Icon(icon, 22); Text(label).font(UI.font(20)) }.foregroundColor(UI.text.opacity(0.8))
+            Text(value).font(UI.font(value.count > 14 ? 22 : 28, .bold)).lineLimit(1)
+        }
+        .padding(.horizontal, 22)
+        .frame(height: 92, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 14).fill(.black.opacity(0.45)))
+    }
+
+    // MARK: Spalten
+
+    private func section<C: View>(_ icon: String, _ title: String, @ViewBuilder _ content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Icon(icon, 26)
+                Text(title.uppercased()).font(UI.font(22, .heavy)).tracking(3)
+            }
+            .foregroundColor(UI.gold2).padding(.leading, 12).padding(.bottom, 4)
+            content()
+        }
+        .padding(14)
+        .frame(width: 573, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 18).fill(.black.opacity(0.22)))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.08), lineWidth: 1.5))
+        .focusSection()
+    }
+
+    private func row(_ icon: String, _ title: String, _ value: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Icon(icon, 26).foregroundColor(UI.gold)
+                Text(title).font(UI.font(26, .bold)).lineLimit(1)
+                Spacer(minLength: 8)
+                Text(value).font(UI.font(22)).foregroundColor(UI.text.opacity(0.8)).lineLimit(1)
+            }
+            .padding(.horizontal, 20).frame(width: 545, height: 56)
+        }
+        .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 10)), normal: .black.opacity(0.3), focusFill: UI.tan(0.3)))
+        .focused($focus, equals: title)
+    }
+
+    private func action(_ icon: String, _ title: String, _ sub: String, _ act: @escaping () -> Void) -> some View {
+        Button(action: act) {
+            HStack(spacing: 20) {
+                Icon(icon, 34).foregroundColor(UI.gold).frame(width: 60, height: 60).background(Circle().fill(UI.tan(0.2)))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title).font(UI.font(27, .bold))
+                    Text(sub).font(UI.font(20)).foregroundColor(UI.text.opacity(0.75))
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 24).frame(width: 578, height: 102)
+        }
+        .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 16)), normal: .black.opacity(0.35), focusFill: UI.tan(0.3),
+                               border: UI.tan(0.5), borderWidth: 2))
+        .focused($focus, equals: title)
     }
 
     private func show(_ t: String) {
         note = t
         Task { try? await Task.sleep(nanoseconds: 3_000_000_000); if note == t { note = nil } }
-    }
-
-    private func row(_ icon: String, _ title: String, _ value: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 24) {
-                Icon(icon, 36).foregroundColor(UI.gold)
-                Text(title).font(UI.font(28, .semibold))
-                Spacer()
-                Text(value).font(UI.font(23)).foregroundColor(UI.muted).lineLimit(1)
-            }
-            .padding(.horizontal, 30).frame(height: 80)
-        }
-        .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 14)), normal: .black.opacity(0.35),
-                               border: .white.opacity(0.1), borderWidth: 1.5))
     }
 }
 
