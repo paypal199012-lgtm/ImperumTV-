@@ -471,7 +471,7 @@ enum Report {
     private static var count = 0
 
     static func send(_ kind: String, _ text: String) {
-        guard !TVStore.testMode, count < 20 else { return }
+        guard ProcessInfo.processInfo.environment["IMPTV_TEST"] != "1", count < 20 else { return }
         count += 1
         let ids = DeviceIdentity.load()
         let v = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0") + " ("

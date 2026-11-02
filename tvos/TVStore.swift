@@ -126,9 +126,9 @@ final class TVStore: ObservableObject {
     @Published var expiry: Date?
 
     let device: (mac: String, key: String)
-    static let userAgent = "ImperumTV/1.0 (AppleTV)"
-    static let env = ProcessInfo.processInfo.environment
-    static var testMode: Bool { env["IMPTV_TEST"] == "1" }
+    nonisolated static let userAgent = "ImperumTV/1.0 (AppleTV)"
+    nonisolated static let env = ProcessInfo.processInfo.environment
+    nonisolated static var testMode: Bool { env["IMPTV_TEST"] == "1" }
 
     /// Serien mit neuen Folgen (seit dem letzten Öffnen)
     @Published var newEpisodes: Set<Int> = []
