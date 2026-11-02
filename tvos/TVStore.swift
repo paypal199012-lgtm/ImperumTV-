@@ -278,6 +278,27 @@ final class TVStore: ObservableObject {
         }
     }
 
+    /// Folgen und Beschreibung einer Serie
+    func seriesDetails(_ s: TVItem) async -> (episodes: [Episode], info: MediaInfo?) {
+        switch source {
+        case .demo:
+            var i = MediaInfo()
+            i.plot = "Die freien Kurzfilme der Blender Foundation als Serie – zum Testen von Staffeln, Folgen und „Nächste Folge“."
+            i.genre = "Animation"; i.year = "2006"
+            return (DemoData.episodes(), i)
+        case .xtream(let acc, _):
+            if let r = try? await client(acc).seriesDetails(seriesId: s.id) { return (r.episodes, r.info) }
+            return ([], nil)
+        case .none: return ([], nil)
+        }
+    }
+
+    /// Länge einer Demo-Folge in Minuten (echte Listen liefern das nicht immer)
+    func episodeMinutes(_ e: Episode) -> Int? {
+        guard source == .demo, let n = Int(e.id) else { return nil }
+        return DemoData.info[DemoData.vod[(n - 301) % DemoData.vod.count].id]?.min
+    }
+
     func episodes(_ s: TVItem) async -> [Episode] {
         switch source {
         case .demo: return DemoData.episodes()

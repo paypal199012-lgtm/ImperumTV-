@@ -134,7 +134,7 @@ struct VodScreen: View {
     }
 }
 
-// MARK: - Serie: Staffeln und Folgen
+// MARK: - Serie: wie auf Android – Plakat, Titel, Bewertung, Beschreibung, Staffeln, Folgen als Kacheln
 
 struct SeriesScreen: View {
     let series: TVItem
@@ -143,81 +143,109 @@ struct SeriesScreen: View {
     @EnvironmentObject var engine: PlayerEngine
     @EnvironmentObject var resume: ResumeBook
     @State private var episodes: [Episode] = []
+    @State private var info: MediaInfo?
     @State private var season = 1
     @State private var loading = true
+    enum F: Hashable { case resume, fav, season(Int), ep(String) }
+    @FocusState private var focus: F?
 
+    private static let colors: [UInt32] = [0x2f5070, 0x4c6a2c, 0x5c2f72, 0x6f5530, 0x7a2f3a, 0x2f6a66]
     private var seasons: [Int] { Array(Set(episodes.map(\.season))).sorted() }
     private var current: [Episode] { episodes.filter { $0.season == season }.sorted { $0.number < $1.number } }
+    private var sortedAll: [Episode] { episodes.sorted { ($0.season, $0.number) < ($1.season, $1.number) } }
 
     var body: some View {
+        let saved = resume.entry(store.sourceName, .series, series.id)
         ZStack(alignment: .topLeading) {
-            ArtView(art: series.art, poster: true)
-                .frame(width: 360, height: 540).clipShape(RoundedRectangle(cornerRadius: 12))
-                .shadow(color: .black.opacity(0.6), radius: 20)
-                .place(80, 120, 360, 540)
-            VStack(alignment: .leading, spacing: 12) {
-                Text(series.name).font(UI.font(50, .bold)).foregroundColor(UI.gold).lineLimit(2)
-                HStack(spacing: 20) {
-                    if series.rating > 0 { Text("★ " + String(format: "%.1f", series.rating)).foregroundColor(UI.gold) }
-                    if let y = series.year { Text(String(y)) }
-                    Text("\(episodes.count) Folgen")
-                }
-                .font(UI.font(26)).foregroundColor(UI.muted)
-            }
-            .place(500, 110, 1000, 150)
+            // großer, blasser Titel im Hintergrund
+            Text(series.name)
+                .font(.system(size: 230, weight: .heavy))
+                .foregroundColor(.white.opacity(0.045))
+                .lineLimit(2).multilineTextAlignment(.center)
+                .place(300, 200, 1500, 520, alignment: .center)
 
-            if let s = resume.entry(store.sourceName, .series, series.id), let ep = s.episode, ep < sortedAll.count {
-                Button { play(sortedAll[ep], startAt: s.pos) } label: {
-                    Text("▶ Weiter: \(s.episodeTitle ?? "Folge \(ep + 1)")" + (s.pos > 30 ? " ab \(timeText(s.pos))" : ""))
-                        .font(UI.font(24, .bold)).lineLimit(1).padding(.horizontal, 26).frame(height: 56)
+            ArtView(art: info?.cover.map { .url($0) } ?? series.art, poster: true)
+                .frame(width: 304, height: 444).clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(UI.tan(0.45), lineWidth: 2))
+                .shadow(color: .black.opacity(0.6), radius: 18)
+                .place(90, 130, 304, 444)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(series.name).font(UI.font(60, .bold)).lineLimit(1).minimumScaleFactor(0.6)
+                HStack(spacing: 18) {
+                    let score = series.rating > 0 ? series.rating : (info?.score ?? 0)
+                    if score > 0 { Text("★ " + String(format: "%.1f", score)).font(UI.font(28, .bold)).foregroundColor(UI.gold2) }
+                    let meta = [info?.year ?? series.year.map { String($0) }, info?.genre].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+                    if !meta.isEmpty { Text(meta).font(UI.font(28)).foregroundColor(UI.gold) }
                 }
-                .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: UI.gold, ring: false, solid: true))
-                .place(500, 200, 1380, 60)
+                if let p = info?.plot, !p.isEmpty {
+                    Text(p).font(UI.font(24)).foregroundColor(.white.opacity(0.85)).lineLimit(2)
+                        .frame(maxWidth: 1400, alignment: .leading)
+                }
+                HStack(spacing: 18) {
+                    if let s = saved, let ep = s.episode, ep < sortedAll.count {
+                        Button { play(sortedAll[ep], startAt: s.pos) } label: {
+                            pill("▶ Weiter: " + (s.episodeTitle ?? "Folge \(ep + 1)") + (s.pos > 30 ? " ab \(timeText(s.pos))" : ""))
+                        }
+                        .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: UI.gold, ring: false, solid: true))
+                        .focused($focus, equals: .resume)
+                    }
+                    Button { store.toggleFav(series, .series) } label: {
+                        pill(store.isFav(series, .series) ? "★  Favorit entfernen" : "☆  Zu Favoriten")
+                    }
+                    .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .white.opacity(0.08), ring: false, solid: true))
+                    .focused($focus, equals: .fav)
+                }
+                .padding(.top, 6)
             }
+            .place(430, 130, 1440, 300)
 
             if loading {
-                ProgressView().scaleEffect(1.6).tint(UI.gold).place(500, 300, 200, 100)
+                ProgressView().scaleEffect(1.6).tint(UI.gold).place(90, 620, 300, 100)
             } else {
+                // Staffeln
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
                         ForEach(seasons, id: \.self) { s in
-                            Button { season = s } label: { Text("Staffel \(s)").font(UI.font(24, .bold)).padding(.horizontal, 24).frame(height: 52) }
-                                .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: s == season ? UI.tan(0.3) : .white.opacity(0.08), ring: false, solid: true))
-                        }
-                    }
-                    .padding(10)
-                }
-                .place(490, 270, 1390, 80)
-
-                ScrollView(.vertical, showsIndicators: false) {
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(current.enumerated()), id: \.element.id) { _, e in
-                            Button { play(e) } label: {
-                                HStack(spacing: 20) {
-                                    Text("\(e.number)").font(UI.font(30, .bold)).foregroundColor(UI.gold).frame(width: 60)
-                                    Text(e.title).font(UI.font(27, .medium)).lineLimit(1)
-                                    Spacer()
-                                    Icon("play", 30)
-                                }
-                                .padding(.horizontal, 20).frame(height: 76)
+                            Button { season = s } label: {
+                                Text("Staffel \(s)").font(UI.font(26)).padding(.horizontal, 26).frame(height: 55)
                             }
-                            .buttonStyle(GoldStyle(normal: .black.opacity(0.3)))
+                            .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: s == season ? UI.tan(0.45) : .white.opacity(0.08), ring: false, solid: true))
+                            .focused($focus, equals: .season(s))
                         }
                     }
-                    .padding(12)
+                    .padding(.horizontal, 4).padding(.vertical, 8)
                 }
-                .place(490, 360, 1390, 700)
+                .place(86, 590, 1760, 72)
+
+                // Folgen als Kacheln
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: 22) {
+                        ForEach(Array(current.enumerated()), id: \.element.id) { i, e in
+                            EpisodeCard(ep: e, color: Self.colors[(e.number - 1 + Self.colors.count * 10) % Self.colors.count],
+                                        minutes: store.episodeMinutes(e)) { play(e) }
+                                .focused($focus, equals: .ep(e.id))
+                        }
+                    }
+                    .padding(.horizontal, 8).padding(.vertical, 14)
+                }
+                .place(82, 666, 1838, 300)
             }
         }
         .frame(width: 1920, height: 1080)
+        .defaultFocus($focus, saved != nil ? .resume : .ep(current.first?.id ?? ""))
+        .onChange(of: focus) { _, f in if case .season(let s)? = f { season = s } }
         .task {
-            episodes = await store.episodes(series)
-            season = seasons.first ?? 1
+            let r = await store.seriesDetails(series)
+            episodes = r.episodes; info = r.info
+            if let s = saved, let ep = s.episode, ep < sortedAll.count { season = sortedAll[ep].season } else { season = seasons.first ?? 1 }
             loading = false
         }
     }
 
-    private var sortedAll: [Episode] { episodes.sorted { ($0.season, $0.number) < ($1.season, $1.number) } }
+    private func pill(_ t: String) -> some View {
+        Text(t).font(UI.font(30, .bold)).lineLimit(1).padding(.horizontal, 40).frame(height: 72)
+    }
 
     private func play(_ e: Episode, startAt: Double = 0) {
         let all = sortedAll
@@ -228,5 +256,57 @@ struct SeriesScreen: View {
         engine.onEpisodeEnd = { eng.saveResume(book, source: src) }
         engine.playEpisode(engine.index, startAt: startAt)
         nav.push(.player)
+    }
+}
+
+/// Folge als Kachel: Bild (oder Farbfläche mit „F1“), darunter „1. Titel“ und Länge
+private struct EpisodeCard: View {
+    let ep: Episode
+    let color: UInt32
+    let minutes: Int?
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) { CardBody(ep: ep, color: color, minutes: minutes) }
+            .buttonStyle(PlainPress())
+    }
+
+    private struct CardBody: View {
+        let ep: Episode
+        let color: UInt32
+        let minutes: Int?
+        @Environment(\.isFocused) private var focused
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 6) {
+                ZStack {
+                    if let u = ep.image {
+                        AsyncImage(url: u) { img in img.resizable().aspectRatio(contentMode: .fill) } placeholder: { tile }
+                    } else { tile }
+                }
+                .frame(width: 340, height: 190)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(focused ? UI.gold : .white.opacity(0.08), lineWidth: focused ? 5 : 1).padding(focused ? -3 : 0))
+                .shadow(color: focused ? UI.gold.opacity(0.45) : .clear, radius: 14)
+                Text("\(ep.number). \(ep.title)")
+                    .font(UI.font(24, focused ? .bold : .regular))
+                    .foregroundColor(focused ? UI.gold : UI.text)
+                    .lineLimit(1).frame(width: 340, alignment: .leading)
+                    .padding(.top, 4)
+                if let m = minutes {
+                    Text("\(m) Min").font(UI.font(19)).foregroundColor(UI.muted)
+                }
+            }
+            .scaleEffect(focused ? 1.04 : 1)
+            .animation(.easeOut(duration: 0.12), value: focused)
+        }
+
+        private var tile: some View {
+            ZStack {
+                LinearGradient(colors: [Color(rgb: color), Color(rgb: 0x111418)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                Text("F\(ep.number)").font(.system(size: 48, weight: .heavy)).foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.5), radius: 4, y: 2)
+            }
+        }
     }
 }
