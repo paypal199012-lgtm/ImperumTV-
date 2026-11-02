@@ -10,6 +10,8 @@ on:
     paths-ignore:
       - 'tvos/**'
       - '.github/workflows/tvos-sim.yml'
+      - '.github/workflows/appstore-tv.yml'
+      - '.github/workflows/appstore.yml'
 
 jobs:
   sim:
