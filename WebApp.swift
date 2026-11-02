@@ -70,6 +70,10 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         web.load(URLRequest(url: URL(string: AppScheme.name + "://app/index.html")!))
 
         stateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.pushState() }
+        #if DEBUG
+        // Simulator-Test: nach 15 s den Zustand ins Protokoll und ein Foto der Oberfläche in „Dokumente“
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in self?.debugSnapshot() }
+        #endif
 
         let nc = NotificationCenter.default
         nc.addObserver(self, selector: #selector(toBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
@@ -82,6 +86,19 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         super.viewDidLayoutSubviews()
         web.frame = view.bounds
         player.relayout(in: view.bounds)
+    }
+
+    private func debugSnapshot() {
+        NSLog("[ImperumTV-Web] Ansicht: view=%@ web=%@ hidden=%d alpha=%f", "\(view.bounds)", "\(web.frame)", web.isHidden ? 1 : 0, web.alpha)
+        web.evaluateJavaScript("[document.body.className, (document.getElementById('app')||{}).innerHTML ? document.getElementById('app').innerHTML.length : -1, getComputedStyle(document.body).backgroundColor, (document.getElementById('stage')||{}).style ? document.getElementById('stage').style.transform : '', (document.getElementById('loader')||{}).className, document.title].join(' | ')") { r, e in
+            NSLog("[ImperumTV-Web] Zustand: %@ %@", "\(r ?? "")", "\(e?.localizedDescription ?? "")")
+        }
+        web.takeSnapshot(with: nil) { img, err in
+            if let d = img?.pngData(), let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+                try? d.write(to: dir.appendingPathComponent("web.png"))
+                NSLog("[ImperumTV-Web] Foto gespeichert %d Bytes", d.count)
+            } else { NSLog("[ImperumTV-Web] Foto fehlgeschlagen %@", err?.localizedDescription ?? "") }
+        }
     }
 
     @objc private func toBackground() { js("window.__androidLifecycle && window.__androidLifecycle('hidden')") }
