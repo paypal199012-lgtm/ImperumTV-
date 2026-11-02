@@ -1,5 +1,8 @@
 name: Simulator-Test (Oberfläche wie Android)
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   push:
@@ -42,6 +45,13 @@ jobs:
           sleep 20
           xcrun simctl io "$UDID" screenshot shots/spaeter.png
           xcrun simctl spawn "$UDID" log show --last 2m --predicate 'process == "IPTVPlayer"' --style compact > shots/log.txt 2>&1 || true
+      - name: Bilder in den Zweig legen (zum Ansehen)
+        if: always()
+        run: |
+          mkdir -p sim-shots && cp -f shots/* sim-shots/ 2>/dev/null || true
+          grep -E "error:" build.log | sort -u | head -80 > sim-shots/build-errors.txt || true
+          git config user.name "sim-bot"; git config user.email "sim-bot@users.noreply.github.com"
+          git add sim-shots && git commit -m "Simulator-Bilder [skip ci]" && git push || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
