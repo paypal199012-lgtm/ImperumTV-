@@ -118,7 +118,7 @@ private struct GoldBody: View {
     var body: some View {
         let fill: Color = focused ? (style.solid ? UI.gold : style.focusFill) : (style.active ? style.activeFill : style.normal)
         configuration.label
-            .foregroundColor(style.solid && focused ? UI.dark : UI.text)
+            .foregroundColor(style.solid && (focused || style.normal == UI.gold) ? UI.dark : UI.text)
             .background(style.shape.fill(fill))
             .overlay(style.shape.stroke(style.border, lineWidth: style.borderWidth))
             .overlay(style.shape.stroke(UI.gold, lineWidth: focused && style.ring && !style.solid ? 4 : 0).padding(-2))
