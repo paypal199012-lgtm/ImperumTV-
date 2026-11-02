@@ -16,6 +16,9 @@ permissions:
 
 on:
   workflow_dispatch:
+  push:
+    branches: [web-ui]
+    paths: ['tvos/STORE_UPLOAD']   # Start: Zahl in tvos/STORE_UPLOAD erhöhen und hochladen
 
 jobs:
   upload:
