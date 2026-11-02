@@ -18,7 +18,7 @@ struct PlaylistsScreen: View {
     @State private var busy = false
 
     private var link: String {
-        RemoteConfig.website + "?mac=" + store.device.mac.lowercased() + "&key=" + store.device.key
+        RemoteConfig.website + "?mac=" + store.device.mac.lowercased() + "&key=" + store.device.key + "&app=apple"
     }
 
     var body: some View {
