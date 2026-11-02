@@ -4970,6 +4970,10 @@
             liveIt.querySelector('span').textContent = String(c);
             liveIt.classList.toggle('hidden', !c);
             liveIt.lastChild.textContent = c === 1 ? ' Spiel live' : ' Spiele live';
+            // Leiste ohne Inhalt (z. B. Demo ohne Abo-Datum) nicht als leere Pille zeigen
+            var any = false, k;
+            for (k = 0; k < bar.children.length; k++) if (!bar.children[k].classList.contains('hidden')) any = true;
+            bar.classList.toggle('hidden', !any);
         }
         setLive();
         Football.load(false).then(function () { if (Nav.top() instanceof HomeScreen) setLive(); }, function () { });

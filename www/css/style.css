@@ -1577,6 +1577,7 @@ body.lite .live-b .cat.focused { box-shadow: 0 0 0 3px #f4dc9e !important; }
 .hi-it.vpn.on { color: #7ee08a; } .hi-it.vpn.wait { color: #f4dc9e; } .hi-it.vpn.off { color: #b8bcc6; }
 .hi-it.live { color: #ff8a7a; font-weight: 700; } .hi-it.live span { margin: 0 6px; }
 .hi-it.hidden { display: none; }
+.home-info.hidden { display: none; }
 .home-head { top: 120px; }
 .home-head-btns { top: -94px; right: 250px; }
 .home-circles { top: 330px; }
