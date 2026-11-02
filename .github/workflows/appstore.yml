@@ -15,7 +15,9 @@ permissions:
   contents: read
 
 on:
-  workflow_dispatch:   # Start: Actions → diesen Ablauf → Run workflow → Branch „web-ui“ wählen
+  workflow_dispatch:
+  push:
+    tags: ['appstore-*']   # Start: Markierung „appstore-1“, „appstore-2“ … auf web-ui setzen
 
 jobs:
   upload:
