@@ -1,0 +1,1 @@
+/Users/runner/work/ImperumTV-/ImperumTV-/tvos/TVSettings.swift:474:24: error: main actor-isolated static property 'testMode' can not be referenced from a nonisolated context
