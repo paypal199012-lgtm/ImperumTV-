@@ -24,6 +24,9 @@ targets:
       - path: www
         type: folder
         buildPhase: resources
+      # Datenschutz-Angaben für den App Store
+      - path: PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: Info.plist
       properties:

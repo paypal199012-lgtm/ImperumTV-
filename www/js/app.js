@@ -1659,6 +1659,10 @@
     // Demo: freie Testvideos (Creative Commons), z. B. für die Prüfung im LG- oder Samsung-Store
     // =====================================================================
 
+    // App-Store-Version (iPhone): kostenlos, ohne Freischaltung, ohne „Schaut gerade“, ohne Bezahlsender-Hinweise.
+    // Wird nur beim Bauen der Store-Version auf true gesetzt (Workflow appstore.yml).
+    var STORE_BUILD = false;
+
     var Demo = {
         ENABLED: false,                  // Demo ausgeblendet (zum Wiedereinschalten auf true setzen)
         playlist: { id: 'demo', name: 'Demo', demo: true },
@@ -1919,7 +1923,7 @@
             this.state = { activated: !!row.activated, trialUntil: until, freeUntil: free, serverActive: !!row.active, checked: Date.now() };
             Storage.set('license', this.state);
         },
-        known: function () { return !!this.state; },
+        known: function () { return STORE_BUILD || !!this.state; },
         /** Vom Entwickler kostenlos freigeschaltet (z. B. für 1 Jahr) */
         free: function () {
             return !!(this.state && !this.state.activated && this.state.freeUntil && Date.now() + (this.offset || 0) < this.state.freeUntil);
@@ -1928,9 +1932,9 @@
             var d = new Date(this.state.freeUntil);
             return 'Freigeschaltet bis ' + pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' + d.getFullYear();
         },
-        activated: function () { return !!(this.state && this.state.activated); },
+        activated: function () { return STORE_BUILD || !!(this.state && this.state.activated); },
         active: function () {
-            if (!this.state) return true;     // noch nie geprüft (z. B. ganz neues Gerät ohne Internet)
+            if (STORE_BUILD || !this.state) return true;     // noch nie geprüft (z. B. ganz neues Gerät ohne Internet)
             if (this.state.activated) return true;
             var t = Date.now() + (this.offset || 0);
             return t < this.state.trialUntil || t < (this.state.freeUntil || 0);
@@ -1941,6 +1945,7 @@
             return Math.max(0, Math.ceil(ms / 86400000));
         },
         text: function () {
+            if (STORE_BUILD) return 'Dein Gerät ist verbunden.';
             if (!this.state) return '';
             if (this.state.activated) return 'Dein Gerät ist aktiviert.';
             if (this.free()) return this.freeText();
@@ -2059,7 +2064,7 @@
             return (kind === 'live' ? 'Live: ' : kind === 'movie' ? 'Film: ' : kind === 'episode' ? 'Serie: ' : kind === 'preview' ? 'Vorschau: ' : '') + (name || '?');
         },
         send: function (force) {
-            if (!AB || !Device.validMac(Device.mac) || !Device.validKey(Device.key)) return;
+            if (STORE_BUILD || !AB || !Device.validMac(Device.mac) || !Device.validKey(Device.key)) return;
             if (!force && this.cur === this.sent) return;
             var what = this.cur, self = this;
             this.sent = what; this.sentAt = Date.now();
@@ -2694,6 +2699,7 @@
         },
         /** Wer zeigt es in Deutschland? (Rechtelage, ohne Gewähr) */
         rights: function (m) {
+            if (STORE_BUILD) return '';                  // Store: keine Namen von Bezahlsendern
             var d = new Date(m.t), wd = d.getDay(), hr = d.getHours();
             switch (m.c) {
                 case 'BL1':
@@ -2797,6 +2803,7 @@
         },
         /** Welche Sender kommen laut Rechtelage in Frage? */
         rightsLists: function (m) {
+            if (STORE_BUILD) return [];                  // Store: nicht nach Bezahlsendern raten
             var d = new Date(m.t), wd = d.getDay(), hr = d.getHours(), out = [];
             if (m.c === 'BL1') {
                 if (wd === 6 && hr < 17) {
@@ -6729,7 +6736,7 @@
             });
             buttons.push({ label: 'Schließen', action: function () { } });
             var text = o.sure.length ? when
-                : when + ' · Kein Sender in deiner Liste zeigt dieses Spiel laut Sendername oder Programm.' + (o.guess.length ? '' : ' Voraussichtlich: ' + (Football.rights(m) || 'unbekannt') + '.');
+                : when + ' · Kein Sender in deiner Liste zeigt dieses Spiel laut Sendername oder Programm.' + (o.guess.length || STORE_BUILD ? '' : ' Voraussichtlich: ' + (Football.rights(m) || 'unbekannt') + '.');
             Modal.open(title, text, buttons);
             if (Modal.node) Modal.node.classList.add('modal-list');
         }
@@ -7903,7 +7910,7 @@
             }
         }
         row('lists', 'list', 'Wiedergabelisten', 'Wechseln', function () { Nav.push(new PlaylistsScreen()); });
-        row('account', 'user', 'Konto', License.activated() ? 'Aktiviert' : (License.free() ? License.freeText() : License.text()), function () { Nav.push(new AccountScreen()); });
+        if (!STORE_BUILD) row('account', 'user', 'Konto', License.activated() ? 'Aktiviert' : (License.free() ? License.freeText() : License.text()), function () { Nav.push(new AccountScreen()); });
 
         // ---------- Unten: Aktionen ----------
         var acts = h('div', 'set6-acts');
