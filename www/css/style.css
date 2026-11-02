@@ -1599,3 +1599,12 @@ body.lite .live-b .cat.focused { box-shadow: 0 0 0 3px #f4dc9e !important; }
 .col-cats .cat.xlong { font-size: 19px; line-height: 23px; }
 .live-b .cat.long, .live-b .cat.xlong { padding-top: 8px; padding-bottom: 8px; }
 .live-b .cat.with-n .cat-name, .live-b .cat:not(.with-n) { -webkit-line-clamp: 3; }
+
+/* iPhone/iPad: Zurück-Knopf oben links (es gibt keine Zurück-Taste) */
+.ios-back { position: absolute; left: 14px; top: 22px; width: 64px; height: 64px; border-radius: 50%; z-index: 60;
+    display: flex; align-items: center; justify-content: center; color: #f4dc9e;
+    background: rgba(20,20,24,.72); border: 2px solid rgba(244,220,158,.55); cursor: pointer; }
+.ios-back:active { background: rgba(217,176,102,.45); }
+body.ios .screen-title { left: 96px; }
+/* Im Vollbild nur zusammen mit der eingeblendeten Leiste */
+body.video-mode:not(.osd) .ios-back { display: none; }

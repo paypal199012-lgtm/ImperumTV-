@@ -29,7 +29,18 @@
         return hh > 0 ? hh + ':' + pad2(mm) + ':' + pad2(ss) : mm + ':' + pad2(ss);
     }
 
-    function fmtClock(date) { return pad2(date.getHours()) + ':' + pad2(date.getMinutes()); }
+    /** iPhone: Uhrzeit nach der Zeitzone des Geräts (falls die Oberfläche eine andere annimmt) */
+    function tzFix(date) {
+        try {
+            var b = window.AndroidBridge;
+            if (b && b.tzMinutes) {
+                var nat = +b.tzMinutes(), loc = -date.getTimezoneOffset();
+                if (isFinite(nat) && nat !== loc) return new Date(date.getTime() + (nat - loc) * 60000);
+            }
+        } catch (e) { }
+        return date;
+    }
+    function fmtClock(date) { date = tzFix(date); return pad2(date.getHours()) + ':' + pad2(date.getMinutes()); }
 
     // Diese Daten hat jedes Profil für sich (Hauptprofil „p0“ nutzt die bisherigen Schlüssel)
     var PROFILE_KEYS = { favs: 1, seen: 1, newEps: 1, resume: 1, kidsCats: 1 };
@@ -1008,11 +1019,12 @@
             if (on) this.tick();
         },
         tick: function () {
-            var self = this, n = new Date(), sec = this.mode() === 'sec' && !Quiet.on;
+            clearTimeout(this.timer);
+            var self = this, n = tzFix(new Date()), sec = this.mode() === 'sec' && !Quiet.on;
             this.t.innerHTML = pad2(n.getHours()) + ':' + pad2(n.getMinutes()) + (sec ? '<span>:' + pad2(n.getSeconds()) + '</span>' : '');
             this.d.textContent = this.DAYS[n.getDay()] + ', ' + n.getDate() + '. ' + this.MONTHS[n.getMonth()];
             // genau zum nächsten Sekunden- bzw. Minutenwechsel weiterstellen
-            var wait = sec ? 1000 - n.getMilliseconds() : 60000 - n.getSeconds() * 1000 - n.getMilliseconds();
+            var wait = sec ? 1000 - n.getMilliseconds() : Math.min(15000, 60000 - n.getSeconds() * 1000 - n.getMilliseconds());
             this.timer = setTimeout(function () { self.tick(); }, wait + 15);
         }
     };
@@ -3684,6 +3696,7 @@
 
         show: function (screen, restoring) {
             Busy.mark('Bildschirm zeichnen: ' + ((screen && screen.constructor && screen.constructor.name) || '?'));
+            setTimeout(function () { IosBack.update(); }, 0);
             screen._dom = null;
             var app = $('#app');
             app.innerHTML = '';
@@ -3914,6 +3927,29 @@
     // =====================================================================
     // Bausteine für die Oberfläche
     // =====================================================================
+
+    /** iPhone/iPad: es gibt keine Zurück-Taste – runder Knopf oben links (auf der Startseite ausgeblendet) */
+    var IosBack = {
+        node: null,
+        init: function () {
+            var stage = document.getElementById('stage');
+            if (!stage || this.node) return;
+            var b = h('div', 'ios-back hidden');
+            b.innerHTML = '<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
+            b.addEventListener('click', function (e) {
+                e.preventDefault(); e.stopPropagation();
+                onKeyDown({ keyCode: KEY.BACK, repeat: false, preventDefault: function () { } });
+            });
+            stage.appendChild(b);
+            this.node = b;
+            this.update();
+        },
+        update: function () {
+            if (!this.node) return;
+            var root = Nav.stack.length <= 1;
+            this.node.classList.toggle('hidden', root);
+        }
+    };
 
     function topbar(title, hint) {
         var bar = h('div');
@@ -9518,7 +9554,7 @@
         document.addEventListener('visibilitychange', function () { if (!AB) lifecycle(document.hidden); });
         window.__androidLifecycle = function (state) {
             lifecycle(state === 'hidden');
-            if (state !== 'hidden') Updater.recheck();
+            if (state !== 'hidden') { Updater.recheck(); if (Clock.node && Clock.mode() !== 'off') Clock.tick(); }
         };
 
         // Tasten, die die Android-App weiterreicht (Zurück, Medientasten, Farbtasten)
@@ -9561,6 +9597,8 @@
 
         // Bedienung per Finger (Handy/Tablet): Listen dürfen wischen
         if ('ontouchstart' in window) document.body.classList.add('touch');
+        // iPhone/iPad (App mit derselben Oberfläche): Zurück-Knopf oben links
+        if (AB && AB.deviceMacKey) { document.body.classList.add('ios'); IosBack.init(); }
         // Android/Fire TV: sparsamere Effekte (schwache Grafikchips)
         if (AB) document.body.classList.add('lowfx');
 

@@ -82,7 +82,7 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         let edge = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(edgeBack(_:)))
         edge.edges = .left
         edge.delegate = self
-        web.addGestureRecognizer(edge)
+        view.addGestureRecognizer(edge)   // am Bildschirmrand (neben der Oberfläche)
 
         player.emit = { [weak self] name, value in self?.emit(name, value) }
         web.load(URLRequest(url: URL(string: AppScheme.name + "://app/index.html")!))
@@ -124,8 +124,20 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        web.frame = view.bounds
-        player.relayout(in: view.bounds)
+        web.frame = contentArea
+        player.relayout(in: contentArea, full: view.bounds)
+    }
+
+    /// Fläche für die Oberfläche: links/rechts nicht unter die Notch bzw. die runden Ecken
+    private var contentArea: CGRect {
+        let i = view.safeAreaInsets
+        let side = max(i.left, i.right)
+        return view.bounds.insetBy(dx: side, dy: 0)
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        view.setNeedsLayout()
     }
 
     private func debugSnapshot() {
@@ -148,7 +160,9 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
     }
 
     @objc private func toBackground() { js("window.__androidLifecycle && window.__androidLifecycle('hidden')") }
-    @objc private func toForeground() { js("window.__androidLifecycle && window.__androidLifecycle('visible')") }
+    @objc private func toForeground() {
+        js("window.__abSet && window.__abSet({ tz: \(TimeZone.current.secondsFromGMT() / 60) }); window.__androidLifecycle && window.__androidLifecycle('visible')")
+    }
 
     // ---------- Oberfläche ↔ App ----------
 
@@ -185,8 +199,8 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         func d(_ i: Int) -> Double { (a.count > i ? (a[i] as? NSNumber)?.doubleValue : nil) ?? 0 }
         func s(_ i: Int) -> String { a.count > i ? "\(a[i])" : "" }
         switch m {
-        case "open": player.open(s(0), CGRect(x: d(1), y: d(2), width: d(3), height: d(4)), in: view.bounds)
-        case "setRect": player.place(CGRect(x: d(0), y: d(1), width: d(2), height: d(3)), in: view.bounds)
+        case "open": player.open(s(0), CGRect(x: d(1), y: d(2), width: d(3), height: d(4)), in: contentArea, full: view.bounds)
+        case "setRect": player.place(CGRect(x: d(0), y: d(1), width: d(2), height: d(3)), in: contentArea, full: view.bounds)
         case "stop": player.stop()
         case "toggle": player.toggle()
         case "setResize": player.setResize(s(0))
@@ -250,7 +264,7 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         (function () {
           var S = window.__abState = { playing: false, pos: 0, dur: 0, kbps: 0, audio: '[]', text: '[]',
             version: \(ver), device: \(Self.jsString(device)), mk: \(Self.jsString(ids.mac + "|" + ids.key)),
-            buffer: \(Self.jsString(buffer)), engine: \(Self.jsString(engine)) };
+            buffer: \(Self.jsString(buffer)), engine: \(Self.jsString(engine)), tz: \(TimeZone.current.secondsFromGMT() / 60) };
           function post(m, a) { try { window.webkit.messageHandlers.ab.postMessage({ m: m, a: a || [] }); } catch (e) {} }
           // Programmfehler der Oberfläche ins Protokoll der App (zum Prüfen im Simulator)
           window.addEventListener('error', function (e) { post('log', ['JS-Fehler: ' + e.message + ' @ ' + (e.filename || '') + ':' + e.lineno]); });
@@ -289,6 +303,7 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
             appVersion: function () { return S.version; },
             deviceName: function () { return S.device; },
             deviceMacKey: function () { return S.mk; },
+            tzMinutes: function () { return S.tz; },
             netInfo: function () { return '{"kbps":' + (S.kbps || 0) + '}'; },
             getBuffer: function () { return S.buffer; },
             setBuffer: function (m) { S.buffer = m; post('setBuffer', [m]); },
@@ -436,27 +451,29 @@ final class NativePlayer {
 
     // ---------- Fläche ----------
 
-    func place(_ r: CGRect, in bounds: CGRect) {
+    func place(_ r: CGRect, in bounds: CGRect, full: CGRect) {
         rect = r
-        relayout(in: bounds)
+        relayout(in: bounds, full: full)
         host.isHidden = !active
     }
 
-    func relayout(in bounds: CGRect) {
-        host.frame = CGRect(x: rect.minX * bounds.width, y: rect.minY * bounds.height,
+    /// Vollbild: ganzer Bildschirm (auch neben der Notch). Kleines Vorschaubild: innerhalb der Oberfläche.
+    func relayout(in bounds: CGRect, full: CGRect) {
+        if rect.minX <= 0.005 && rect.minY <= 0.005 && rect.width >= 0.99 && rect.height >= 0.99 { host.frame = full; return }
+        host.frame = CGRect(x: bounds.minX + rect.minX * bounds.width, y: bounds.minY + rect.minY * bounds.height,
                             width: max(1, rect.width * bounds.width), height: max(1, rect.height * bounds.height))
     }
 
     // ---------- Abspielen ----------
 
-    func open(_ s: String, _ r: CGRect, in bounds: CGRect) {
+    func open(_ s: String, _ r: CGRect, in bounds: CGRect, full: CGRect) {
         stop()
         guard let url = URL(string: s) else { emit?("error", "Ungültige Adresse"); return }
         active = true
         original = url
         isLive = s.contains("/live/")
         readySent = false; buffering = false; triedVLC = false; langPicked = false
-        place(r, in: bounds)
+        place(r, in: bounds, full: full)
         let ext = url.pathExtension.lowercased()
         let wantVLC = forceVLCNext || (isLive && liveEngine == "vlc") || (!isLive && ["mkv", "avi", "wmv", "flv", "ts", "divx", "webm"].contains(ext))
         forceVLCNext = false
