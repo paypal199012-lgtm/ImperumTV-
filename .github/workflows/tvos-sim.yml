@@ -47,9 +47,6 @@ jobs:
         run: |
           cd tvos
           mkdir -p sim-shots && cp -f sim-shots-tv/build-errors.txt sim-shots/ 2>/dev/null || true
-          cd ..
-          git config user.name "github-actions"; git config user.email "actions@github.com"
-          git add tvos/sim-shots && git commit -m "Apple-TV-Baufehler [skip ci]" && git pull --rebase && git push || true
       - name: Simulator starten und Bildschirmfotos machen
         run: |
           cd tvos
@@ -99,6 +96,13 @@ jobs:
         if: always()
         run: |
           git config user.name "github-actions"; git config user.email "actions@github.com"
-          git add tvos/sim-shots || true
-          git commit -m "Apple-TV-Bilder [skip ci]" || exit 0
-          for i in 1 2 3; do git pull --rebase && git push && break; sleep 5; done
+          [ -d tvos/sim-shots ] || exit 0
+          T=$(mktemp -d); cp -R tvos/sim-shots "$T/"
+          for i in 1 2 3 4; do
+            git fetch -q origin web-ui && git reset -q --hard origin/web-ui
+            rm -rf tvos/sim-shots && cp -R "$T/sim-shots" tvos/
+            git add -A tvos/sim-shots
+            git commit -q -m "Apple-TV-Bilder [skip ci]" || exit 0
+            git push -q origin HEAD:web-ui && break
+            sleep 5
+          done
