@@ -51,6 +51,16 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         let ucc = cfg.userContentController
         ucc.add(WeakHandler(self), name: "ab")
         ucc.addUserScript(WKUserScript(source: bridgeScript(), injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        #if DEBUG
+        // Simulator-Test (IMPTV_TEST=1): mit der Demo-Liste starten
+        if ProcessInfo.processInfo.environment["IMPTV_TEST"] == "1" {
+            ucc.addUserScript(WKUserScript(source: """
+            try { localStorage.setItem('imptv.playlistId', JSON.stringify('demo'));
+              localStorage.setItem('imptv.account', JSON.stringify({ server: 'demo://imperumtv', username: 'demo', password: 'demo', demo: true }));
+              localStorage.setItem('imptv.license', JSON.stringify({ activated: true, checked: Date.now() })); } catch (e) {}
+            """, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
+        #endif
 
         web = WKWebView(frame: view.bounds, configuration: cfg)
         web.isOpaque = false
@@ -73,6 +83,28 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         #if DEBUG
         // Simulator-Test: nach 15 s den Zustand ins Protokoll und ein Foto der Oberfläche in „Dokumente“
         DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in self?.debugSnapshot() }
+        if ProcessInfo.processInfo.environment["IMPTV_TEST"] == "1" {
+            // Live TV öffnen, ersten Sender wählen, Vollbild
+            let steps: [(Double, String)] = [
+                (18, "var e=[].slice.call(document.querySelectorAll('#app [data-key]')).filter(function(x){return /LIVE TV/i.test(x.textContent)})[0]; e&&e.click(); 'live:'+!!e"),
+                (21, "var r=document.querySelector('.col-list .row'); r&&r.click(); 'row:'+!!r"),
+                (23, "var b=[].slice.call(document.querySelectorAll('#app [data-key]')).filter(function(x){return /Vollbild/.test(x.textContent)})[0]; b&&b.click(); 'voll:'+!!b"),
+                (38, "JSON.stringify(window.__abState)")
+            ]
+            for (t, code) in steps {
+                DispatchQueue.main.asyncAfter(deadline: .now() + t) { [weak self] in
+                    self?.web.evaluateJavaScript(code) { r, e in NSLog("[ImperumTV-Web] Test %@: %@ %@", "\(t)", "\(r ?? "")", e?.localizedDescription ?? "") }
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 40) { [weak self] in
+                guard let self = self else { return }
+                let r = UIGraphicsImageRenderer(bounds: self.view.bounds)
+                let img = r.image { _ in self.view.drawHierarchy(in: self.view.bounds, afterScreenUpdates: true) }
+                if let d = img.pngData(), let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+                    try? d.write(to: dir.appendingPathComponent("player.png"))
+                }
+            }
+        }
         #endif
 
         let nc = NotificationCenter.default
@@ -109,6 +141,9 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
     private func js(_ code: String) { web?.evaluateJavaScript(code, completionHandler: nil) }
 
     private func emit(_ name: String, _ value: Any?) {
+        #if DEBUG
+        if name != "time" { NSLog("[ImperumTV-Web] Player-Ereignis: %@ %@", name, "\(value ?? "")") }
+        #endif
         var v = "null"
         if let b = value as? Bool { v = b ? "true" : "false" }
         else if let d = value as? Double { v = String(d) }
