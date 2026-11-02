@@ -1,0 +1,51 @@
+name: Simulator-Test (Oberfläche wie Android)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [web-ui]
+
+jobs:
+  sim:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - run: pod install
+      - name: Für den Simulator bauen
+        run: |
+          xcodebuild -workspace IPTVPlayer.xcworkspace -scheme IPTVPlayer -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
+            SWIFT_ENABLE_EXPLICIT_MODULES=NO _EXPERIMENTAL_SWIFT_EXPLICIT_MODULES=NO build > build.log 2>&1
+      - name: Fehler anzeigen
+        if: failure()
+        run: |
+          grep -E "error:" build.log | sort -u | head -60
+          tail -30 build.log
+      - name: Im Simulator starten und Bildschirmfotos machen
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if 'iPhone' in x['name']))")
+          echo "Gerät: $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          APP=$(find build/Build/Products -name "IPTVPlayer.app" -maxdepth 3 | head -1)
+          xcrun simctl install "$UDID" "$APP"
+          BID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist")
+          xcrun simctl launch "$UDID" "$BID"
+          sleep 25
+          mkdir -p shots
+          xcrun simctl io "$UDID" screenshot shots/start.png
+          sleep 20
+          xcrun simctl io "$UDID" screenshot shots/spaeter.png
+          xcrun simctl spawn "$UDID" log show --last 2m --predicate 'process == "IPTVPlayer"' --style compact > shots/log.txt 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sim-shots
+          path: |
+            shots
+            build.log

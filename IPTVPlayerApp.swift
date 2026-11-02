@@ -22,13 +22,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 @main
 struct IPTVPlayerApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var store = AppStore()
 
+    // Dieselbe Oberfläche wie auf Android/Fire TV (WebApp.swift). Die frühere SwiftUI-Oberfläche (RootView) bleibt im Code.
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(store)
+            WebRootView()
+                .ignoresSafeArea()
                 .preferredColorScheme(.dark)
+                .statusBarHidden(true)
+                .persistentSystemOverlays(.hidden)
         }
     }
 }

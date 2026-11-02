@@ -20,6 +20,10 @@ targets:
           - "*.swift"
       - path: Assets.xcassets
         optional: true
+      # Oberfläche wie auf Android (app.js, style.css …), wird von WebApp.swift geladen
+      - path: www
+        type: folder
+        buildPhase: resources
     info:
       path: Info.plist
       properties:

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=1920, user-scalable=no">
+    <title>ImperumTV</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Samsung-Schnittstellen (Video-Player AVPlay). Im normalen Browser fehlt die Datei, das ist in Ordnung. -->
+    <script src="$WEBAPIS/webapis/webapis.js"></script>
+</head>
+<body>
+    <!-- Videofläche des Fernsehers (liegt hinter der Oberfläche) -->
+    <object id="av-player" type="application/avplayer"></object>
+    <video id="html-player" playsinline></video>
+
+    <div id="stage">
+        <div id="app"></div>
+        <div id="player-ui" class="hidden"></div>
+        <div id="subtitle" class="hidden"></div>
+        <div id="toast" class="hidden"></div>
+        <div id="loader" class="hidden"><div class="spinner"></div><div id="loader-text">Lädt …</div></div>
+    </div>
+
+    <script src="js/qrcode.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
