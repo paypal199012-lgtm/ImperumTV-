@@ -24,7 +24,9 @@ private final class WeakHandler: NSObject, WKScriptMessageHandler {
     }
 }
 
-final class WebAppController: UIViewController, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
+final class WebAppController: UIViewController, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate, UIGestureRecognizerDelegate {
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+
     private let playerHost = UIView()
     private var web: WKWebView!
     private let scheme = AppScheme()
@@ -75,6 +77,12 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         web.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         if #available(iOS 16.4, *) { web.isInspectable = true }
         view.addSubview(web)
+
+        // iPhone hat keine Zurück-Taste: vom linken Rand wischen = Zurück (wie die Zurück-Taste auf Android/Fire TV)
+        let edge = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(edgeBack(_:)))
+        edge.edges = .left
+        edge.delegate = self
+        web.addGestureRecognizer(edge)
 
         player.emit = { [weak self] name, value in self?.emit(name, value) }
         web.load(URLRequest(url: URL(string: AppScheme.name + "://app/index.html")!))
@@ -131,6 +139,12 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
                 NSLog("[ImperumTV-Web] Foto gespeichert %d Bytes", d.count)
             } else { NSLog("[ImperumTV-Web] Foto fehlgeschlagen %@", err?.localizedDescription ?? "") }
         }
+    }
+
+    @objc private func edgeBack(_ g: UIScreenEdgePanGestureRecognizer) {
+        guard g.state == .ended else { return }
+        let dx = g.translation(in: view).x
+        if dx > 40 { js("window.__androidKey && window.__androidKey(10009, false, 0, 0)") }
     }
 
     @objc private func toBackground() { js("window.__androidLifecycle && window.__androidLifecycle('hidden')") }
