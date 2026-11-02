@@ -1,0 +1,368 @@
+import SwiftUI
+import CoreImage.CIFilterBuiltins
+
+// MARK: - Wiedergabelisten (MAC-Adresse, Geräte-Schlüssel, QR-Code wie auf Android)
+
+func qrImage(_ text: String) -> UIImage? {
+    let f = CIFilter.qrCodeGenerator()
+    f.message = Data(text.utf8)
+    f.correctionLevel = "M"
+    guard let out = f.outputImage?.transformed(by: CGAffineTransform(scaleX: 12, y: 12)),
+          let cg = CIContext().createCGImage(out, from: out.extent) else { return nil }
+    return UIImage(cgImage: cg)
+}
+
+struct PlaylistsScreen: View {
+    @EnvironmentObject var store: TVStore
+    @EnvironmentObject var nav: Nav
+    @State private var busy = false
+
+    private var link: String {
+        RemoteConfig.website + "?mac=" + store.device.mac.lowercased() + "&key=" + store.device.key
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            HStack(spacing: 22) {
+                Image("Logo").resizable().scaledToFit().frame(height: 60)
+                Text("Wiedergabelisten").font(UI.font(40, .bold))
+            }
+            .place(70, 34, 1000, 70)
+
+            if store.lists.isEmpty {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Noch keine Wiedergabeliste").font(UI.font(32, .bold)).foregroundColor(UI.gold)
+                    Text("Scanne den QR-Code unten mit dem Handy oder öffne die Website und gib dort MAC-Adresse und Geräte-Schlüssel ein. Die Wiedergabeliste erscheint danach hier von selbst.")
+                        .font(UI.font(25)).foregroundColor(Color(rgb: 0xd6d1c6)).lineSpacing(6)
+                }
+                .place(100, 200, 980, 230)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 30) {
+                    ForEach(store.lists) { l in
+                        card(l.name, l.address, active: store.savedId == l.id) { Task { await choose { await store.use(l) } } }
+                    }
+                    card("Demo", "Freie Testvideos zum Ausprobieren", active: store.source == .demo) { Task { await choose { store.useDemo() } } }
+                }
+                .padding(20)
+            }
+            .place(store.lists.isEmpty ? 1100 : 80, store.lists.isEmpty ? 180 : 160, store.lists.isEmpty ? 780 : 1760, 240)
+
+            if let m = store.message {
+                Text(m).font(UI.font(24)).foregroundColor(Color(rgb: 0xff8a7a)).place(100, 430, 1720, 70)
+            }
+
+            // QR-Code und Gerätedaten
+            HStack(spacing: 50) {
+                if let img = qrImage(link) {
+                    Image(uiImage: img).interpolation(.none).resizable()
+                        .frame(width: 220, height: 220).padding(14)
+                        .background(RoundedRectangle(cornerRadius: 14).fill(.white))
+                }
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Scanne den QR-Code, um eine Wiedergabeliste hinzuzufügen.").font(UI.font(25)).foregroundColor(UI.gold)
+                    Text(store.listsLoaded ? "Dein Gerät ist verbunden." : "Gerät wird angemeldet …").font(UI.font(28, .bold))
+                    Text(RemoteConfig.websiteHost).font(UI.font(21, .semibold)).foregroundColor(UI.gold2)
+                }
+                .frame(width: 560, alignment: .leading)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("MAC-Adresse").font(UI.font(24))
+                    Text(store.device.mac.lowercased()).font(.system(size: 32, weight: .bold, design: .monospaced)).foregroundColor(UI.gold)
+                    Text("Geräte-Schlüssel").font(UI.font(24)).padding(.top, 10)
+                    Text(store.device.key).font(.system(size: 32, weight: .bold, design: .monospaced)).foregroundColor(UI.gold)
+                }
+                Spacer()
+                Button { Task { busy = true; await store.refreshLists(); busy = false } } label: {
+                    Text(busy ? "Lädt …" : "Aktualisieren").font(UI.font(26, .bold)).padding(.horizontal, 40).frame(height: 64)
+                }
+                .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .white.opacity(0.08), ring: false, solid: true))
+            }
+            .padding(.horizontal, 50)
+            .frame(width: 1720, height: 330)
+            .background(RoundedRectangle(cornerRadius: 18).fill(.black.opacity(0.35)))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.15), lineWidth: 1.5))
+            .place(100, 520, 1720, 330)
+
+            Text("ImperumTV ist ein Player für deine eigenen Wiedergabelisten · ImperumTV verkauft keine Inhalte")
+                .font(UI.font(21)).foregroundColor(UI.muted).place(0, 960, 1920, 40, alignment: .center)
+        }
+        .frame(width: 1920, height: 1080)
+        .task {
+            // Liste auf der Website eingetragen? Alle 15 s nachsehen, solange dieser Bildschirm offen ist
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                if Task.isCancelled { break }
+                await store.refreshLists()
+            }
+        }
+    }
+
+    private func card(_ title: String, _ sub: String, active: Bool, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(title).font(UI.font(34, .bold)).foregroundColor(UI.gold).lineLimit(1)
+                Text(sub).font(UI.font(23)).foregroundColor(UI.text.opacity(0.85)).lineLimit(2)
+                Spacer(minLength: 0)
+                if active { Text("● Aktiv").font(UI.font(20, .bold)).foregroundColor(UI.gold2) }
+            }
+            .padding(24)
+            .frame(width: 400, height: 190, alignment: .topLeading)
+        }
+        .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 14)), normal: .black.opacity(0.4),
+                               focusFill: UI.tan(0.42), border: .white.opacity(0.15), borderWidth: 1.5, scale: 1.04))
+    }
+
+    private func choose(_ f: () async -> Void) async {
+        await f()
+        if store.hasSource && store.message == nil { nav.reset(.home) }
+    }
+}
+
+// MARK: - EPG: alle Sender mit „Jetzt“ und „Danach“
+
+struct EpgRow: View {
+    let ch: TVItem
+    let action: () -> Void
+    @EnvironmentObject var store: TVStore
+    @State private var list: [EPGEntry] = []
+
+    var body: some View {
+        let now = list.first { ($0.start ?? .distantFuture) <= Date() && ($0.end ?? .distantPast) > Date() }
+        let next = list.first { ($0.start ?? .distantPast) > Date() }
+        Button(action: action) {
+            HStack(spacing: 22) {
+                ArtView(art: ch.art).frame(width: 96, height: 64).clipShape(RoundedRectangle(cornerRadius: 4))
+                Text(ch.name).font(UI.font(26, .semibold)).lineLimit(1).frame(width: 330, alignment: .leading)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(now.map { "\($0.timeRange)  \($0.title)" } ?? "–").font(UI.font(24, .medium)).lineLimit(1)
+                    GeometryReader { g in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(.white.opacity(0.15))
+                            Capsule().fill(UI.gold2).frame(width: g.size.width * (now?.progress ?? 0))
+                        }
+                    }
+                    .frame(height: 4)
+                }
+                .frame(width: 520, alignment: .leading)
+                Text(next.map { "\($0.timeRange.components(separatedBy: "–").first ?? "")  \($0.title)" } ?? "")
+                    .font(UI.font(22)).foregroundColor(UI.muted).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 18).frame(height: 88)
+        }
+        .buttonStyle(GoldStyle())
+        .task(id: ch.id) { list = await store.epg(ch) }
+    }
+}
+
+struct EpgScreen: View {
+    @EnvironmentObject var store: TVStore
+    @EnvironmentObject var nav: Nav
+    @EnvironmentObject var engine: PlayerEngine
+    enum F: Hashable { case cat(String), ch(Int) }
+    @FocusState private var focus: F?
+    @State private var cat = "all"
+
+    private var channels: [TVItem] {
+        switch cat {
+        case "all": return store.live
+        case "fav": return store.live.filter { store.isFav($0, .live) }
+        default: return store.live.filter { $0.cat == cat }
+        }
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ScreenTitle(text: "EPG")
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    CatRow(name: "☰ Alle", count: store.live.count, active: cat == "all") { cat = "all" }.focused($focus, equals: .cat("all"))
+                    CatRow(name: "★ Favoriten", active: cat == "fav") { cat = "fav" }.focused($focus, equals: .cat("fav"))
+                    ForEach(store.liveCats) { c in
+                        CatRow(name: c.name, active: cat == c.id) { cat = c.id }.focused($focus, equals: .cat(c.id))
+                    }
+                }
+                .padding(.vertical, 20).padding(.horizontal, 10)
+            }
+            .place(20, 100, 400, 970)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    ForEach(channels) { ch in
+                        EpgRow(ch: ch) { play(ch) }.focused($focus, equals: .ch(ch.id))
+                    }
+                }
+                .padding(.vertical, 20).padding(.horizontal, 10)
+            }
+            .place(424, 100, 1470, 980)
+        }
+        .frame(width: 1920, height: 1080)
+        .defaultFocus($focus, .ch(channels.first?.id ?? 0))
+        .onChange(of: focus) { _, f in if case .cat(let c)? = f { cat = c } }
+    }
+
+    private func play(_ ch: TVItem) {
+        guard let u = store.url(ch, .live) else { return }
+        engine.items = channels
+        engine.index = channels.firstIndex(of: ch) ?? 0
+        engine.play(u, item: ch, kind: .live)
+        nav.push(.player)
+    }
+}
+
+// MARK: - Favoriten
+
+struct FavoritesScreen: View {
+    @EnvironmentObject var store: TVStore
+    @EnvironmentObject var nav: Nav
+    @EnvironmentObject var engine: PlayerEngine
+
+    var body: some View {
+        let live = store.live.filter { store.isFav($0, .live) }
+        let movies = store.vod.filter { store.isFav($0, .movie) }
+        let series = store.series.filter { store.isFav($0, .series) }
+        ZStack(alignment: .topLeading) {
+            ScreenTitle(text: "Favoriten")
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 20) {
+                    if live.isEmpty && movies.isEmpty && series.isEmpty {
+                        Text("Noch keine Favoriten. In Live TV „★ Favorit“ drücken, bei Filmen und Serien OK lange drücken.")
+                            .font(UI.font(28)).foregroundColor(UI.muted).padding(.top, 40)
+                    }
+                    ResultRows(title: "Sender", items: live, kind: .live)
+                    ResultRows(title: "Filme", items: movies, kind: .movie)
+                    ResultRows(title: "Serien", items: series, kind: .series)
+                }
+                .padding(30)
+            }
+            .place(40, 100, 1840, 980)
+        }
+        .frame(width: 1920, height: 1080)
+    }
+}
+
+/// Waagerechte Reihe mit Ergebnissen (Favoriten, Suche)
+struct ResultRows: View {
+    let title: String
+    let items: [TVItem]
+    let kind: MediaKind
+    @EnvironmentObject var store: TVStore
+    @EnvironmentObject var nav: Nav
+    @EnvironmentObject var engine: PlayerEngine
+
+    var body: some View {
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionHead(text: "\(title) · \(items.count)")
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 22) {
+                        ForEach(items.prefix(60)) { it in
+                            if kind == .live {
+                                Button { open(it) } label: {
+                                    VStack(spacing: 10) {
+                                        ArtView(art: it.art).frame(width: 220, height: 124).clipShape(RoundedRectangle(cornerRadius: 8))
+                                        Text(it.name).font(UI.font(22, .medium)).lineLimit(2).frame(width: 220, height: 56, alignment: .top)
+                                    }
+                                    .padding(10)
+                                }
+                                .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 12)), scale: 1.05))
+                            } else {
+                                PosterCard(item: it, fav: store.isFav(it, kind)) { open(it) }
+                            }
+                        }
+                    }
+                    .padding(16)
+                }
+            }
+        }
+    }
+
+    private func open(_ it: TVItem) {
+        switch kind {
+        case .series: nav.push(.seriesDetail(it))
+        case .live, .movie:
+            guard let u = store.url(it, kind) else { return }
+            if kind == .live { engine.items = items; engine.index = items.firstIndex(of: it) ?? 0 }
+            engine.play(u, item: it, kind: kind)
+            nav.push(.player)
+        }
+    }
+}
+
+// MARK: - Suche über Sender, Filme und Serien
+
+struct SearchScreen: View {
+    @EnvironmentObject var store: TVStore
+    @State private var query = ""
+    @FocusState private var fieldFocus: Bool
+
+    var body: some View {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let live = q.count < 2 ? [] : store.live.filter { $0.name.lowercased().contains(q) }
+        let movies = q.count < 2 ? [] : store.vod.filter { $0.name.lowercased().contains(q) }
+        let series = q.count < 2 ? [] : store.series.filter { $0.name.lowercased().contains(q) }
+        ZStack(alignment: .topLeading) {
+            ScreenTitle(text: "Suche")
+            TextField("Sender, Filme oder Serien suchen", text: $query)
+                .font(UI.font(30, .medium))
+                .focused($fieldFocus)
+                .place(70, 110, 1000, 80)
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 20) {
+                    if q.count >= 2 && live.isEmpty && movies.isEmpty && series.isEmpty {
+                        Text("Nichts gefunden für „\(query)“").font(UI.font(28)).foregroundColor(UI.muted)
+                    }
+                    ResultRows(title: "Sender", items: live, kind: .live)
+                    ResultRows(title: "Filme", items: movies, kind: .movie)
+                    ResultRows(title: "Serien", items: series, kind: .series)
+                }
+                .padding(30)
+            }
+            .place(40, 200, 1840, 880)
+        }
+        .frame(width: 1920, height: 1080)
+        .onAppear { fieldFocus = true }
+    }
+}
+
+// MARK: - Einstellungen
+
+struct SettingsScreen: View {
+    @EnvironmentObject var store: TVStore
+    @EnvironmentObject var nav: Nav
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ScreenTitle(text: "Einstellungen")
+            VStack(alignment: .leading, spacing: 14) {
+                row("list", "Wiedergabelisten", store.sourceName.isEmpty ? "Keine gewählt" : store.sourceName) { nav.push(.playlists) }
+                row("refresh", "Neu laden", "Sender, Filme, Serien") { Task { await store.reload() } }
+                row("device", "Gerät", "MAC \(store.device.mac.lowercased()) · Schlüssel \(store.device.key)") { nav.push(.playlists) }
+                row("star", "Favoriten löschen", "\(store.favorites.count) gespeichert") {
+                    store.favorites = []
+                    UserDefaults.standard.set([String](), forKey: "tv.favs")
+                }
+                let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+                let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+                Text("ImperumTV für Apple TV · Version \(v) (\(b))").font(UI.font(22)).foregroundColor(UI.muted).padding(.top, 20)
+            }
+            .place(300, 160, 1320, 800)
+        }
+        .frame(width: 1920, height: 1080)
+    }
+
+    private func row(_ icon: String, _ title: String, _ value: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 24) {
+                Icon(icon, 40).foregroundColor(UI.gold)
+                Text(title).font(UI.font(30, .semibold))
+                Spacer()
+                Text(value).font(UI.font(24)).foregroundColor(UI.muted).lineLimit(1)
+            }
+            .padding(.horizontal, 30).frame(height: 92)
+        }
+        .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 14)), normal: .black.opacity(0.35),
+                               border: .white.opacity(0.1), borderWidth: 1.5))
+    }
+}

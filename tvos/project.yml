@@ -1,0 +1,42 @@
+name: ImperumTVtv
+options:
+  bundleIdPrefix: tv.imperum
+  deploymentTarget:
+    tvOS: "17.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+targets:
+  ImperumTV:
+    type: application
+    platform: tvOS
+    sources:
+      - path: .
+        includes:
+          - "*.swift"
+      # gemeinsam mit der alten iPhone-App: Datenmodelle, Xtream-Schnittstelle, Website-Verbindung
+      - path: ../Models.swift
+      - path: ../XtreamAPI.swift
+      - path: ../Remote.swift
+      - path: ../Keychain.swift
+      - path: Assets.xcassets
+      - path: ../PrivacyInfo.xcprivacy
+        buildPhase: resources
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: ImperumTV
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UIUserInterfaceStyle: Dark
+        UIRequiredDeviceCapabilities:
+          - arm64
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: tv.imperum.app
+        TARGETED_DEVICE_FAMILY: "3"

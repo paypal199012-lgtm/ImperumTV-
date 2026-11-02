@@ -7,6 +7,9 @@ on:
   workflow_dispatch:
   push:
     branches: [web-ui]
+    paths-ignore:
+      - 'tvos/**'
+      - '.github/workflows/tvos-sim.yml'
 
 jobs:
   build:
