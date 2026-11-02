@@ -133,6 +133,7 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         case "setNextEngine": player.forceVLCNext = s(0) == "vlc"
         case "keepAwake": UIApplication.shared.isIdleTimerDisabled = (a.first as? Bool) ?? true
         case "openUrl": if let u = URL(string: s(0)) { UIApplication.shared.open(u) }
+        case "log": NSLog("[ImperumTV-Web] %@", s(0))
         default: break
         }
         pushState()
@@ -149,6 +150,20 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         if u.scheme == AppScheme.name || u.scheme == "about" || u.scheme == "blob" || u.scheme == "data" { decisionHandler(.allow); return }
         if navigationAction.targetFrame?.isMainFrame == true { UIApplication.shared.open(u); decisionHandler(.cancel); return }
         decisionHandler(.allow)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        webView.evaluateJavaScript("location.href + ' | body=' + document.body.innerHTML.length + ' | app=' + (document.getElementById('app') ? document.getElementById('app').innerHTML.length : -1) + ' | w=' + innerWidth + 'x' + innerHeight") { r, e in
+            NSLog("[ImperumTV-Web] geladen: %@ %@", "\(r ?? "")", "\(e?.localizedDescription ?? "")")
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        NSLog("[ImperumTV-Web] didFail: %@", error.localizedDescription)
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        NSLog("[ImperumTV-Web] didFailProvisional: %@", error.localizedDescription)
     }
 
     // Bricht der Web-Prozess ab (zu wenig Speicher): neu laden
@@ -171,6 +186,9 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
             version: \(ver), device: \(Self.jsString(device)), mk: \(Self.jsString(ids.mac + "|" + ids.key)),
             buffer: \(Self.jsString(buffer)), engine: \(Self.jsString(engine)) };
           function post(m, a) { try { window.webkit.messageHandlers.ab.postMessage({ m: m, a: a || [] }); } catch (e) {} }
+          // Programmfehler der Oberfläche ins Protokoll der App (zum Prüfen im Simulator)
+          window.addEventListener('error', function (e) { post('log', ['JS-Fehler: ' + e.message + ' @ ' + (e.filename || '') + ':' + e.lineno]); });
+          var oe = console.error; console.error = function () { post('log', ['console.error: ' + Array.prototype.join.call(arguments, ' ')]); try { oe.apply(console, arguments); } catch (x) {} };
           function P(m) { return function () { post(m, Array.prototype.slice.call(arguments)); }; }
           window.__abSet = function (o) { for (var k in o) S[k] = o[k]; };
           function list(kind) { try { return JSON.parse(kind === 'text' ? S.text : S.audio) || []; } catch (e) { return []; } }
@@ -272,6 +290,7 @@ final class AppScheme: NSObject, WKURLSchemeHandler {
             return
         }
         // Dateien der Oberfläche aus dem App-Paket (Ordner „www“)
+        NSLog("[ImperumTV-Web] Datei: %@", url.path)
         var path = url.path
         if path.isEmpty || path == "/" { path = "/index.html" }
         guard let base = Bundle.main.resourceURL?.appendingPathComponent("www"),

@@ -44,7 +44,9 @@ jobs:
           xcrun simctl io "$UDID" screenshot shots/start.png
           sleep 20
           xcrun simctl io "$UDID" screenshot shots/spaeter.png
-          xcrun simctl spawn "$UDID" log show --last 2m --predicate 'process == "IPTVPlayer"' --style compact > shots/log.txt 2>&1 || true
+          xcrun simctl spawn "$UDID" log show --last 3m --predicate 'process == "IPTVPlayer"' --style compact > shots/log-all.txt 2>&1 || true
+          grep "ImperumTV-Web" shots/log-all.txt > shots/log.txt || true
+          ls -la "$APP/www" "$APP/www/js" >> shots/log.txt 2>&1 || true
       - name: Bilder in den Zweig legen (zum Ansehen)
         if: always()
         run: |
