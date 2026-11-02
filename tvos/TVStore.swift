@@ -77,7 +77,7 @@ enum DemoData {
 
     static func episodes() -> [Episode] {
         vod.enumerated().compactMap { i, m in
-            guard let file = vodFiles[m.id], let u = URL(string: films + file) else { return nil }
+            guard let file = vodFiles[m.id], let u = URL(string: alt[m.id] ?? films + file) else { return nil }
             let title = m.name.replacingOccurrences(of: #"\s*\(\d{4}\)"#, with: "", options: .regularExpression)
             return Episode(id: String(301 + i), season: 1, number: i + 1, title: title, url: u, image: nil)
         }
@@ -418,13 +418,14 @@ final class TVStore: ObservableObject {
 
     /// Ersatzadresse (nur Demo-Filme)
     func altURL(_ item: TVItem) -> URL? {
-        source == .demo ? DemoData.alt[item.id].flatMap { URL(string: $0) } : nil
+        source == .demo ? DemoData.vodFiles[item.id].flatMap { URL(string: DemoData.films + $0) } : nil
     }
 
     func url(_ item: TVItem, _ kind: MediaKind) -> URL? {
         switch source {
         case .demo:
             if kind == .live { return DemoData.liveURLs[item.id].flatMap { URL(string: $0) } }
+            if let a = DemoData.alt[item.id] { return URL(string: a) }
             return DemoData.vodFiles[item.id].flatMap { URL(string: DemoData.films + $0) }
         case .xtream(let acc, _):
             let a = client(acc)

@@ -1740,7 +1740,8 @@
         },
         movie: function (id) { for (var i = 0; i < this.movies.length; i++) if (String(this.movies[i].id) === String(id)) return this.movies[i]; return null; },
         liveUrl: function (id) { for (var i = 0; i < this.live.length; i++) if (this.live[i].id === Number(id)) return this.live[i].url; return this.live[0].url; },
-        movieUrl: function (id) { var m = this.movie(id) || this.movies[0]; return this.FILMS + m.file; },
+        // Erst die zuverlässigen Quellen (HLS/archive.org), der Google-Speicher lehnt manche Netze ab (403, VPN)
+        movieUrl: function (id) { var m = this.movie(id) || this.movies[0]; return this.ALT[m.id] || this.FILMS + m.file; },
         /** Zweite Quelle, falls der Google-Speicher ablehnt (z. B. 403 über VPN) */
         ALT: {
             101: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
@@ -1748,8 +1749,8 @@
             103: 'https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8',
             104: 'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8'
         },
-        altMovieUrl: function (id) { return this.ALT[Number(id)] || ''; },
-        episodeUrl: function (id) { var m = this.movies[(Number(id) - 301) % this.movies.length] || this.movies[0]; return this.FILMS + m.file; }
+        altMovieUrl: function (id) { var m = this.movie(id); return m ? this.FILMS + m.file : ''; },
+        episodeUrl: function (id) { var m = this.movies[(Number(id) - 301) % this.movies.length] || this.movies[0]; return this.ALT[m.id] || this.FILMS + m.file; }
     };
 
     /** Verständliche Meldung statt roher Server-Antwort (z. B. HTML-Fehlerseite) */
