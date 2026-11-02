@@ -66,8 +66,10 @@ jobs:
           APP=$(find build/Build/Products -maxdepth 2 -name "*.app" | head -1)
           xcrun simctl install "$UDID" "$APP"
           rm -rf sim-shots; mkdir -p sim-shots
-          for s in playlists home live movies series seriesdetail epg settings player; do
-            SIMCTL_CHILD_IMPTV_TEST=1 SIMCTL_CHILD_IMPTV_SCREEN=$s xcrun simctl launch --terminate-running-process "$UDID" tv.imperum.app || true
+          for s in home playlists live movies series seriesdetail epg settings football player home; do
+            xcrun simctl terminate "$UDID" tv.imperum.app 2>/dev/null || true
+            sleep 3
+            SIMCTL_CHILD_IMPTV_TEST=1 SIMCTL_CHILD_IMPTV_SCREEN=$s xcrun simctl launch "$UDID" tv.imperum.app || true
             if [ "$s" = "player" ] || [ "$s" = "live" ]; then sleep 25; else sleep 10; fi
             xcrun simctl io "$UDID" screenshot "sim-shots/$s.png" || true
           done

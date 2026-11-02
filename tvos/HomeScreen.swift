@@ -29,7 +29,7 @@ struct HomeScreen: View {
             HStack(spacing: 20) {
                 tile("favs", "star", "FAVORITEN") { nav.push(.favorites) }
                 tile("search", "search", "SUCHE") { nav.push(.search) }
-                tile("lists", "list", "LISTEN") { nav.push(.playlists) }
+                tile("football", "ball", "FUSSBALL") { nav.push(.football) }
                 tile("settings", "gear", "EINSTELLUNGEN") { nav.push(.settings) }
             }
             .place(0, 771, 1920, 126, alignment: .center)

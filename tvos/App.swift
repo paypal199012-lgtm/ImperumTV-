@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum TVRoute: Hashable {
-    case home, live, epg, movies, series, seriesDetail(TVItem), player, playlists, settings, favorites, search
+    case home, live, epg, movies, series, seriesDetail(TVItem), player, playlists, settings, favorites, search, football
 }
 
 /// Bildschirm-Stapel wie auf Android: Menü-Taste der Fernbedienung = Zurück
@@ -82,6 +82,7 @@ struct RootView: View {
         case .settings: SettingsScreen()
         case .favorites: FavoritesScreen()
         case .search: SearchScreen()
+        case .football: FootballScreen()
         }
     }
 
@@ -115,6 +116,7 @@ struct RootView: View {
         case "settings": nav.reset(.home); nav.push(.settings)
         case "search": nav.reset(.home); nav.push(.search)
         case "favorites": nav.reset(.home); nav.push(.favorites)
+        case "football": nav.reset(.home); nav.push(.football)
         default: nav.reset(.home)
         }
     }
