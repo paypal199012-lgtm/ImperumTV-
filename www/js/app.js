@@ -3946,7 +3946,16 @@
             b.innerHTML = '<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>';
             // iPhone: schon beim Loslassen des Fingers auslösen (nicht auf den „Klick“ warten, den iOS manchmal verschluckt)
             var lastTouch = 0, sx = 0, sy = 0;
-            function goBack() { onKeyDown({ keyCode: KEY.BACK, repeat: false, preventDefault: function () { } }); }
+            function goBack() {
+                // Knopf heißt „zurück zur Übersicht“: im Player sofort raus (nicht erst die Leiste ausblenden)
+                var top = Nav.top();
+                if (!Modal.node && top instanceof PlayerScreen) {
+                    if (top.zapOpen && top.closeZap) top.closeZap();
+                    top.close();
+                    return;
+                }
+                onKeyDown({ keyCode: KEY.BACK, repeat: false, preventDefault: function () { } });
+            }
             b.addEventListener('touchstart', function (e) {
                 var t = e.touches && e.touches[0]; sx = t ? t.clientX : 0; sy = t ? t.clientY : 0;
                 b.classList.add('down'); e.stopPropagation();
