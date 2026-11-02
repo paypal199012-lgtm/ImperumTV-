@@ -1,32 +1,25 @@
-2026-11-02 12:54:10.338 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Datei: /index.html
-2026-11-02 12:54:10.426 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Datei: /css/style.css
-2026-11-02 12:54:10.429 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Datei: /$WEBAPIS/webapis/webapis.js
-2026-11-02 12:54:10.431 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Datei: /js/qrcode.js
-2026-11-02 12:54:10.433 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Datei: /js/app.js
-2026-11-02 12:54:10.840 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Datei: /img/logo-frei.png
-2026-11-02 12:54:11.051 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] geladen: imptv://app/index.html | body=2718 | app=0 | w=1920x1029
-2026-11-02 12:54:15.442 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Ansicht: view=(0.0, 0.0, 874.0, 402.0) web=(62.0, 0.0, 750.0, 402.0) hidden=0 alpha=1.000000
-2026-11-02 12:54:15.447 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Zustand: android wide clock-on touch ios lowfx | 4385 | rgb(15, 17, 21) | scale(0.952778) | hidden | ImperumTV
-2026-11-02 12:54:15.735 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Foto gespeichert 3203333 Bytes
-2026-11-02 12:54:19.264 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Test 18.0: live:true
-2026-11-02 12:54:22.107 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Player-Ereignis: buffer true
-2026-11-02 12:54:22.265 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Test 21.0: row:true
-2026-11-02 12:54:23.727 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Player-Ereignis: buffer false
-2026-11-02 12:54:23.728 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Player-Ereignis: ready
-2026-11-02 12:54:23.782 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Test 23.0: voll:true
-2026-11-02 12:54:38.268 Df IPTVPlayer[12610:9d48] (Foundation) [ImperumTV-Web] Test 38.0: {"playing":true,"pos":14.3,"dur":635,"kbps":10379,"audio":"[{\134"i\134":0,\134"selected\134":true,\134"name\134":\134"Unknown\134",\134"detail\134":\134"\134"}]","text":"[{\134"i\134":0,\134"selected\134":false,\134"name\134":\134"CC\134",\134"detail\134":\134"\134"}]","version":1,"device":"iPhone · iOS 18.6","mk":"EE:72:6E:3B:45:74|788582","buffer":"normal","engine":"exo","tz":0}
+2026-11-02 13:13:07.153 Df IPTVPlayer[11503:8ea0] (Foundation) [ImperumTV-Web] Ansicht: view=(0.0, 0.0, 874.0, 402.0) web=(62.0, 0.0, 750.0, 402.0) hidden=0 alpha=1.000000
+2026-11-02 13:13:07.159 Df IPTVPlayer[11503:8ea0] (Foundation) [ImperumTV-Web] Zustand: android wide clock-on touch ios lowfx | 4392 | rgb(15, 17, 21) | scale(0.952778) | hidden | ImperumTV
+2026-11-02 13:13:10.781 Df IPTVPlayer[11503:8ea0] (Foundation) [ImperumTV-Web] Foto gespeichert 3202761 Bytes
+2026-11-02 13:13:12.796 Df IPTVPlayer[11503:8ea0] (Foundation) [ImperumTV-Web] Test 18.0: live:true
+2026-11-02 13:13:14.845 Df IPTVPlayer[11503:8ea0] (Foundation) [ImperumTV-Web] Player-Ereignis: buffer true
+2026-11-02 13:13:15.661 Df IPTVPlayer[11503:8ea0] (Foundation) [ImperumTV-Web] Test 21.0: row:true
+2026-11-02 13:13:16.055 Df IPTVPlayer[11503:8ea0] (Foundation) [ImperumTV-Web] Test 23.0: voll:true
+2026-11-02 13:13:17.008 Df IPTVPlayer[11503:8ea0] (Foundation) [ImperumTV-Web] Player-Ereignis: buffer false
+2026-11-02 13:13:17.009 Df IPTVPlayer[11503:8ea0] (Foundation) [ImperumTV-Web] Player-Ereignis: ready
+2026-11-02 13:13:30.548 Df IPTVPlayer[11503:8ea0] (Foundation) [ImperumTV-Web] Test 38.0: {"playing":true,"pos":13.1,"dur":635,"kbps":6883,"audio":"[{\134"detail\134":\134"\134",\134"name\134":\134"Unknown\134",\134"i\134":0,\134"selected\134":true}]","text":"[{\134"detail\134":\134"\134",\134"name\134":\134"CC\134",\134"i\134":0,\134"selected\134":false}]","version":1,"device":"iPhone · iOS 18.6","mk":"86:1F:49:11:D8:C2|504044","buffer":"normal","engine":"exo","tz":0}
 build/Build/Products/Debug-iphonesimulator/IPTVPlayer.app/www:
 total 8
-drwxr-xr-x   6 runner  staff  192 Nov  2 12:45 .
-drwxr-xr-x  12 runner  staff  384 Nov  2 12:48 ..
-drwxr-xr-x   3 runner  staff   96 Nov  2 12:45 css
-drwxr-xr-x   4 runner  staff  128 Nov  2 12:45 img
--rw-r--r--   1 runner  staff  998 Nov  2 12:45 index.html
-drwxr-xr-x   4 runner  staff  128 Nov  2 12:45 js
+drwxr-xr-x   6 runner  staff  192 Nov  2 13:05 .
+drwxr-xr-x  12 runner  staff  384 Nov  2 13:08 ..
+drwxr-xr-x   3 runner  staff   96 Nov  2 13:05 css
+drwxr-xr-x   4 runner  staff  128 Nov  2 13:05 img
+-rw-r--r--   1 runner  staff  998 Nov  2 13:05 index.html
+drwxr-xr-x   4 runner  staff  128 Nov  2 13:05 js
 
 build/Build/Products/Debug-iphonesimulator/IPTVPlayer.app/www/js:
 total 1112
-drwxr-xr-x  4 runner  staff     128 Nov  2 12:45 .
-drwxr-xr-x  6 runner  staff     192 Nov  2 12:45 ..
--rw-r--r--  1 runner  staff  534461 Nov  2 12:45 app.js
--rw-r--r--  1 runner  staff   29343 Nov  2 12:45 qrcode.js
+drwxr-xr-x  4 runner  staff     128 Nov  2 13:05 .
+drwxr-xr-x  6 runner  staff     192 Nov  2 13:05 ..
+-rw-r--r--  1 runner  staff  534751 Nov  2 13:05 app.js
+-rw-r--r--  1 runner  staff   29343 Nov  2 13:05 qrcode.js
