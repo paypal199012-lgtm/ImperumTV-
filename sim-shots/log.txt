@@ -1,25 +1,15 @@
-2026-11-02 11:54:18.077 Df IPTVPlayer[9684:821b] (Foundation) [ImperumTV-Web] Datei: /index.html
-2026-11-02 11:54:18.156 Df IPTVPlayer[9684:821b] (Foundation) [ImperumTV-Web] Datei: /css/style.css
-2026-11-02 11:54:18.159 Df IPTVPlayer[9684:821b] (Foundation) [ImperumTV-Web] Datei: /$WEBAPIS/webapis/webapis.js
-2026-11-02 11:54:18.160 Df IPTVPlayer[9684:821b] (Foundation) [ImperumTV-Web] Datei: /js/qrcode.js
-2026-11-02 11:54:18.162 Df IPTVPlayer[9684:821b] (Foundation) [ImperumTV-Web] Datei: /js/app.js
-2026-11-02 11:54:18.546 Df IPTVPlayer[9684:821b] (Foundation) [ImperumTV-Web] Datei: /img/icon.png
-2026-11-02 11:54:18.710 Df IPTVPlayer[9684:821b] (Foundation) [ImperumTV-Web] geladen: imptv://app/index.html | body=959 | app=0 | w=1920x883
-2026-11-02 11:54:28.817 Df IPTVPlayer[9684:821b] (Foundation) [ImperumTV-Web] Ansicht: view=(0.0, 0.0, 874.0, 402.0) web=(0.0, 0.0, 874.0, 402.0) hidden=0 alpha=1.000000
-2026-11-02 11:54:28.823 Df IPTVPlayer[9684:821b] (Foundation) [ImperumTV-Web] Zustand: android wide clock-on touch lowfx | 13308 | rgb(15, 17, 21) | scale(0.817593) | hidden | ImperumTV
-2026-11-02 11:54:29.124 Df IPTVPlayer[9684:821b] (Foundation) [ImperumTV-Web] Foto gespeichert 3187717 Bytes
 build/Build/Products/Debug-iphonesimulator/IPTVPlayer.app/www:
 total 8
-drwxr-xr-x   6 runner  staff  192 Nov  2 11:45 .
-drwxr-xr-x  12 runner  staff  384 Nov  2 11:48 ..
-drwxr-xr-x   3 runner  staff   96 Nov  2 11:45 css
-drwxr-xr-x   4 runner  staff  128 Nov  2 11:45 img
--rw-r--r--   1 runner  staff  998 Nov  2 11:45 index.html
-drwxr-xr-x   4 runner  staff  128 Nov  2 11:45 js
+drwxr-xr-x   6 runner  staff  192 Nov  2 12:03 .
+drwxr-xr-x  12 runner  staff  384 Nov  2 12:05 ..
+drwxr-xr-x   3 runner  staff   96 Nov  2 12:03 css
+drwxr-xr-x   4 runner  staff  128 Nov  2 12:03 img
+-rw-r--r--   1 runner  staff  998 Nov  2 12:03 index.html
+drwxr-xr-x   4 runner  staff  128 Nov  2 12:03 js
 
 build/Build/Products/Debug-iphonesimulator/IPTVPlayer.app/www/js:
 total 1112
-drwxr-xr-x  4 runner  staff     128 Nov  2 11:45 .
-drwxr-xr-x  6 runner  staff     192 Nov  2 11:45 ..
--rw-r--r--  1 runner  staff  532566 Nov  2 11:45 app.js
--rw-r--r--  1 runner  staff   29343 Nov  2 11:45 qrcode.js
+drwxr-xr-x  4 runner  staff     128 Nov  2 12:03 .
+drwxr-xr-x  6 runner  staff     192 Nov  2 12:03 ..
+-rw-r--r--  1 runner  staff  532565 Nov  2 12:03 app.js
+-rw-r--r--  1 runner  staff   29343 Nov  2 12:03 qrcode.js
