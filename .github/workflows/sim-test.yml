@@ -20,7 +20,8 @@ jobs:
       - run: xcodegen generate
       - run: pod install
       - name: Demo für den Test einschalten
-        run: sed -i '' 's/ENABLED: false/ENABLED: true/' www/js/app.js
+        run: |
+          sed -i '' 's/ENABLED: false/ENABLED: true/' www/js/app.js
       - name: Für den Simulator bauen
         run: |
           xcodebuild -workspace IPTVPlayer.xcworkspace -scheme IPTVPlayer -configuration Debug -sdk iphonesimulator \
