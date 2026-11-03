@@ -54,6 +54,7 @@ jobs:
           xcrun simctl spawn "$UDID" log show --last 6m --predicate 'process == "IPTVPlayer"' --style compact > shots/log-all.txt 2>&1 || true
           grep "ImperumTV-Web" shots/log-all.txt > shots/log.txt || true
           grep -E "TEST|Player-Ereignis" shots/log.txt > shots/test.txt || true
+          sed 's/.*\[ImperumTV-Web\] //' shots/test.txt || true
           ls -la "$APP/www" "$APP/www/js" >> shots/log.txt 2>&1 || true
       - name: Bilder in den Zweig legen (zum Ansehen)
         if: always()
@@ -61,7 +62,8 @@ jobs:
           rm -rf sim-shots && mkdir -p sim-shots && cp -f shots/* sim-shots/ 2>/dev/null || true
           grep -E "error:" build.log | sort -u | head -80 > sim-shots/build-errors.txt || true
           git config user.name "sim-bot"; git config user.email "sim-bot@users.noreply.github.com"
-          git add sim-shots && git commit -m "Simulator-Bilder [skip ci]" && git push || true
+          git add -A sim-shots && git commit -m "Simulator-Bilder [skip ci]" || true
+          for i in 1 2 3 4 5; do git pull --rebase -q origin web-ui && git push -q && break; sleep 8; done || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
