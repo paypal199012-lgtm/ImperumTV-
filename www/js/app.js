@@ -5546,7 +5546,7 @@
             var idx = {}, self = this;
             Data.channels.forEach(function (c) {
                 if (NameTidy.isSep(c.name)) return;
-                var k = self.key(c);
+                var k = Merge.key(c);
                 if (!k || k.length < 3) return;
                 (idx[k] = idx[k] || []).push(c);
             });
@@ -5562,7 +5562,7 @@
                 var cc = self.country(c.name) || self.country(c.cat);
                 return cc === co ? 0 : !cc ? 1 : cc === 'DE' ? 2 : 3;
             }
-            return (this.index[this.key(ch)] || []).filter(function (c) {
+            return (this.index[Merge.key(ch)] || []).filter(function (c) {
                 if (c.id === ch.id || Hidden.has(c.id)) return false;
                 // Schwache Varianten (MOBILE, LOW, LQ, SD) nie als Ersatz – auf dem Fernseher zu unscharf
                 if (/mobile|(^|[^a-z])(low|lq|sd)([^a-z]|$)/i.test(NameTidy.plain(c.name))) return false;
@@ -9500,7 +9500,15 @@
         if (!it) return false;
         this.altTried = this.altTried || {};
         var tried = this.altTried[it.id] = this.altTried[it.id] || [it.id];
-        var alt = AltCh.find(it).filter(function (c) { return tried.indexOf(c.id) < 0; })[0];
+        // Zuerst derselbe Sender in DERSELBEN Qualität aus einer anderen Quelle (FHD → anderes FHD), erst dann andere Qualitäten
+        var cur = (this.altFor === this.index && this.altCur) || it;
+        var curT = Merge.tags(cur), curQ = curT.length ? curT[0] : '', curR = Merge.rank(curT);
+        var cands = AltCh.find(it).filter(function (c) { return tried.indexOf(c.id) < 0; }).map(function (c, i) {
+            var t = Merge.tags(c), q = t.length ? t[0] : '';
+            return { c: c, i: i, same: q === curQ ? 0 : 1, d: Math.abs(Merge.rank(t) - curR) };
+        });
+        cands.sort(function (a, b) { return a.same - b.same || a.d - b.d || a.i - b.i; });
+        var alt = cands.length ? cands[0].c : null;
         if (!alt) {
             // Für die Admin-Seite: warum nicht umgeschaltet wurde (einmal je Sender)
             this.noAltFor = this.noAltFor || {};
@@ -9511,7 +9519,7 @@
             return false;
         }
         tried.push(alt.id);
-        this.altUrl = Api.liveUrl(alt.id); this.altFor = this.index; this.altName = alt.name;
+        this.altUrl = Api.liveUrl(alt.id); this.altFor = this.index; this.altName = alt.name; this.altCur = alt;
         this.stallLog = []; this.shortLog = []; this.retries = 0; this.r407 = 0; clearTimeout(this.t407);
         var nice = NameTidy.split(alt.name, alt.cat).name, tags = NameTidy.split(alt.name, alt.cat).tags;
         toast(why + ' – automatisch auf „' + nice + (tags.length ? ' ' + tags.join(' ') : '') + '“ umgeschaltet', 6000);
