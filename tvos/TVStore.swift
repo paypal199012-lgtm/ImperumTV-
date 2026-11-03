@@ -56,12 +56,18 @@ enum DemoData {
         TVItem(id: 104, name: "Tears of Steel (2012)", cat: "10", art: .demo("Tears of Steel", 0x3a5f7a), rating: 6.0, year: 2012)
     ]
     static let vodFiles: [Int: String] = [101: "BigBuckBunny.mp4", 102: "ElephantsDream.mp4", 103: "Sintel.mp4", 104: "TearsOfSteel.mp4"]
-    /// Zweite Quelle, falls der Google-Speicher ablehnt (z. B. 403 über VPN)
+    /// Erste Quelle (im Simulator geprüft, 11/2026). Der Google-Speicher (films) lehnt inzwischen ab (403), bitdash ist abgeschaltet.
     static let alt: [Int: String] = [
         101: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
-        102: "https://archive.org/download/ElephantsDream/ed_1024_512kb.mp4",
-        103: "https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8",
+        102: "https://archive.org/download/ElephantsDream/ed_hd.mp4",
+        103: "https://archive.org/download/Sintel/sintel-2048-stereo_512kb.mp4",
         104: "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8"
+    ]
+    /// Zweite Quelle, falls die erste nicht startet
+    static let backup: [Int: String] = [
+        102: "https://archive.org/download/ElephantsDream/ed_1024_512kb.mp4",
+        103: "https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4",
+        104: "https://test-streams.mux.dev/tos_ismc/main.m3u8"
     ]
     static let seriesCats = [TVCat(id: "20", name: "Demo-Serien")]
     static let series: [TVItem] = [
@@ -418,7 +424,7 @@ final class TVStore: ObservableObject {
 
     /// Ersatzadresse (nur Demo-Filme)
     func altURL(_ item: TVItem) -> URL? {
-        source == .demo ? DemoData.vodFiles[item.id].flatMap { URL(string: DemoData.films + $0) } : nil
+        source == .demo ? DemoData.backup[item.id].flatMap { URL(string: $0) } : nil
     }
 
     func url(_ item: TVItem, _ kind: MediaKind) -> URL? {

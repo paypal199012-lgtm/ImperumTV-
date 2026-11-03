@@ -1743,14 +1743,21 @@
         // Erst die zuverlässigen Quellen (HLS/archive.org), der Google-Speicher lehnt manche Netze ab (403, VPN)
         movieUrl: function (id) { var m = this.movie(id) || this.movies[0]; return this.ALT[m.id] || this.FILMS + m.file; },
         /** Zweite Quelle, falls der Google-Speicher ablehnt (z. B. 403 über VPN) */
+        // Im iPhone-Simulator geprüft (11/2026): der Google-Speicher (FILMS) lehnt inzwischen ab (403), bitdash ist abgeschaltet
         ALT: {
             101: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-            102: 'https://archive.org/download/ElephantsDream/ed_1024_512kb.mp4',
-            103: 'https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8',
+            102: 'https://archive.org/download/ElephantsDream/ed_hd.mp4',
+            103: 'https://archive.org/download/Sintel/sintel-2048-stereo_512kb.mp4',
             104: 'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8'
         },
-        altMovieUrl: function (id) { var m = this.movie(id); return m ? this.FILMS + m.file : ''; },
-        episodeUrl: function (id) { var m = this.movies[(Number(id) - 301) % this.movies.length] || this.movies[0]; return this.ALT[m.id] || this.FILMS + m.file; }
+        /** Zweite Quelle, falls die erste nicht startet */
+        BACKUP: {
+            102: 'https://archive.org/download/ElephantsDream/ed_1024_512kb.mp4',
+            103: 'https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4',
+            104: 'https://test-streams.mux.dev/tos_ismc/main.m3u8'
+        },
+        altMovieUrl: function (id) { var m = this.movie(id); return m ? (this.BACKUP[m.id] || '') : ''; },
+        episodeUrl: function (id) { var m = this.movies[(Number(id) - 301) % this.movies.length] || this.movies[0]; return this.ALT[m.id] || this.BACKUP[m.id] || this.FILMS + m.file; }
     };
 
     /** Verständliche Meldung statt roher Server-Antwort (z. B. HTML-Fehlerseite) */
