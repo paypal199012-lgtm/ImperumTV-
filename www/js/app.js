@@ -5126,7 +5126,7 @@
     }
 
     /**
-     * Fernwartung vom Admin (Admin-Seite → Gerät): kommt beim Start bzw. alle 10 Minuten mit device_flags.
+     * Fernwartung vom Admin (Admin-Seite → Gerät): kommt beim Start bzw. jede Minute mit device_flags.
      * Neu laden / Cache leeren erst, wenn gerade nichts abgespielt wird.
      */
     var RemoteCmd = {
@@ -5212,8 +5212,8 @@
             this.on = true; this.fails = 0;
             this.showBanner();
             clearInterval(this.timer);
-            this.timer = setInterval(function () { self.tick(); }, 1500);
-            this.tick();
+            this.timer = setInterval(function () { self.tick(); }, 500);   // schaut der Support zu: alle 0,5 s, sonst alle 1,5 s
+            this.tick(true);
         },
         stop: function (tell) {
             this.on = false; this.viewer = false;
@@ -5258,9 +5258,12 @@
             if (html.length > 1200000) html = '<div style="padding:80px;font-size:40px;color:#f4dc9e">Bildschirm zu groß zum Übertragen</div>';
             return JSON.stringify({ b: document.body.className, h: html, p: Nav.top() instanceof PlayerScreen });
         },
-        tick: function () {
+        tick: function (force) {
             var self = this;
             if (!this.on || this.busy) return;
+            var now = Date.now();
+            if (!force && !this.viewer && now - (this.lastAt || 0) < 1400) return;
+            this.lastAt = now;
             var snap = '';
             try { snap = this.snapshot(); } catch (e) { snap = ''; }
             var send = snap && snap !== this.last ? snap : null;
@@ -5278,7 +5281,7 @@
                     self.ack = n; ran = true;
                     try { self.run(String(list[i].c || '')); } catch (e) { /* egal */ }
                 }
-                if (ran) setTimeout(function () { self.tick(); }, 350);   // Ergebnis gleich zeigen
+                if (ran) setTimeout(function () { self.tick(true); }, 150);   // Ergebnis gleich zeigen
             }, function () {
                 self.busy = false;
                 if (++self.fails > 200) self.stop(false);   // gut 5 Minuten ohne Verbindung
@@ -5290,6 +5293,8 @@
             var m;
             if ((m = /^key:(\w+)$/.exec(c)) && this.KEYS[m[1]]) {
                 onKeyDown({ keyCode: KEY[this.KEYS[m[1]]], repeat: false, preventDefault: function () { }, stopPropagation: function () { } });
+                // Fernhilfe schickt nur "gedrückt", nie "losgelassen": OK sofort loslassen, sonst gilt es als langes Drücken (= Favorit)
+                if (m[1] === 'ok') LongPress.up();
                 return;
             }
             if ((m = /^click:([\s\S]+)$/.exec(c))) {
@@ -9988,6 +9993,12 @@
                 if (!License.active() && !(Nav.top() instanceof LockScreen)) Nav.replace(new LockScreen());
             });
         }, 600000);
+
+        // Fernwartung (z. B. „Fernhilfe anfragen“) jede Minute abholen, damit Anfragen vom Support schnell ankommen
+        setInterval(function () {
+            if (Nav.top() instanceof LockScreen) return;
+            Updater.flags();
+        }, 60000);
     }
 
     /** Nach der Aktivierung: mit der zuletzt genutzten Liste weitermachen oder die Listen zeigen */
