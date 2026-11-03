@@ -38,6 +38,22 @@
     at(3, function () { var r = vis('#app .col-list .row, #app .ch-row, #app .channel')[i]; if (r) r.click(); return 'sender ' + i + ':' + !!r; });
     at(14, function () { shot('sender-' + i); return 'SENDER ' + i + ' ' + state(); });
   });
+  // Ersatz-Quellen direkt im Player prüfen (spielt es nach 15 s?)
+  var C = ['https://cdn.bitmovin.com/content/assets/sintel/hls/playlist.m3u8',
+    'https://archive.org/download/Sintel/sintel-2048-stereo_512kb.mp4',
+    'https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4',
+    'https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+    'https://archive.org/download/ElephantsDream/ed_hd.mp4',
+    'https://test-streams.mux.dev/tos_ismc/main.m3u8',
+    'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8',
+    'https://cdn.bitmovin.com/content/assets/art-of-motion-dash-hls-progressive/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8'];
+  at(2, function () { return 'zurueck:' + back(); });
+  C.forEach(function (u) {
+    at(1, function () { try { A.setNextEngine('apple'); A.open(u, 0, 0, 1, 1); } catch (e) { return 'open-fehler ' + e; } return 'probe ' + u; });
+    at(15, function () { var s = window.__abState || {}; var ok = s.playing && s.pos > 1; try { A.stop(); } catch (e) { /* egal */ } return 'KANDIDAT ' + (ok ? 'OK ' : 'NEIN ') + u + ' pos=' + s.pos + ' dur=' + s.dur; });
+  });
   var i = 0, tries = 0;
   (function ready() {
     if (!vis('#app .focusable').filter(function (x) { return /^\s*FILME\s*$/i.test(x.textContent); })[0] && tries++ < 60) { setTimeout(ready, 1000); return; }
