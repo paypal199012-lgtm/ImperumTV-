@@ -122,9 +122,10 @@ struct RootView: View {
                 engine.items = store.live; engine.index = 0
                 engine.play(u, item: it, kind: .live)
             }
-        case "player":
+        case "player", "player2", "player3", "player4":
             nav.reset(.home); nav.push(.movies)
-            if let it = store.vod.first, let u = store.url(it, .movie) {
+            let n = s == "player" ? 0 : (Int(s.dropFirst(6)) ?? 1) - 1
+            if store.vod.indices.contains(n), case let it = store.vod[n], let u = store.url(it, .movie) {
                 engine.play(u, item: it, kind: .movie, fallback: store.altURL(it))
                 nav.push(.player)
             }
