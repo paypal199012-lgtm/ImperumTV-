@@ -1612,3 +1612,8 @@ body.ios .screen-title { left: 96px; }
 /* Im Vollbild nur zusammen mit der eingeblendeten Leiste */
 body.video-mode:not(.osd) .ios-back { display: none; }
 .pl-head .vpn-badge.vpn-btn { margin-right: 210px; }   /* nicht unter die Uhr oben rechts */
+/* Fernhilfe: Hinweis oben in der Mitte (fängt keine Klicks ab) */
+.help-banner { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 9000; pointer-events: none;
+  display: flex; align-items: center; height: 46px; padding: 0 22px; border-radius: 23px; font-size: 22px; font-weight: 600;
+  color: #1a1408; background: #f4dc9e; box-shadow: 0 6px 24px rgba(0,0,0,.5); white-space: nowrap; }
+.help-banner svg { margin-right: 10px; flex: none; }

@@ -5125,6 +5125,7 @@
     var RemoteCmd = {
         run: function (cmd) {
             var self = this;
+            if (cmd === 'help') { Help.ask(true); return; }
             if (cmd === 'engine:vlc' || cmd === 'engine:exo') {
                 try { if (AB && AB.setLiveEngine) { AB.setLiveEngine(cmd === 'engine:vlc' ? 'vlc' : 'exo'); toast('Player Live TV: ' + (cmd === 'engine:vlc' ? 'VLC' : 'ImperumTV') + ' (vom Support eingestellt)', 5000); } } catch (e) { /* egal */ }
                 return;
@@ -5149,6 +5150,151 @@
         restart: function () {
             try { Player.stop(); } catch (e0) { /* egal */ }
             try { window.location.reload(); } catch (e) { /* egal */ }
+        }
+    };
+
+    // =====================================================================
+    // Fernhilfe: der Support sieht den Bildschirm von ImperumTV und bedient die App aus der Ferne.
+    // Nur nach Zustimmung am Gerät, höchstens 60 Minuten, jederzeit beendbar. Bedient wird nur ImperumTV.
+    // =====================================================================
+    var Help = {
+        on: false, code: '', ack: 0, timer: null, last: '', busy: false, fails: 0, viewer: false, banner: null,
+        available: function () { return !STORE_BUILD && Device.validMac(Device.mac) && Device.validKey(Device.key); },
+        /** Vorher fragen (auch wenn der Admin die Fernhilfe anfragt) */
+        ask: function (fromAdmin) {
+            var self = this;
+            if (!this.available()) return;
+            if (this.on) { this.menu(); return; }
+            Modal.open(fromAdmin ? 'Der Support möchte helfen' : 'Fernhilfe starten?',
+                (fromAdmin ? 'Der Support von ImperumTV möchte dir aus der Ferne helfen.\n\n' : '') +
+                'Der Support sieht dann, was in ImperumTV auf deinem Bildschirm ist, und kann die App für dich bedienen.\n' +
+                'Andere Apps und der Rest des Geräts bleiben unberührt. Die Fernhilfe endet nach spätestens 60 Minuten – oder wenn du sie beendest.', [
+                { label: 'Erlauben', primary: true, action: function () { self.start(); } },
+                { label: 'Nein, danke' }
+            ]);
+        },
+        menu: function () {
+            var self = this;
+            Modal.open('Fernhilfe läuft', 'Dein Code: ' + this.codeText() + '\nNenne ihn dem Support, damit er dein Gerät erkennt.' +
+                (this.viewer ? '\n\nDer Support sieht gerade deinen Bildschirm.' : ''), [
+                { label: 'Fernhilfe beenden', primary: true, action: function () { self.stop(true); } },
+                { label: 'Weiter laufen lassen' }
+            ]);
+        },
+        codeText: function () { return this.code ? this.code.slice(0, 3) + ' ' + this.code.slice(3) : '…'; },
+        start: function () {
+            var self = this;
+            Remote.rpc('device_help_start', { p_mac: Device.mac, p_key: Device.key }).then(function (r) {
+                if (!r || !r.ok || !r.code) { toast('Fernhilfe ließ sich nicht starten' + (r && r.error ? ': ' + r.error : '') + '.', 6000); return; }
+                self.code = r.code; self.ack = 0; self.last = '';
+                Storage.set('helpOn', { code: r.code, until: Date.now() + 60 * 60000 });
+                self.begin();
+                Modal.open('Fernhilfe läuft', 'Dein Code: ' + self.codeText() + '\nNenne ihn dem Support. Beenden kannst du die Fernhilfe jederzeit unter Einstellungen → Fernhilfe.', [{ label: 'OK', primary: true }]);
+            }, function (e) { toast('Fernhilfe: ' + (e && e.message ? e.message : 'keine Verbindung'), 6000); });
+        },
+        /** Nach einem Neustart der App weitermachen, wenn die Fernhilfe noch läuft */
+        resume: function () {
+            var st = Storage.get('helpOn', null);
+            if (!st || !st.code || !(st.until > Date.now()) || !this.available()) return;
+            this.code = st.code; this.ack = 0; this.last = '';
+            this.begin();
+        },
+        begin: function () {
+            var self = this;
+            this.on = true; this.fails = 0;
+            this.showBanner();
+            clearInterval(this.timer);
+            this.timer = setInterval(function () { self.tick(); }, 1500);
+            this.tick();
+        },
+        stop: function (tell) {
+            this.on = false; this.viewer = false;
+            clearInterval(this.timer); this.timer = null;
+            Storage.remove('helpOn');
+            if (this.banner && this.banner.parentNode) this.banner.parentNode.removeChild(this.banner);
+            this.banner = null;
+            if (tell) Remote.rpc('device_help_end', { p_mac: Device.mac, p_key: Device.key }).then(function () {}, function () {});
+            toast('Fernhilfe beendet', 3000);
+            var top = Nav.top();
+            if (top && top instanceof SettingsScreen && !Modal.node) Nav.show(top);
+        },
+        showBanner: function () {
+            if (!this.banner) {
+                this.banner = h('div', 'help-banner');
+                var st = document.getElementById('stage') || document.body;
+                st.appendChild(this.banner);
+            }
+            this.banner.innerHTML = icon('shield', 26) + '<span>Fernhilfe ' + (this.viewer ? 'aktiv · Support sieht zu' : 'bereit') + ' · Code ' + this.codeText() + '</span>';
+        },
+        /** Bildschirm der App als HTML (nur sichtbare Zeilen, ohne Videos), für die Ansicht im Admin-Bereich */
+        snapshot: function () {
+            var stage = document.getElementById('stage');
+            if (!stage) return '';
+            var H = window.innerHeight || 1080, W = window.innerWidth || 1920, off = [], i;
+            var nodes = stage.querySelectorAll('.focusable');
+            for (i = 0; i < nodes.length; i++) {
+                var r = nodes[i].getBoundingClientRect();
+                if (r.bottom < -40 || r.top > H + 40 || r.right < -40 || r.left > W + 40) { nodes[i].setAttribute('data-hoff', '1'); off.push(nodes[i]); }
+            }
+            var clone = stage.cloneNode(true);
+            for (i = 0; i < off.length; i++) off[i].removeAttribute('data-hoff');
+            var rm = clone.querySelectorAll('[data-hoff], script, video, object, iframe, .help-banner');
+            for (i = 0; i < rm.length; i++) if (rm[i].parentNode) rm[i].parentNode.removeChild(rm[i]);
+            // Eingabefelder: aktuellen Text mitschicken
+            var ins = stage.querySelectorAll('input'), cins = clone.querySelectorAll('input');
+            for (i = 0; i < ins.length && i < cins.length; i++) cins[i].setAttribute('value', ins[i].value || '');
+            var html = clone.innerHTML;
+            if (html.length > 1200000) html = '<div style="padding:80px;font-size:40px;color:#f4dc9e">Bildschirm zu groß zum Übertragen</div>';
+            return JSON.stringify({ b: document.body.className, h: html, p: Nav.top() instanceof PlayerScreen });
+        },
+        tick: function () {
+            var self = this;
+            if (!this.on || this.busy) return;
+            var snap = '';
+            try { snap = this.snapshot(); } catch (e) { snap = ''; }
+            var send = snap && snap !== this.last ? snap : null;
+            this.busy = true;
+            Remote.rpc('device_help_push', { p_mac: Device.mac, p_key: Device.key, p_snap: send, p_ack: this.ack }).then(function (r) {
+                self.busy = false; self.fails = 0;
+                if (!self.on) return;
+                if (!r || r.active === false) { self.stop(false); return; }
+                if (send) self.last = send;
+                if (!!r.viewer !== self.viewer) { self.viewer = !!r.viewer; self.showBanner(); }
+                var list = r.cmds || [], ran = false;
+                for (var i = 0; i < list.length; i++) {
+                    var n = Number(list[i].n) || 0;
+                    if (n <= self.ack) continue;
+                    self.ack = n; ran = true;
+                    try { self.run(String(list[i].c || '')); } catch (e) { /* egal */ }
+                }
+                if (ran) setTimeout(function () { self.tick(); }, 350);   // Ergebnis gleich zeigen
+            }, function () {
+                self.busy = false;
+                if (++self.fails > 200) self.stop(false);   // gut 5 Minuten ohne Verbindung
+            });
+        },
+        KEYS: { up: 'UP', down: 'DOWN', left: 'LEFT', right: 'RIGHT', ok: 'ENTER', back: 'BACK', play: 'PLAYPAUSE',
+            red: 'RED', green: 'GREEN', yellow: 'YELLOW', blue: 'BLUE', chup: 'CH_UP', chdown: 'CH_DOWN', ff: 'FF', rw: 'RW' },
+        run: function (c) {
+            var m;
+            if ((m = /^key:(\w+)$/.exec(c)) && this.KEYS[m[1]]) {
+                onKeyDown({ keyCode: KEY[this.KEYS[m[1]]], repeat: false, preventDefault: function () { }, stopPropagation: function () { } });
+                return;
+            }
+            if ((m = /^click:([\s\S]+)$/.exec(c))) {
+                var nodes = document.querySelectorAll('.focusable[data-key]'), k = m[1];
+                for (var i = 0; i < nodes.length; i++) {
+                    if (nodes[i].getAttribute('data-key') === k && nodes[i].offsetParent !== null) { nodes[i].click(); return; }
+                }
+                return;
+            }
+            if ((m = /^text:([\s\S]*)$/.exec(c))) {
+                var inp = Focus.cur && Focus.cur.tagName === 'INPUT' ? Focus.cur : (document.activeElement && document.activeElement.tagName === 'INPUT' ? document.activeElement : null);
+                if (!inp) { var all = document.querySelectorAll('#app input'); for (var j = 0; j < all.length; j++) if (all[j].offsetParent !== null) { inp = all[j]; break; } }
+                if (!inp) return;
+                inp.value = m[1];
+                try { inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) { /* alte Browser */ }
+            }
         }
     };
 
@@ -7973,6 +8119,7 @@
             }
         }
         row('lists', 'list', 'Wiedergabelisten', 'Wechseln', function () { Nav.push(new PlaylistsScreen()); });
+        if (Help.available()) row('help', 'shield', 'Fernhilfe', Help.on ? 'Läuft · Code ' + Help.codeText() : 'Support hilft aus der Ferne', function () { if (Help.on) Help.menu(); else Help.ask(false); });
         if (!STORE_BUILD) row('account', 'user', 'Konto', License.activated() ? 'Aktiviert' : (License.free() ? License.freeText() : License.text()), function () { Nav.push(new AccountScreen()); });
 
         // ---------- Unten: Aktionen ----------
@@ -9629,6 +9776,7 @@
         Player.init();
         Updater.autoCheck();                               // gleich beim Start nach neuer Version suchen
         setTimeout(function () { Updater.flags(); }, 8000);     // vom Admin erzwungenes Update?
+        setTimeout(function () { try { Help.resume(); } catch (e) { /* egal */ } }, 6000);   // Fernhilfe lief vor dem Neustart
         setTimeout(function () { Report.flushNative(); }, 8000);   // Absturzbericht vom letzten Mal an die Website
         setTimeout(function () {
             var had = OVpn.native() && OVpn.info().has;
