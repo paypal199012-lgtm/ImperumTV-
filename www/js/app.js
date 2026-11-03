@@ -2469,7 +2469,8 @@
         },
         /** Nächster Titel ohne Genre-Prüfung: erst Filme (neueste zuerst), dann Serien */
         next: function () {
-            var lists = [['movie', Data.moviesLoaded ? Data.movies : null], ['series', Data.seriesLoaded ? Data.series : null]];
+            // Nur Filme: Serien bringen Genre und Beschreibung schon in der Liste mit (Serien-Details wären sehr groß)
+            var lists = [['movie', Data.moviesLoaded ? Data.movies : null]];
             var todo = 0, first = null, total = 0;
             for (var l = 0; l < lists.length; l++) {
                 var list = lists[l][1], type = lists[l][0];
@@ -2556,7 +2557,9 @@
                 item = { type: 'series', id: parseInt(s.series_id, 10), name: name, logo: str(s.cover),
                     cat: cats[String(s.category_id)] || '',
                     year: firstYear(str(s.releaseDate)) || firstYear(str(s.release_date)) || firstYear(str(s.year)) || yearFromName(name),
-                    rating: parseRating(s.rating, s.rating_5based), added: parseInt(s.last_modified, 10) || 0, g: genreMask(str(s.genre)) };
+                    rating: parseRating(s.rating, s.rating_5based), added: parseInt(s.last_modified, 10) || 0,
+                    // Horror steht bei Serien selten im Genre: an der Beschreibung erkennen (steht schon in der Liste)
+                    g: genreMask(str(s.genre) + (/(zombie|vampir|werw[oö]lf|werewol|d[äa]mon|demon|exorz|exorcis|spuk|besessen|possess|untote|undead|poltergeist|okkult|occult|haunt|horror)/i.test(str(s.plot)) ? ' horror' : '')) };
             }
             if (!isNaN(item.id)) out.push(item);
         }
