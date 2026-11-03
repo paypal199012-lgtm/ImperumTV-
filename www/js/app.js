@@ -2431,8 +2431,9 @@
         },
         save: function () {
             var self = this;
-            if (++this.dirty >= 25) { this.flush(); return; }
-            if (!this.saveT) this.saveT = setTimeout(function () { self.flush(); }, 20000);
+            // selten speichern: die Liste kann zehntausende Einträge haben (spart Speicher auf kleinen Sticks)
+            if (++this.dirty >= 300) { this.flush(); return; }
+            if (!this.saveT) this.saveT = setTimeout(function () { self.flush(); }, 180000);
         },
         flush: function () {
             clearTimeout(this.saveT); this.saveT = null; this.dirty = 0;
@@ -2467,8 +2468,27 @@
             if (this.timer) return;
             this.timer = setInterval(function () { self.tick(); }, 1000);
         },
-        /** Nächster Titel ohne Genre-Prüfung: erst Filme (neueste zuerst), dann Serien */
+        /** Nächster Titel ohne Genre-Prüfung: läuft mit einer Merkstelle durch die Filmliste (nicht jedes Mal ganz) */
         next: function () {
+            var list = Data.moviesLoaded ? Data.movies : null;
+            if (!list || !list.length) { this.total = 0; return null; }
+            if (this.of !== list) { this.of = list; this.pos = list.length - 1; this.countAt = 0; }
+            var now = Date.now();
+            if (now - (this.countAt || 0) > 30000) { this.count(list); this.countAt = now; }
+            for (var n = 0; n < list.length; n++) {
+                if (this.pos < 0) this.pos = list.length - 1;
+                var it = list[this.pos--];
+                if (it && !Genre.known('movie', it.id) && !this.flying['movie' + it.id]) return { type: 'movie', id: it.id };
+            }
+            this.done = this.total;
+            return null;
+        },
+        count: function (list) {
+            var todo = 0;
+            for (var i = 0; i < list.length; i++) if (!Genre.known('movie', list[i].id)) todo++;
+            this.total = list.length; this.done = list.length - todo;
+        },
+        nextFull: function () {
             // Nur Filme: Serien bringen Genre und Beschreibung schon in der Liste mit (Serien-Details wären sehr groß)
             var lists = [['movie', Data.moviesLoaded ? Data.movies : null]];
             var todo = 0, first = null, total = 0;
@@ -2484,7 +2504,7 @@
             return first;
         },
         progress: function () {
-            if (!this.total) this.next();          // gleich zählen, auch bevor die erste Abfrage lief
+            if (!this.total && Data.moviesLoaded && Data.movies.length) this.count(Data.movies);   // gleich zählen, auch bevor die erste Abfrage lief
             if (!this.total) return '';
             var p = Math.floor(this.done * 100 / this.total);
             return p >= 100 ? '' : p + ' %';
@@ -2517,6 +2537,7 @@
                 if (Api.acc !== acc) return;
                 var info = parseInfo(json && json.info);
                 Genre.learnId(n.type, n.id, info.genre, info.plot);
+                self.done = Math.min(self.total, self.done + 1);
             }, function (e) {
                 self.busy--; delete self.flying[fk];
                 // Anbieter bremst (zu viele Anfragen / gesperrt): gleich 10 Minuten Pause
