@@ -7806,7 +7806,29 @@
             v.textContent = Settings.liveExt.toUpperCase();
             toast(Settings.liveExt === 'ts' ? 'Live-Sender laufen jetzt als TS (meist am stabilsten)' : 'Live-Sender laufen jetzt als HLS (M3U8)');
         });
-        if (AB && AB.hasVlc && AB.getLiveEngine && AB.setLiveEngine && (function () { try { return AB.hasVlc(); } catch (e) { return false; } })()) {
+        if (AB && AB.getVodEngine && AB.setVodEngine && AB.getLiveEngine && AB.setLiveEngine) {
+            // iPhone: Apple-Player oder VLC wählbar – getrennt für Live TV und für Filme & Serien
+            var iosName = function (m) { return m === 'vlc' ? 'VLC' : m === 'apple' ? 'Apple-Player' : 'Automatisch'; };
+            var iosRow = function (key, title, get, set, what) {
+                row(key, 'play', title, iosName(get()), function (v) {
+                    function pick(m) {
+                        try { set(m); } catch (e) { /* egal */ }
+                        v.textContent = iosName(m);
+                        toast(what + ' läuft ab dem nächsten Start mit: ' + iosName(m), 4000);
+                    }
+                    var cur = get();
+                    Modal.open(title, 'Mit welchem Player soll ' + what + ' laufen?\nAutomatisch: Apple-Player, bei Problemen von selbst VLC.\n' +
+                        'Ruckelt oder startet etwas nicht, probiere den anderen Player aus.', [
+                        { label: 'Automatisch (empfohlen)', primary: cur !== 'apple' && cur !== 'vlc', action: function () { pick('exo'); } },
+                        { label: 'Apple-Player', primary: cur === 'apple', action: function () { pick('apple'); } },
+                        { label: 'VLC', primary: cur === 'vlc', action: function () { pick('vlc'); } },
+                        { label: 'Abbrechen' }
+                    ]);
+                });
+            };
+            iosRow('engine', 'Player Live TV', function () { try { return AB.getLiveEngine(); } catch (e) { return 'exo'; } }, function (m) { AB.setLiveEngine(m); }, 'Live TV');
+            iosRow('vodengine', 'Player Filme & Serien', function () { try { return AB.getVodEngine(); } catch (e) { return 'exo'; } }, function (m) { AB.setVodEngine(m); }, 'Filme & Serien');
+        } else if (AB && AB.hasVlc && AB.getLiveEngine && AB.setLiveEngine && (function () { try { return AB.hasVlc(); } catch (e) { return false; } })()) {
             var engName = function (m) { return m === 'vlc' ? 'VLC' : 'ImperumTV'; };
             var engGet = function () { try { return AB.getLiveEngine() === 'vlc' ? 'vlc' : 'exo'; } catch (e) { return 'exo'; } };
             row('engine', 'play', 'Player Live TV', engName(engGet()), function (v) {

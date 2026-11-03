@@ -162,6 +162,10 @@ struct PinPrompt: View {
 // MARK: - Einstellungen (Aufbau wie Android: Kopfkarte, drei Spalten, Aktionen unten)
 
 struct SettingsScreen: View {
+    /// Player-Wahl: Automatisch → Apple-Player → VLC → Automatisch
+    static func engName(_ m: String) -> String { m == "vlc" ? "VLC" : m == "apple" ? "Apple-Player" : "Automatisch" }
+    static func nextEngine(_ m: String) -> String { m == "vlc" ? "auto" : m == "apple" ? "vlc" : "apple" }
+
     @EnvironmentObject var store: TVStore
     @EnvironmentObject var nav: Nav
     @EnvironmentObject var engine: PlayerEngine
@@ -186,15 +190,15 @@ struct SettingsScreen: View {
                     row("tv", "Live-Format", store.liveExt.uppercased() == "TS" ? "TS" : "HLS") {
                         store.liveExt = store.liveExt == "ts" ? "m3u8" : "ts"
                     }
-                    row("play", "Player Live TV", engine.liveEngine == "vlc" ? "VLC" : "Automatisch") {
-                        engine.liveEngine = engine.liveEngine == "vlc" ? "auto" : "vlc"
+                    row("play", "Player Live TV", Self.engName(engine.liveEngine)) {
+                        engine.liveEngine = Self.nextEngine(engine.liveEngine)
                     }
                     row("tv", "Ersatzsender", engine.autoAlt ? "An · automatisch" : "Aus") { engine.autoAlt.toggle() }
                     row("up", "Puffer", engine.bufferMode == "small" ? "Klein · 1 s" : engine.bufferMode == "large" ? "Groß · 5 s" : "Normal · 2,5 s") {
                         engine.bufferMode = engine.bufferMode == "normal" ? "large" : engine.bufferMode == "large" ? "small" : "normal"
                     }
-                    row("play", "Player Filme & Serien", engine.vodEngine == "vlc" ? "VLC" : "Automatisch") {
-                        engine.vodEngine = engine.vodEngine == "vlc" ? "auto" : "vlc"
+                    row("play", "Player Filme & Serien", Self.engName(engine.vodEngine)) {
+                        engine.vodEngine = Self.nextEngine(engine.vodEngine)
                     }
                     row("next", "Nächste Folge", autoNext ? "An · 10 s" : "Aus") { autoNext.toggle() }
                     row("next", "Intro überspringen", introBtn ? "An · 20 s" : "Aus") { introBtn.toggle() }

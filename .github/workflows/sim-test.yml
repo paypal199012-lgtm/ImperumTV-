@@ -27,6 +27,7 @@ jobs:
       - name: Demo für den Test einschalten
         run: |
           sed -i '' 's/ENABLED: false/ENABLED: true/' www/js/app.js
+          cp test/demo-test.js www/demo-test.js
       - name: Für den Simulator bauen
         run: |
           xcodebuild -workspace IPTVPlayer.xcworkspace -scheme IPTVPlayer -configuration Debug -sdk iphonesimulator \
@@ -47,20 +48,17 @@ jobs:
           xcrun simctl install "$UDID" "$APP"
           BID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist")
           SIMCTL_CHILD_IMPTV_TEST=1 xcrun simctl launch "$UDID" "$BID"
-          sleep 25
           mkdir -p shots
-          xcrun simctl io "$UDID" screenshot shots/start.png
-          sleep 20
-          xcrun simctl io "$UDID" screenshot shots/spaeter.png
-          sleep 5
-          DATA=$(xcrun simctl get_app_container "$UDID" "$BID" data) && { cp "$DATA/Documents/web.png" shots/web.png || true; }; cp "$DATA/Documents/player.png" shots/player.png || true
-          xcrun simctl spawn "$UDID" log show --last 3m --predicate 'process == "IPTVPlayer"' --style compact > shots/log-all.txt 2>&1 || true
+          for n in $(seq -w 1 16); do sleep 15; xcrun simctl io "$UDID" screenshot shots/bild-$n.png || true; done
+          DATA=$(xcrun simctl get_app_container "$UDID" "$BID" data) && cp "$DATA"/Documents/*.png shots/ 2>/dev/null || true
+          xcrun simctl spawn "$UDID" log show --last 6m --predicate 'process == "IPTVPlayer"' --style compact > shots/log-all.txt 2>&1 || true
           grep "ImperumTV-Web" shots/log-all.txt > shots/log.txt || true
+          grep -E "TEST|Player-Ereignis" shots/log.txt > shots/test.txt || true
           ls -la "$APP/www" "$APP/www/js" >> shots/log.txt 2>&1 || true
       - name: Bilder in den Zweig legen (zum Ansehen)
         if: always()
         run: |
-          mkdir -p sim-shots && cp -f shots/* sim-shots/ 2>/dev/null || true
+          rm -rf sim-shots && mkdir -p sim-shots && cp -f shots/* sim-shots/ 2>/dev/null || true
           grep -E "error:" build.log | sort -u | head -80 > sim-shots/build-errors.txt || true
           git config user.name "sim-bot"; git config user.email "sim-bot@users.noreply.github.com"
           git add sim-shots && git commit -m "Simulator-Bilder [skip ci]" && git push || true

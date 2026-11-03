@@ -92,26 +92,11 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         // Simulator-Test: nach 15 s den Zustand ins Protokoll und ein Foto der Oberfläche in „Dokumente“
         DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in self?.debugSnapshot() }
         if ProcessInfo.processInfo.environment["IMPTV_TEST"] == "1" {
-            // Live TV öffnen, ersten Sender wählen, Vollbild
-            let steps: [(Double, String)] = [
-                (18, "var e=[].slice.call(document.querySelectorAll('#app [data-key]')).filter(function(x){return /LIVE TV/i.test(x.textContent)})[0]; e&&e.click(); 'live:'+!!e"),
-                (20, "var b=document.querySelector('.ios-back'), q=b.getBoundingClientRect(), t=document.elementFromPoint(q.left+q.width/2, q.top+q.height/2); 'zurueck-knopf: '+b.className+' rect='+[q.left|0,q.top|0,q.width|0]+' oben='+(t?(t.closest('.ios-back')?'KNOPF':t.tagName+'.'+t.className):'nichts')"),
-                (21, "var r=document.querySelector('.col-list .row'); r&&r.click(); 'row:'+!!r"),
-                (23, "var b=[].slice.call(document.querySelectorAll('#app [data-key]')).filter(function(x){return /Vollbild/.test(x.textContent)})[0]; b&&b.click(); 'voll:'+!!b"),
-                (38, "JSON.stringify(window.__abState)")
-            ]
-            for (t, code) in steps {
-                DispatchQueue.main.asyncAfter(deadline: .now() + t) { [weak self] in
-                    self?.web.evaluateJavaScript(code) { r, e in NSLog("[ImperumTV-Web] Test %@: %@ %@", "\(t)", "\(r ?? "")", e?.localizedDescription ?? "") }
-                }
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 40) { [weak self] in
-                guard let self = self else { return }
-                let r = UIGraphicsImageRenderer(bounds: self.view.bounds)
-                let img = r.image { _ in self.view.drawHierarchy(in: self.view.bounds, afterScreenUpdates: true) }
-                if let d = img.pngData(), let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-                    try? d.write(to: dir.appendingPathComponent("player.png"))
-                }
+            // Demo-Filme und -Sender nacheinander abspielen (Skript legt der Simulator-Workflow nach www/demo-test.js)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
+                let f = Bundle.main.bundleURL.appendingPathComponent("www/demo-test.js")
+                guard let code = try? String(contentsOf: f, encoding: .utf8) else { NSLog("[ImperumTV-Web] TEST: kein Testskript"); return }
+                self?.web.evaluateJavaScript(code) { r, e in NSLog("[ImperumTV-Web] TEST start: %@ %@", "\(r ?? "")", e?.localizedDescription ?? "") }
             }
         }
         #endif
@@ -153,6 +138,17 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
             } else { NSLog("[ImperumTV-Web] Foto fehlgeschlagen %@", err?.localizedDescription ?? "") }
         }
     }
+
+    #if DEBUG
+    /// Simulator-Test: Bild der ganzen Ansicht in „Dokumente“
+    private func debugShot(_ name: String) {
+        let r = UIGraphicsImageRenderer(bounds: view.bounds)
+        let img = r.image { _ in view.drawHierarchy(in: view.bounds, afterScreenUpdates: true) }
+        if let d = img.pngData(), let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            try? d.write(to: dir.appendingPathComponent(name + ".png"))
+        }
+    }
+    #endif
 
     @objc private func edgeBack(_ g: UIScreenEdgePanGestureRecognizer) {
         guard g.state == .ended else { return }
@@ -210,11 +206,16 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         case "selectTrack": player.selectTrack(s(0), Int(d(1)))
         case "setAudioLangs": player.audioLangs = s(0).split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
         case "setBuffer": UserDefaults.standard.set(s(0), forKey: "web.buffer")
-        case "setLiveEngine": UserDefaults.standard.set(s(0) == "vlc" ? "vlc" : "exo", forKey: "web.liveEngine")
+        case "setLiveEngine": UserDefaults.standard.set(["vlc", "apple"].contains(s(0)) ? s(0) : "exo", forKey: "web.liveEngine")
+        case "setVodEngine": UserDefaults.standard.set(["vlc", "apple"].contains(s(0)) ? s(0) : "exo", forKey: "web.vodEngine")
         case "setNextEngine": player.forceVLCNext = s(0) == "vlc"; player.forceAVNext = s(0) == "apple"
         case "keepAwake": UIApplication.shared.isIdleTimerDisabled = (a.first as? Bool) ?? true
         case "openUrl": if let u = URL(string: s(0)) { UIApplication.shared.open(u) }
-        case "log": NSLog("[ImperumTV-Web] %@", s(0))
+        case "log":
+            NSLog("[ImperumTV-Web] %@", s(0))
+            #if DEBUG
+            if s(0).hasPrefix("SHOT ") { debugShot(String(s(0).dropFirst(5))) }
+            #endif
         default: break
         }
         pushState()
@@ -261,11 +262,12 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         let device = UIDevice.current.model + " · iOS " + UIDevice.current.systemVersion
         let buffer = UserDefaults.standard.string(forKey: "web.buffer") ?? "normal"
         let engine = UserDefaults.standard.string(forKey: "web.liveEngine") ?? "exo"
+        let vodEngine = UserDefaults.standard.string(forKey: "web.vodEngine") ?? "exo"
         return """
         (function () {
           var S = window.__abState = { playing: false, pos: 0, dur: 0, kbps: 0, audio: '[]', text: '[]',
             version: \(ver), device: \(Self.jsString(device)), mk: \(Self.jsString(ids.mac + "|" + ids.key)),
-            buffer: \(Self.jsString(buffer)), engine: \(Self.jsString(engine)), tz: \(TimeZone.current.secondsFromGMT() / 60) };
+            buffer: \(Self.jsString(buffer)), engine: \(Self.jsString(engine)), vodEngine: \(Self.jsString(vodEngine)), tz: \(TimeZone.current.secondsFromGMT() / 60) };
           function post(m, a) { try { window.webkit.messageHandlers.ab.postMessage({ m: m, a: a || [] }); } catch (e) {} }
           // Programmfehler der Oberfläche ins Protokoll der App (zum Prüfen im Simulator)
           window.addEventListener('error', function (e) { post('log', ['JS-Fehler: ' + e.message + ' @ ' + (e.filename || '') + ':' + e.lineno]); });
@@ -311,7 +313,9 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
             setBuffer: function (m) { S.buffer = m; post('setBuffer', [m]); },
             hasVlc: function () { return true; },
             getLiveEngine: function () { return S.engine; },
-            setLiveEngine: function (m) { S.engine = m === 'vlc' ? 'vlc' : 'exo'; post('setLiveEngine', [S.engine]); },
+            setLiveEngine: function (m) { S.engine = m === 'vlc' || m === 'apple' ? m : 'exo'; post('setLiveEngine', [S.engine]); },
+            getVodEngine: function () { return S.vodEngine; },
+            setVodEngine: function (m) { S.vodEngine = m === 'vlc' || m === 'apple' ? m : 'exo'; post('setVodEngine', [S.vodEngine]); },
             setNextEngine: P('setNextEngine'),
             keepAwake: P('keepAwake'),
             openUrl: P('openUrl')
@@ -450,7 +454,9 @@ final class NativePlayer {
     }
 
     private var bufferMode: String { UserDefaults.standard.string(forKey: "web.buffer") ?? "normal" }
+    /// „exo“ = automatisch (Apple-Player, bei Problemen VLC), „apple“ = nur Apple-Player, „vlc“ = immer VLC
     private var liveEngine: String { UserDefaults.standard.string(forKey: "web.liveEngine") ?? "exo" }
+    private var vodEngine: String { UserDefaults.standard.string(forKey: "web.vodEngine") ?? "exo" }
 
     // ---------- Fläche ----------
 
@@ -478,8 +484,9 @@ final class NativePlayer {
         readySent = false; buffering = false; triedVLC = false; langPicked = false
         place(r, in: bounds, full: full)
         let ext = url.pathExtension.lowercased()
-        let wantVLC = !forceAVNext && (forceVLCNext || (isLive && liveEngine == "vlc") || (!isLive && ["mkv", "avi", "wmv", "flv", "ts", "divx", "webm"].contains(ext)))
-        if forceAVNext { triedVLC = true }        // ausdrücklich Apple-Player: nicht still auf VLC wechseln
+        let eng = isLive ? liveEngine : vodEngine
+        let wantVLC = !forceAVNext && (forceVLCNext || eng == "vlc" || (!isLive && eng != "apple" && ["mkv", "avi", "wmv", "flv", "ts", "divx", "webm"].contains(ext)))
+        if forceAVNext || (eng == "apple" && !forceVLCNext) { triedVLC = true }   // ausdrücklich Apple-Player: nicht still auf VLC wechseln
         forceVLCNext = false; forceAVNext = false
         if wantVLC { playVLC(url) } else { playAV(isLive && ext == "ts" ? Self.asHLS(url) : url) }
     }

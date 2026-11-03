@@ -141,7 +141,7 @@ final class PlayerEngine: ObservableObject {
     var fallback: URL?
 
     func play(_ url: URL, item: TVItem, kind: MediaKind, title: String? = nil, art: Art? = nil, fallback: URL? = nil,
-              startAt: Double = 0, keepAltState: Bool = false, forceVLC: Bool = false) {
+              startAt: Double = 0, keepAltState: Bool = false, forceVLC: Bool = false, forceApple: Bool = false) {
         self.fallback = fallback
         error = nil
         if !keepAltState { triedAlt = []; originalId = item.id }
@@ -154,7 +154,10 @@ final class PlayerEngine: ObservableObject {
         triedVLC = forceVLC
         stallTask?.cancel()
         let ext = url.pathExtension.lowercased()
-        let wantVLC = Self.hasVLC && (forceVLC || (kind == .live && liveEngine == "vlc") || (kind != .live && vodEngine == "vlc") || Self.vlcExt.contains(ext))
+        // „auto“ = Apple-Player, bei Problemen VLC · „apple“ = nur Apple-Player · „vlc“ = immer VLC
+        let eng = kind == .live ? liveEngine : vodEngine
+        if (eng == "apple" || forceApple) && !forceVLC { triedVLC = true }
+        let wantVLC = Self.hasVLC && !forceApple && (forceVLC || eng == "vlc" || (eng != "apple" && Self.vlcExt.contains(ext)))
         if wantVLC { playVLC(url, startAt: startAt) } else { playAV(url, startAt: startAt) }
         UIApplication.shared.isIdleTimerDisabled = true
     }
@@ -283,6 +286,15 @@ final class PlayerEngine: ObservableObject {
         notice("Hänger – gewechselt auf " + alt.name)
         play(u, item: alt, kind: .live, keepAltState: true)
         return true
+    }
+
+    /// Im Player: dasselbe mit dem anderen Player weiter abspielen (Apple-Player ⇄ VLC)
+    func switchPlayer() {
+        guard Self.hasVLC, let it = item, let u = currentURL else { return }
+        let toVLC = !usingVLC
+        let at = kind == .live ? 0 : position
+        play(u, item: it, kind: kind, title: title, art: art, startAt: at, keepAltState: true, forceVLC: toVLC, forceApple: !toVLC)
+        notice("Läuft jetzt mit " + (toVLC ? "VLC" : "Apple-Player"))
     }
 
     private func reconnect() {
@@ -689,6 +701,9 @@ struct PlayerScreen: View {
                         row("💬  Untertitel", false) { menu = "text" }
                         row("🖼  Bildformat", false) { menu = "format" }
                         row("🌙  Schlaf-Timer" + (engine.sleepAt != nil ? " (an)" : ""), false) { menu = "sleep" }
+                        if PlayerEngine.hasVLC {
+                            row("⇄  Anderer Player (jetzt: " + (engine.usingVLC ? "VLC" : "Apple-Player") + ")", false) { close(menu: true); engine.switchPlayer() }
+                        }
                         if engine.kind == .live {
                             row("🔁  Ersatzsender suchen", false) { close(menu: true); if !engine.tryAlt() { engine.notice("Kein Ersatzsender gefunden") } }
                         }
