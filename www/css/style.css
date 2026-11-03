@@ -1611,3 +1611,4 @@ body.lite .live-b .cat.focused { box-shadow: 0 0 0 3px #f4dc9e !important; }
 body.ios .screen-title { left: 96px; }
 /* Im Vollbild nur zusammen mit der eingeblendeten Leiste */
 body.video-mode:not(.osd) .ios-back { display: none; }
+.pl-head .vpn-badge.vpn-btn { margin-right: 210px; }   /* nicht unter die Uhr oben rechts */

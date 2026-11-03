@@ -2184,6 +2184,30 @@
         /** Knopf für den Wiedergabelisten-Bildschirm: verbinden, bevor eine Liste geladen wird */
         button: function (key, group) {
             var self = this, node = this.badge();
+            if (!node && this.native()) {
+                // Noch kein VPN eingerichtet: Knopf trotzdem zeigen – erst vom Konto holen, sonst erklären, wie es geht
+                node = h('div', 'vpn-badge off vpn-btn');
+                node.innerHTML = icon('shield', 34) + '<span>VPN einrichten</span>';
+                var sp = node.getElementsByTagName('span')[0];
+                return focusable(node, key, function () {
+                    sp.textContent = 'VPN wird gesucht …';
+                    self.sync(function () {
+                        if (self.info().has) {
+                            self.toggle();
+                            sp.textContent = 'VPN verbindet …';
+                            return;
+                        }
+                        sp.textContent = 'VPN einrichten';
+                        var btns = [];
+                        if (AB && AB.openUrl) btns.push({ label: 'Website öffnen', primary: true, action: function () { AB.openUrl(Device.link()); } });
+                        btns.push({ label: 'OK', primary: !btns.length });
+                        Modal.open('VPN einrichten', 'Für dieses Gerät ist noch kein VPN hinterlegt.\n\n' +
+                            '1. Scanne den QR-Code oder öffne die Website.\n' +
+                            '2. Lade beim Gerät deine .ovpn-Datei hoch (von deinem VPN-Anbieter) und trage dort Benutzername und Passwort für das VPN ein.\n' +
+                            '3. Danach hier noch einmal auf „VPN einrichten“ drücken – die App verbindet sich dann.', btns);
+                    });
+                }, group);
+            }
             if (!node) return null;
             node.className += ' vpn-btn';
             var i = this.info(), span = node.getElementsByTagName('span')[0];
