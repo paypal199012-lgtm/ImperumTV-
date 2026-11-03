@@ -1620,3 +1620,7 @@ body.video-mode:not(.osd) .ios-back { display: none; }
 .pl-head .vpn-badge.help-btn { margin-left: auto; margin-right: 16px; }
 .pl-head .vpn-badge.help-btn.last { margin-right: 210px; }
 .pl-head .vpn-badge.help-btn ~ .vpn-btn { margin-left: 0; }
+/* Zusammengefasste Sender: vorhandene Qualitäten, die gewählte hervorgehoben */
+.row .mq { display: flex; gap: 6px; margin-left: 10px; flex: none; }
+.row .mq b { font-size: 15px; line-height: 1; padding: 5px 8px; border-radius: 5px; background: rgba(255,255,255,.12); color: #d6d1c6; font-weight: 700; }
+.row .mq b.on { background: #f4dc9e; color: #1a1408; }

@@ -5592,6 +5592,129 @@
         }
     };
 
+    /**
+     * Sender zusammenfassen: „Sky Sport Austria 1 FHD“, „Sky Sport AT 1 HD“, „AT: Sky Sport Austria 1 (Backup)“ → ein Eintrag
+     * „Sky Sport Austria 1“ mit wählbarer Qualität. Nur innerhalb einer Kategorie bzw. (unter „Alle“/Suche) desselben Landes.
+     */
+    var Merge = {
+        on: function () { return Storage.get('mergeCh', true) !== false; },
+        SYN: [[/(^| )(austria|osterreich|oesterreich|österreich)( |$)/g, '$1at$3'], [/(^| )(deutschland|germany|german|ger|deu)( |$)/g, '$1de$3'],
+            [/(^| )(schweiz|swiss|suisse|svizzera)( |$)/g, '$1ch$3'], [/(^| )(bundesliga)( |$)/g, '$1buli$3']],
+        key: function (c) {
+            var k = AltCh.key(c).replace(/([a-z])(\d)/g, '$1 $2').replace(/(\d)([a-z])/g, '$1 $2');
+            for (var i = 0; i < this.SYN.length; i++) k = k.replace(this.SYN[i][0], this.SYN[i][1]).replace(this.SYN[i][0], this.SYN[i][1]);
+            return k.replace(/\s+/g, ' ').trim();
+        },
+        off: function () { return Storage.get('mergeOff', {}) || {}; },
+        pref: function () { return Storage.get('mergePref', {}) || {}; },
+        /** Qualität einer Variante als kurzer Text (FHD, HD, 4K, SD, Backup …) */
+        tags: function (c) {
+            var t = NameTidy.split(c.name, c.cat).tags.slice();
+            if (/(^|[^a-z])(backup|alt|ersatz|reserve)([^a-z]|$)/i.test(NameTidy.plain(c.name))) t.push('Backup');
+            if (/(^|[^a-z])(mobile|low|lq)([^a-z]|$)/i.test(NameTidy.plain(c.name)) && t.indexOf('SD') < 0) t.push('SD');
+            return t;
+        },
+        /** Welche Variante zuerst: FHD, HD, ohne Angabe, 4K, 50 FPS/RAW, HEVC, Backup, SD */
+        rank: function (t) {
+            var r = 2.5;
+            if (t.indexOf('FHD') >= 0) r = 0; else if (t.indexOf('HD') >= 0) r = 1; else if (t.indexOf('4K') >= 0 || t.indexOf('UHD') >= 0 || t.indexOf('8K') >= 0) r = 3;
+            if (t.indexOf('RAW') >= 0 || t.indexOf('50FPS') >= 0 || t.indexOf('60FPS') >= 0) r += 0.5;
+            if (t.indexOf('HEVC') >= 0) r += 0.7;
+            if (t.indexOf('Backup') >= 0) r += 5;
+            if (t.indexOf('SD') >= 0) r += 6;
+            return r;
+        },
+        label: function (t) { return t.length ? t.join(' ') : 'Standard'; },
+        /** Liste zusammenfassen. byCountry: unter „Alle“/Suche über Kategorien hinweg, aber nur gleiches Land */
+        group: function (list, byCountry) {
+            if (!this.on()) { for (var z = 0; z < list.length; z++) { list[z]._mv = null; list[z]._mcc = ''; } return list; }
+            var groups = {}, order = [], off = this.off(), pref = this.pref(), i, c, k;
+            for (i = 0; i < list.length; i++) {
+                c = list[i];
+                if (NameTidy.isSep(c.name)) { order.push({ sep: c }); continue; }
+                k = this.key(c);
+                var cc = AltCh.country(c.name) || AltCh.country(c.cat);
+                var gk = (byCountry ? 'L:' + cc : 'C:' + (c.cat || '')) + '|' + k;
+                if (!k || k.length < 2 || off[gk]) { order.push({ one: c }); continue; }
+                if (!groups[gk]) { groups[gk] = { key: gk, list: [], cc: cc }; order.push({ g: groups[gk] }); }
+                groups[gk].list.push(c);
+            }
+            var out = [], self = this;
+            order.forEach(function (o) {
+                if (o.sep) { out.push(o.sep); return; }
+                if (o.one) { o.one._mv = null; o.one._mcc = byCountry ? AltCh.country(o.one.name) || AltCh.country(o.one.cat) : ''; out.push(o.one); return; }
+                var g = o.g;
+                if (g.list.length === 1) { g.list[0]._mv = null; g.list[0]._mcc = byCountry ? g.cc : ''; out.push(g.list[0]); return; }
+                var vs = g.list.map(function (v) { var t = self.tags(v); return { c: v, t: t, r: self.rank(t) }; });
+                vs.sort(function (a, b) { return a.r - b.r; });
+                var want = pref[g.key], rep = vs[0];
+                for (var j = 0; j < vs.length; j++) if (String(vs[j].c.id) === String(want)) rep = vs[j];
+                // Name: die ausführlichste Bezeichnung ohne Qualität und Länderkürzel
+                var name = '';
+                vs.forEach(function (v) {
+                    var n = NameTidy.split(v.c.name, v.c.cat).name.replace(/[([]\s*(backup|alt|ersatz|reserve|mobile|low|lq)\s*[)\]]/ig, '')
+                        .replace(/(^|\s)(backup|alt|ersatz|reserve|mobile|low|lq)(?=\s|$)/ig, ' ').replace(/\s+/g, ' ').trim();
+                    if (n.length > name.length) name = n;
+                });
+                var c0 = rep.c;
+                if (!c0.epg) for (var e = 0; e < vs.length; e++) if (vs[e].c.epg) { c0.epg = vs[e].c.epg; break; }
+                c0._mv = vs; c0._mkey = g.key; c0._mname = name; c0._mcc = byCountry ? g.cc : '';
+                out.push(c0);
+            });
+            return out;
+        },
+        /** Wie viele Sender nach dem Zusammenfassen (je Kategorie und unter „Alle“) – gemerkt, bis sich die Liste ändert */
+        counts: function (vis) {
+            var sig = vis.length + '|' + JSON.stringify(this.off()), c = this._cnt;
+            if (c && c.of === Data.channels && c.sig === sig) return c.res;
+            var cat = {}, all = {}, nAll = 0, seenCat = {}, off = this.off();
+            for (var i = 0; i < vis.length; i++) {
+                var ch = vis[i];
+                if (NameTidy.isSep(ch.name)) continue;
+                var k = this.key(ch), cc = AltCh.country(ch.name) || AltCh.country(ch.cat);
+                var ck = 'C:' + (ch.cat || '') + '|' + k, ak = 'L:' + cc + '|' + k;
+                if (!k || k.length < 2 || off[ck]) ck += '#' + ch.id;
+                if (!k || k.length < 2 || off[ak]) ak += '#' + ch.id;
+                if (!seenCat[ck]) { seenCat[ck] = 1; cat[ch.cat] = (cat[ch.cat] || 0) + 1; }
+                if (!all[ak]) { all[ak] = 1; nAll++; }
+            }
+            this._cnt = { of: Data.channels, sig: sig, res: { all: nAll, cat: cat } };
+            return this._cnt.res;
+        },
+        favHas: function (ch) {
+            if (!ch._mv) return Favs.has('live', ch.id);
+            for (var i = 0; i < ch._mv.length; i++) if (Favs.has('live', ch._mv[i].c.id)) return true;
+            return false;
+        },
+        /** Favorit für den ganzen Sender: an = gewählte Variante, aus = alle Varianten */
+        favToggle: function (ch) {
+            if (!ch._mv) return Favs.toggle('live', ch.id);
+            if (this.favHas(ch)) { ch._mv.forEach(function (v) { if (Favs.has('live', v.c.id)) Favs.toggle('live', v.c.id); }); return false; }
+            Favs.toggle('live', ch.id);
+            return true;
+        },
+        /** Qualität wählen (gilt für diesen Sender, wird gemerkt) */
+        menu: function (ch, done) {
+            if (!ch || !ch._mv) return;
+            var self = this, name = ch._mname || ch.name;
+            var buttons = ch._mv.map(function (v) {
+                return { label: (v.c.id === ch.id ? '✓  ' : '      ') + self.label(v.t), primary: v.c.id === ch.id, action: function () {
+                    var p = self.pref(); p[ch._mkey] = v.c.id; Storage.set('mergePref', p);
+                    toast(name + ': ' + self.label(v.t));
+                    if (done) done(v.c);
+                } };
+            });
+            buttons.push({ label: '⇄  Nicht zusammenfassen (alle Varianten einzeln zeigen)', action: function () {
+                var o = self.off(); o[ch._mkey] = 1; Storage.set('mergeOff', o);
+                toast(name + ' wird wieder einzeln gezeigt');
+                if (done) done(null);
+            } });
+            buttons.push({ label: 'Abbrechen' });
+            Modal.open('Qualität · ' + name, 'Die App merkt sich deine Wahl für diesen Sender. Hängt sie, wird automatisch eine andere Variante versucht.', buttons);
+            if (Modal.node) Modal.node.classList.add('modal-list');
+        }
+    };
+
     function LiveScreen(catIndex) {
         this.catIndex = catIndex || 0;
         this.selected = null;
@@ -5647,11 +5770,11 @@
 
     LiveScreen.prototype.filter = function () {
         var all = Hidden.apply(Parental.visible('live', Data.channels));
-        if (this.query) return all.filter(searchMatcher(this.query));
+        if (this.query) return Merge.group(all.filter(searchMatcher(this.query)), true);
         var cats = this.categories(), cat = cats[this.catIndex];
-        if (this.catIndex === 0) return all.slice();
-        if (this.catIndex === 1) return Favs.sort('live', all.filter(function (c) { return Favs.has('live', c.id); }));
-        return all.filter(function (c) { return c.cat === cat; });
+        if (this.catIndex === 0) return Merge.group(all, true);
+        if (this.catIndex === 1) return Favs.sort('live', all.filter(function (c) { c._mv = null; c._mcc = ''; return Favs.has('live', c.id); }));
+        return Merge.group(all.filter(function (c) { return c.cat === cat; }), false);
     };
     LiveScreen.prototype.render = function (root) {
         var self = this;
@@ -5671,6 +5794,7 @@
             cnt[vis[ci].cat] = (cnt[vis[ci].cat] || 0) + 1;
             if (Favs.has('live', vis[ci].id)) favN++;
         }
+        if (Merge.on()) { var mc = Merge.counts(vis); allN = mc.all; cnt = mc.cat; }
         var counts = cats.map(function (c, i) { return i === 0 ? allN : i === 1 ? favN : (cnt[c] || 0); });
         var catLabels = cats.map(function (c, i) { return i === 0 ? '☰  Alle' : i === 1 ? c : NameTidy.cat(c); });
         columns.appendChild(categoryColumn(catLabels, this.catIndex, function (i) {
@@ -5707,6 +5831,8 @@
             logo.onerror = function () { logo.style.visibility = 'hidden'; };
             row.appendChild(logo);
             var nt = NameTidy.split(ch.name, ch.cat);
+            if (ch._mv) nt = { name: ch._mname, tags: [] };
+            if (ch._mcc && Merge.on()) nt.name += ' · ' + ch._mcc;
             var now = ch.epg ? nowMap[ch.epg] : null;
             var nm = h('div', 'name rname');
             nm.appendChild(h('div', 'rn', nt.name));
@@ -5720,10 +5846,32 @@
             }
             row.appendChild(nm);
             nt.tags.forEach(function (t) { row.appendChild(h('div', 'ch-tag' + (/^(HD|FHD|UHD|4K|8K|HDR)$/.test(t) ? ' q' : ''), t)); });
-            if (Favs.has('live', ch.id)) row.appendChild(h('div', 'star', '★'));
+            if (ch._mv) {
+                // zusammengefasster Sender: vorhandene Qualitäten, die gerade gewählte hervorgehoben
+                var shown = {}, qs = h('div', 'mq');
+                var nShown = 0, more = 0;
+                ch._mv.forEach(function (v) {
+                    var lb = v.t.length ? v.t[0] : 'Std';             // kurz: nur die wichtigste Angabe
+                    if (v.c.id === ch.id) lb = v.t.length ? v.t[0] : 'Std';
+                    if (shown[lb]) return;
+                    shown[lb] = 1;
+                    if (nShown >= 3) { more++; return; }
+                    nShown++;
+                    qs.appendChild(h('b', v.c.id === ch.id ? 'on' : '', lb));
+                });
+                if (more) qs.appendChild(h('b', '', '+' + more));
+                row.appendChild(qs);
+            }
+            if (Merge.favHas(ch)) row.appendChild(h('div', 'star', '★'));
             row._channel = ch;
             row._onLong = function () {
                 if (self.catIndex === 1 && !self.query) self.favMenu(ch);       // in den Favoriten: Verschieben / Entfernen
+                else if (ch._mv) {
+                    var on = Merge.favToggle(ch), st = $('.star', row);
+                    if (on && !st) row.appendChild(h('div', 'star', '★'));
+                    if (!on && st) st.parentNode.removeChild(st);
+                    toast(on ? ch._mname + ' zu Favoriten hinzugefügt' : ch._mname + ' aus Favoriten entfernt');
+                }
                 else favToggleNode(row, 'live', ch);
             };
             row._onFocus = function () { self.focusInfo(ch); };
@@ -5762,13 +5910,24 @@
         act('lv-fav', '★  Favorit', false, function () {
             var ch = target(); if (!ch) return;
             if (self.catIndex === 1 && !self.query && Favs.has('live', ch.id)) { self.favMenu(ch); return; }   // in den Favoriten: Menü
-            var on = Favs.toggle('live', ch.id);
-            toast(on ? ch.name + ' zu Favoriten hinzugefügt' : ch.name + ' aus Favoriten entfernt');
+            var on = Merge.favToggle(ch);
+            toast(on ? (ch._mname || ch.name) + ' zu Favoriten hinzugefügt' : (ch._mname || ch.name) + ' aus Favoriten entfernt');
             self.favLabel(ch);
             var row = Focus.byKey('ch-' + ch.id);
             if (row) { var st = $('.star', row); if (on && !st) row.appendChild(h('div', 'star', '★')); if (!on && st) st.parentNode.removeChild(st); }
         });
         this.favBtn = acts.querySelector('[data-key="lv-fav"]');
+        act('lv-q', '◎  Qualität', false, function () {
+            var ch = target();
+            if (!ch || !ch._mv) { toast('Diesen Sender gibt es nur in einer Qualität.'); return; }
+            Merge.menu(ch, function (pick) {
+                var wasSel = self.selected && self.selected.id === ch.id;
+                self.selected = pick && wasSel ? pick : (pick ? self.selected : null);
+                self.focusKey = pick ? 'ch-' + pick.id : null;
+                if (pick && wasSel) { try { Player.stop(); } catch (e) { /* egal */ } }
+                Nav.show(self);
+            });
+        });
         act('lv-epg', '☰  Ganzes Programm', false, function () { var ch = target(); if (ch) self.fullProgram(ch); });
         info.appendChild(acts);
         columns.appendChild(info);
@@ -5880,7 +6039,7 @@
     };
     /** Knopf zeigt, was er tut: „Favorit“ oder „Aus Favoriten“ */
     LiveScreen.prototype.favLabel = function (ch) {
-        if (this.favBtn && ch) this.favBtn.textContent = !Favs.has('live', ch.id) ? '★  Favorit' : (this.catIndex === 1 && !this.query ? '⇅  Verschieben' : '☆  Aus Favoriten');
+        if (this.favBtn && ch) this.favBtn.textContent = !Merge.favHas(ch) ? '★  Favorit' : (this.catIndex === 1 && !this.query ? '⇅  Verschieben' : '☆  Aus Favoriten');
     };
     LiveScreen.prototype.renderInfo = function (ch, epg) {
         this.favLabel(ch);
@@ -8261,6 +8420,13 @@
             });
         }
         var altName = function () { return Settings.altSwitch ? 'An · nach ' + String(Settings.altWait / 1000).replace('.', ',') + ' s' : 'Aus'; };
+        row('merge', 'tv', 'Sender zusammenfassen', Merge.on() ? 'An' : 'Aus', function (v) {
+            var on = !Merge.on();
+            Storage.set('mergeCh', on);
+            if (on) Storage.set('mergeOff', {});
+            v.textContent = on ? 'An' : 'Aus';
+            toast(on ? 'Gleiche Sender in mehreren Qualitäten (HD, FHD, 4K …) erscheinen in Live TV nur einmal' : 'Alle Varianten werden wieder einzeln gezeigt', 6000);
+        });
         row('altsw', 'next', 'Ersatzsender', altName(), function (v) {
             function pick(ms) {
                 Settings.setFlag('altSwitch', ms > 0);
