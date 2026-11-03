@@ -9682,6 +9682,24 @@
         if (this.kind !== 'live' && this.resumable() && (VodPlayer.available() || (AB && AB.usingVlc))) {
             btn('pl-switch', '⇄', 'Anderer Player', function () { self.switchPlayer(); });
         }
+        if (this.kind === 'live' && it._mv) {
+            var curQ = '';
+            it._mv.forEach(function (v) { if (v.c.id === it.id) curQ = Merge.label(v.t); });
+            btn('pl-q', '◎', 'Qualität · ' + curQ, function () {
+                clearTimeout(self.hideTimer);
+                Merge.menu(it, function (pick) {
+                    if (!pick) { self.showOverlay(); return; }
+                    if (pick.id === it.id) { self.showOverlay(); return; }
+                    // gewählte Variante übernimmt den Platz in der Senderliste (mit allen Varianten)
+                    pick._mv = it._mv; pick._mkey = it._mkey; pick._mname = it._mname; pick._mcc = it._mcc;
+                    if (!pick.epg) pick.epg = it.epg;
+                    self.items[self.index] = pick;
+                    self.altUrl = null; self.altFor = -1; self.altTried = {};
+                    self.start();
+                    self.showOverlay();
+                });
+            });
+        }
         btn('pl-aspect', '▭', 'Bildformat', function () { self.aspectMenu(); });
         btn('pl-sleep', '☾', Sleep.active() ? 'Schlaf-Timer · ' + Sleep.minutesLeft() + ' Min' : 'Schlaf-Timer', function () {
             var endMs = 0, label = '';
