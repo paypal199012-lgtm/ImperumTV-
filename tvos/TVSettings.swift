@@ -194,7 +194,14 @@ struct SettingsScreen: View {
                     row("play", "Player Live TV", Self.engName(engine.liveEngine)) {
                         engine.liveEngine = Self.nextEngine(engine.liveEngine)
                     }
-                    row("tv", "Ersatzsender", engine.autoAlt ? "An · automatisch" : "Aus") { engine.autoAlt.toggle() }
+                    row("tv", "Ersatzsender", engine.autoAlt ? "An · nach " + String(format: "%g", engine.altWait).replacingOccurrences(of: ".", with: ",") + " s" : "Aus") {
+                        // Aus → 1 s → 1,5 s → 2 s → 3 s → Aus
+                        if !engine.autoAlt { engine.autoAlt = true; engine.altWait = 1 }
+                        else if engine.altWait < 1.5 { engine.altWait = 1.5 }
+                        else if engine.altWait < 2 { engine.altWait = 2 }
+                        else if engine.altWait < 3 { engine.altWait = 3 }
+                        else { engine.autoAlt = false }
+                    }
                     row("up", "Puffer", engine.bufferMode == "small" ? "Klein · 1 s" : engine.bufferMode == "large" ? "Groß · 5 s" : "Normal · 2,5 s") {
                         engine.bufferMode = engine.bufferMode == "normal" ? "large" : engine.bufferMode == "large" ? "small" : "normal"
                     }

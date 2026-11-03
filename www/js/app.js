@@ -866,6 +866,7 @@
     var Settings = {
         autoNext: Storage.get('autoNext', true),     // Serien: nächste Folge automatisch
         altSwitch: Storage.get('altSwitch', true),   // Live: bei Problemen automatisch auf denselben Sender in anderer Variante
+        altWait: Storage.get('altWait', 1500),       // so lange darf ein Live-Sender hängen, bevor der Ersatzsender startet (ms)
         introBtn: Storage.get('introBtn', true),     // Serien: Knopf „Intro überspringen“
         introSec: 20,
         setFlag: function (name, on) { this[name] = on; Storage.set(name, on); },
@@ -5308,6 +5309,9 @@
         }
     };
 
+    /** Wartezeit bis zum Ersatzsender auch dem Android-Player sagen (stehendes Bild) */
+    function applyStallWait() { try { if (AB && AB.setStallMs) AB.setStallMs(Settings.altWait || 1500); } catch (e) { /* egal */ } }
+
     function reloadAll() {
         var acc = Api.acc || Storage.get('account', null);
         if (!acc) return;
@@ -8051,10 +8055,23 @@
                 ]);
             });
         }
-        row('altsw', 'next', 'Ersatzsender', Settings.altSwitch ? 'An · automatisch' : 'Aus', function (v) {
-            Settings.setFlag('altSwitch', !Settings.altSwitch);
-            v.textContent = Settings.altSwitch ? 'An · automatisch' : 'Aus';
-            toast(Settings.altSwitch ? 'Hängt oder streikt ein Sender, schaltet Live TV automatisch auf denselben Sender in anderer Variante (z. B. FHD statt HD)' : 'Ersatzsender: aus', 6000);
+        var altName = function () { return Settings.altSwitch ? 'An · nach ' + String(Settings.altWait / 1000).replace('.', ',') + ' s' : 'Aus'; };
+        row('altsw', 'next', 'Ersatzsender', altName(), function (v) {
+            function pick(ms) {
+                Settings.setFlag('altSwitch', ms > 0);
+                if (ms > 0) { Settings.altWait = ms; Storage.set('altWait', ms); applyStallWait(); }
+                v.textContent = altName();
+                toast(ms > 0 ? 'Hängt ein Sender länger als ' + String(ms / 1000).replace('.', ',') + ' s, startet automatisch derselbe Sender in anderer Variante (z. B. FHD statt HD)' : 'Ersatzsender: aus', 6000);
+            }
+            var cur = Settings.altSwitch ? Settings.altWait : 0;
+            Modal.open('Ersatzsender', 'Hängt ein Live-Sender, schaltet die App automatisch auf denselben Sender in anderer Variante.\nWie lange soll sie vorher warten?\n' +
+                'Kürzer = schneller umgeschaltet, aber bei kurzen Aussetzern wird öfter gewechselt.', [
+                { label: 'Nach 1 s', primary: cur === 1000, action: function () { pick(1000); } },
+                { label: 'Nach 1,5 s (empfohlen)', primary: cur === 1500, action: function () { pick(1500); } },
+                { label: 'Nach 2 s', primary: cur === 2000, action: function () { pick(2000); } },
+                { label: 'Nach 3 s', primary: cur === 3000, action: function () { pick(3000); } },
+                { label: 'Aus', primary: cur === 0, action: function () { pick(0); } }
+            ]);
         });
         if (Buffer.available()) {
             row('buffer', 'up', 'Puffer', Buffer.label(Buffer.get()), function (v) {
@@ -8882,12 +8899,12 @@
                 if (!self.rdy) return;
                 if (b) {
                     if (!self.bufAt) self.bufAt = Date.now();
-                    // Hängt es länger als 3 s: gleich beim ersten Mal auf den Ersatzsender
+                    // Hängt es länger als eingestellt (Standard 1,5 s): gleich beim ersten Mal auf den Ersatzsender
                     clearTimeout(self.longT);
                     var at = self.index;
                     self.longT = setTimeout(function () {
                         if (Nav.top() === self && self.index === at && self.buffering && self.rdy) self.tryAlt('Sender hing');
-                    }, 3000);
+                    }, Settings.altWait || 1500);
                     return;
                 }
                 clearTimeout(self.longT);
@@ -9785,6 +9802,7 @@
         Favs.load();
         Player.init();
         Updater.autoCheck();                               // gleich beim Start nach neuer Version suchen
+        applyStallWait();
         setTimeout(function () { Updater.flags(); }, 8000);     // vom Admin erzwungenes Update?
         setTimeout(function () { try { Help.resume(); } catch (e) { /* egal */ } }, 6000);   // Fernhilfe lief vor dem Neustart
         setTimeout(function () { Report.flushNative(); }, 8000);   // Absturzbericht vom letzten Mal an die Website

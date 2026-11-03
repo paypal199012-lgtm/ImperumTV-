@@ -86,6 +86,11 @@ final class PlayerEngine: ObservableObject {
         get { UserDefaults.standard.object(forKey: "tv.autoAlt") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "tv.autoAlt"); objectWillChange.send() }
     }
+    /// So lange darf ein Live-Sender hängen, bevor der Ersatzsender startet (Sekunden, Standard 1,5)
+    var altWait: Double {
+        get { UserDefaults.standard.object(forKey: "tv.altWait") as? Double ?? 1.5 }
+        set { UserDefaults.standard.set(newValue, forKey: "tv.altWait"); objectWillChange.send() }
+    }
     var vodEngine: String {
         get { UserDefaults.standard.string(forKey: "tv.vodEngine") ?? "auto" }
         set { UserDefaults.standard.set(newValue, forKey: "tv.vodEngine"); objectWillChange.send() }
@@ -244,13 +249,13 @@ final class PlayerEngine: ObservableObject {
         if b == buffering { return }
         buffering = b
         stallTask?.cancel()
-        // Live-Sender hängt länger als 3 s (bzw. 8 s mit VLC) → Ersatzsender, sonst neu verbinden
+        // Live-Sender hängt länger als eingestellt (Standard 1,5 s, mit VLC 2 s länger) → Ersatzsender, sonst neu verbinden
         guard b, kind == .live, let it = item else { return }
-        let wait: UInt64 = usingVLC ? 8 : 3
+        let wait = usingVLC ? altWait + 2 : altWait
         stallTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: wait * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
             guard let self = self, !Task.isCancelled, self.buffering, self.item?.id == it.id else { return }
-            self.onStall?(it, "Bild steht länger als \(wait) s")
+            self.onStall?(it, "Bild steht länger als \(String(format: "%.1f", wait)) s")
             if !self.tryAlt() { self.reconnect() }
         }
     }
