@@ -5165,7 +5165,7 @@
     // =====================================================================
     var Help = {
         on: false, code: '', ack: 0, timer: null, last: '', busy: false, fails: 0, viewer: false, banner: null,
-        available: function () { return !STORE_BUILD && Device.validMac(Device.mac) && Device.validKey(Device.key); },
+        available: function () { return Device.validMac(Device.mac) && Device.validKey(Device.key); },
         /** Vorher fragen (auch wenn der Admin die Fernhilfe anfragt) */
         ask: function (fromAdmin) {
             var self = this;

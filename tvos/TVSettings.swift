@@ -169,6 +169,7 @@ struct SettingsScreen: View {
     @EnvironmentObject var store: TVStore
     @EnvironmentObject var nav: Nav
     @EnvironmentObject var engine: PlayerEngine
+    @ObservedObject private var help = RemoteHelp.shared
     @EnvironmentObject var resume: ResumeBook
     @AppStorage("tv.theme") private var theme = "gold"
     @AppStorage("tv.clock") private var clock = "sec"
@@ -233,6 +234,9 @@ struct SettingsScreen: View {
                 }
                 section("shield", "Konto") {
                     row("list", "Wiedergabelisten", "Wechseln") { nav.push(.playlists) }
+                    row("shield", "Fernhilfe", help.on ? "Läuft · Code \(help.codeText)" : "Support hilft") {
+                        if help.on { help.askingStop = true } else { help.asking = true }
+                    }
                     row("user", "Konto", "Kostenlos") { show("ImperumTV für Apple TV ist kostenlos") }
                     row("resume", "Weiterschauen löschen", "\(resume.entries.count + resume.seen.count)") { resume.clearAll(); show("Weiterschauen und Gesehen gelöscht") }
                     row("star", "Favoriten löschen", "\(store.favorites.count)") { store.clearFavorites(); show("Favoriten gelöscht") }

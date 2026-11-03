@@ -43,6 +43,7 @@ struct RootView: View {
     @EnvironmentObject var resume: ResumeBook
     @AppStorage("tv.theme") private var theme = "gold"
     @State private var started = false
+    @ObservedObject private var help = RemoteHelp.shared
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -51,6 +52,7 @@ struct RootView: View {
             if nav.top != .player {
                 ClockView().place(1400, 24, 480, 70, alignment: .topTrailing)
             }
+            HelpBanner().place(460, 14, 1000, 56, alignment: .top)
             if store.loading {
                 VStack(spacing: 24) {
                     ProgressView().scaleEffect(2).tint(UI.gold)
@@ -65,6 +67,21 @@ struct RootView: View {
         .id(theme)                    // Farbthema gewechselt: alles neu zeichnen
         .ignoresSafeArea()
         .onExitCommand(perform: nav.stack.count > 1 ? { leave() } : nil)
+        .alert("Fernhilfe starten?", isPresented: $help.asking) {
+            Button("Erlauben") { help.start() }
+            Button("Nein, danke", role: .cancel) {}
+        } message: {
+            Text("Der Support von ImperumTV sieht dann ein Bild von ImperumTV auf deinem Bildschirm und kann die App mit einfachen Befehlen bedienen (z. B. Zurück, Live TV öffnen, Pause). Andere Apps bleiben unberührt. Die Fernhilfe endet nach spätestens 60 Minuten – oder wenn du sie beendest.")
+        }
+        .alert("Fernhilfe läuft", isPresented: $help.askingStop) {
+            Button("Fernhilfe beenden", role: .destructive) { help.stop(tell: true) }
+            Button("Weiter laufen lassen", role: .cancel) {}
+        } message: {
+            Text("Dein Code: \(help.codeText)" + (help.viewer ? "\nDer Support sieht gerade deinen Bildschirm." : ""))
+        }
+        .alert(help.message ?? "", isPresented: Binding(get: { help.message != nil }, set: { if !$0 { help.message = nil } })) {
+            Button("OK", role: .cancel) {}
+        }
         .task {
             guard !started else { return }
             started = true
@@ -73,6 +90,8 @@ struct RootView: View {
             engine.urlProvider = { [weak store] it in store?.url(it, .live) }
             engine.onStall = { it, what in Report.stall(it.name, what) }
             engine.onSleep = { [weak nav] in nav?.reset(.home) }
+            help.nav = nav; help.engine = engine; help.store = store
+            if !TVStore.testMode { help.resume() }
             await store.start()
             // Neue Folgen bei Favoriten und angefangenen Serien
             let src = store.sourceName

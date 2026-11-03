@@ -15,6 +15,7 @@ func qrImage(_ text: String) -> UIImage? {
 struct PlaylistsScreen: View {
     @EnvironmentObject var store: TVStore
     @EnvironmentObject var nav: Nav
+    @ObservedObject private var help = RemoteHelp.shared
     @State private var busy = false
 
     private var link: String {
@@ -26,8 +27,17 @@ struct PlaylistsScreen: View {
             HStack(spacing: 22) {
                 Image("Logo").resizable().scaledToFit().themedLogo().frame(height: 60)
                 Text("Wiedergabelisten").font(UI.font(40, .bold))
+                Button { if help.on { help.askingStop = true } else { help.asking = true } } label: {
+                    HStack(spacing: 10) {
+                        Icon("shield", 28)
+                        Text(help.on ? "Fernhilfe · Code \(help.codeText)" : "Fernhilfe").font(UI.font(24, .bold))
+                    }
+                    .padding(.horizontal, 24).frame(height: 56)
+                }
+                .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .black.opacity(0.45), ring: false, solid: true))
+                .padding(.leading, 30)
             }
-            .place(70, 34, 1000, 70)
+            .place(70, 34, 1300, 70)
 
             if store.lists.isEmpty {
                 VStack(alignment: .leading, spacing: 14) {
