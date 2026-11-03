@@ -4261,6 +4261,12 @@
         }
         head.appendChild(h('div', 'pl-title', 'Wiedergabelisten'));
         var vpnBtn = OVpn.button('pl-vpn', 'plhead');
+        // Fernhilfe gleich hier: hilft auch, wenn noch keine Liste geht
+        if (Help.available()) {
+            var hb = h('div', 'vpn-badge vpn-btn help-btn' + (Help.on ? ' on' : '') + (vpnBtn ? '' : ' last'));
+            hb.innerHTML = icon('user', 34) + '<span>' + (Help.on ? 'Fernhilfe · Code ' + Help.codeText() : 'Fernhilfe') + '</span>';
+            head.appendChild(focusable(hb, 'pl-help', function () { if (Help.on) Help.menu(); else Help.ask(false); }, 'plhead'));
+        }
         if (vpnBtn) head.appendChild(vpnBtn);
         var logo = h('img', 'pl-logo');
         logo.src = 'img/icon.png';
@@ -5189,6 +5195,7 @@
                 self.code = r.code; self.ack = 0; self.last = '';
                 Storage.set('helpOn', { code: r.code, until: Date.now() + 60 * 60000 });
                 self.begin();
+                self.redraw();
                 Modal.open('Fernhilfe läuft', 'Dein Code: ' + self.codeText() + '\nNenne ihn dem Support. Beenden kannst du die Fernhilfe jederzeit unter Einstellungen → Fernhilfe.', [{ label: 'OK', primary: true }]);
             }, function (e) { toast('Fernhilfe: ' + (e && e.message ? e.message : 'keine Verbindung'), 6000); });
         },
@@ -5215,8 +5222,11 @@
             this.banner = null;
             if (tell) Remote.rpc('device_help_end', { p_mac: Device.mac, p_key: Device.key }).then(function () {}, function () {});
             toast('Fernhilfe beendet', 3000);
+            this.redraw();
+        },
+        redraw: function () {
             var top = Nav.top();
-            if (top && top instanceof SettingsScreen && !Modal.node) Nav.show(top);
+            if (top && (top instanceof SettingsScreen || top instanceof PlaylistsScreen) && !Modal.node) { top.focusKey = Focus.cur ? Focus.cur.getAttribute('data-key') : top.focusKey; Nav.show(top); }
         },
         showBanner: function () {
             if (!this.banner) {

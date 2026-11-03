@@ -1617,3 +1617,6 @@ body.video-mode:not(.osd) .ios-back { display: none; }
   display: flex; align-items: center; height: 46px; padding: 0 22px; border-radius: 23px; font-size: 22px; font-weight: 600;
   color: #1a1408; background: #f4dc9e; box-shadow: 0 6px 24px rgba(0,0,0,.5); white-space: nowrap; }
 .help-banner svg { margin-right: 10px; flex: none; }
+.pl-head .vpn-badge.help-btn { margin-left: auto; margin-right: 16px; }
+.pl-head .vpn-badge.help-btn.last { margin-right: 210px; }
+.pl-head .vpn-badge.help-btn ~ .vpn-btn { margin-left: 0; }
