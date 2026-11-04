@@ -41,6 +41,13 @@
         return date;
     }
     function fmtClock(date) { date = tzFix(date); return pad2(date.getHours()) + ':' + pad2(date.getMinutes()); }
+    /** „heute“, „gestern“ oder „4.11.2026“ */
+    function fmtDate(date) {
+        var d = tzFix(date), n = tzFix(new Date()), y = tzFix(new Date(Date.now() - 86400000));
+        if (d.toDateString() === n.toDateString()) return 'heute';
+        if (d.toDateString() === y.toDateString()) return 'gestern';
+        return d.getDate() + '.' + (d.getMonth() + 1) + '.' + d.getFullYear();
+    }
 
     // Diese Daten hat jedes Profil für sich (Hauptprofil „p0“ nutzt die bisherigen Schlüssel)
     var PROFILE_KEYS = { favs: 1, seen: 1, newEps: 1, resume: 1, kidsCats: 1 };
@@ -5509,6 +5516,315 @@
     /** Wartezeit bis zum Ersatzsender auch dem Android-Player sagen (stehendes Bild) */
     function applyStallWait() { try { if (AB && AB.setStallMs) AB.setStallMs(Settings.altWait || 1500); } catch (e) { /* egal */ } }
 
+    // =====================================================================
+    // Sicherung in der Cloud: Favoriten, Profile, Weiterschauen, Gesehen, Erinnerungen, Kindersicherung, Einstellungen.
+    // Keine Zugangsdaten des Anbieters. Übertragen auf ein anderes Gerät (Handy-Seite, MAC + Schlüssel oder Admin-Bereich).
+    // =====================================================================
+    var Backup = {
+        GROUPS: [
+            ['favs', 'Favoriten', ['favs']],
+            ['profiles', 'Profile', ['profiles', 'people']],
+            ['resume', 'Weiterschauen', ['resume']],
+            ['seen', 'Gesehen', ['seen', 'newEps']],
+            ['remind', 'Erinnerungen', ['reminders']],
+            ['parental', 'Kindersicherung', ['parentalPin', 'parentalCats', 'parentalAdult', 'hiddenLive', 'kidsCats']],
+            ['settings', 'Einstellungen', ['theme', 'clock', 'liveExt', 'altSwitch', 'altWait', 'autoNext', 'introBtn', 'prefAudio', 'prefSubtitle',
+                'aspects', 'vodPlayer', 'epgOnlyProg', 'netq', 'mergeCh', 'mergeOff', 'mergePref', 'genreScan', 'sort.']]
+        ],
+        missing: false, timer: null, busy: false, info: null,
+        on: function () { return Storage.get('backupAuto', true) !== false; },
+        ok: function () { return Device.validMac(Device.mac) && Device.validKey(Device.key); },
+        /** Gruppe eines Speicher-Schlüssels (auch Profil-Schlüssel wie „p.p2.favs“), sonst '' */
+        groupOf: function (k) {
+            var m = /^p\.[^.]+\.(.+)$/.exec(k), base = m ? m[1] : k;
+            for (var i = 0; i < this.GROUPS.length; i++) {
+                var keys = this.GROUPS[i][2];
+                for (var j = 0; j < keys.length; j++) {
+                    var x = keys[j];
+                    if (x.charAt(x.length - 1) === '.' ? base.indexOf(x) === 0 : base === x) return this.GROUPS[i][0];
+                }
+            }
+            return '';
+        },
+        keys: function () {
+            var out = [];
+            try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('imptv.') === 0) out.push(k.slice(6)); } } catch (e) { /* egal */ }
+            return out;
+        },
+        collect: function () {
+            var items = {}, self = this;
+            this.keys().forEach(function (k) { if (self.groupOf(k)) { try { items[k] = localStorage.getItem('imptv.' + k); } catch (e) { /* egal */ } } });
+            return { v: 1, at: Date.now(), mac: Device.mac, items: items };
+        },
+        /** Anzahl Einträge je Gruppe (für die Anzeige) */
+        counts: function (items) {
+            var c = {}, self = this;
+            Object.keys(items).forEach(function (k) {
+                var g = self.groupOf(k), v;
+                if (!g) return;
+                try { v = JSON.parse(items[k]); } catch (e) { v = null; }
+                var n = Array.isArray(v) ? v.length : v && typeof v === 'object' ? Object.keys(v).length : (v ? 1 : 0);
+                if (g === 'profiles' && v && v.list) n = v.list.length;
+                c[g] = (c[g] || 0) + n;
+            });
+            return c;
+        },
+        rpc: function (name, body) {
+            var self = this;
+            body.p_mac = Device.mac; body.p_key = Device.key;
+            return Remote.rpc(name, body).then(function (r) {
+                if (r && r.ok === false) throw new Error(r.error || 'Fehler');
+                return r;
+            }, function (e) {
+                if (e && e.status === 404) { self.missing = true; throw new Error('Die Sicherung ist auf dem Server noch nicht eingerichtet.'); }
+                throw e;
+            });
+        },
+        save: function (quiet) {
+            var self = this;
+            if (!this.ok() || this.missing) return Promise.reject(new Error(this.missing ? 'Die Sicherung ist auf dem Server noch nicht eingerichtet.' : 'Gerät nicht angemeldet'));
+            var data = JSON.stringify(this.collect());
+            this.busy = true;
+            return this.rpc('device_backup_save', { p_data: data }).then(function (r) {
+                self.busy = false;
+                Storage.set('backupAt', Date.now());
+                self.info = { has: true, saved_at: r.saved_at, size: r.size };
+                if (!quiet) toast('Gesichert', 2500);
+                return r;
+            }, function (e) { self.busy = false; if (!quiet) toast('Sicherung fehlgeschlagen: ' + e.message, 6000); throw e; });
+        },
+        /** Etwas Gesichertes wurde geändert: eine Minute später sichern */
+        touch: function (k) {
+            var self = this;
+            if (!this.on() || this.missing || !this.groupOf(k)) return;
+            clearTimeout(this.timer);
+            this.timer = setTimeout(function () { self.save(true).then(null, function () { /* egal */ }); }, 60000);
+        },
+        /** Einspielen: nur die gewählten Gruppen, dann App neu starten */
+        apply: function (data, groups) {
+            var self = this, want = {};
+            groups.forEach(function (g) { want[g] = 1; });
+            this.keys().forEach(function (k) { if (want[self.groupOf(k)]) { try { localStorage.removeItem('imptv.' + k); } catch (e) { /* egal */ } } });
+            var items = (data && data.items) || {};
+            Object.keys(items).forEach(function (k) { if (want[self.groupOf(k)]) { try { localStorage.setItem('imptv.' + k, items[k]); } catch (e) { /* egal */ } } });
+            toast('Sicherung übernommen – App startet neu …', 3000);
+            setTimeout(function () { RemoteCmd.restart(); }, 1500);
+        },
+        /** Auswahl, was übernommen wird */
+        choose: function (data, title, onDone) {
+            var self = this, items = (data && data.items) || {}, cnt = this.counts(items), pick = {};
+            var box = h('div', 'modal-box bk-box');
+            box.appendChild(h('div', 'modal-title', title));
+            var when = data && data.at ? new Date(data.at) : null;
+            box.appendChild(h('div', 'modal-text', 'Stand: ' + (when ? fmtDate(when) + ', ' + fmtClock(when) + ' Uhr' : 'unbekannt') + '. Was soll übernommen werden?'));
+            var list = h('div', 'bk-pick');
+            this.GROUPS.forEach(function (g) {
+                if (!cnt[g[0]] && g[0] !== 'settings') return;
+                pick[g[0]] = true;
+                var row = h('div', 'bk-chk on');
+                row.appendChild(h('i', null, '✓'));
+                row.appendChild(h('span', null, g[1] + (cnt[g[0]] && g[0] !== 'settings' ? ' (' + cnt[g[0]] + ')' : '')));
+                focusable(row, 'bk-c-' + g[0], function () {
+                    pick[g[0]] = !pick[g[0]];
+                    row.classList.toggle('on', pick[g[0]]);
+                    row.firstChild.textContent = pick[g[0]] ? '✓' : '';
+                }, 'dialog');
+                list.appendChild(row);
+            });
+            box.appendChild(list);
+            box.appendChild(h('div', 'modal-text bk-warn', 'Die gewählten Bereiche auf diesem Gerät werden ersetzt.'));
+            var rowB = h('div', 'modal-buttons');
+            function btn(label, primary, fn) {
+                var b = h('div', 'button' + (primary ? ' primary' : ''), label);
+                focusable(b, 'bk-b-' + label, function () { Modal.close(); fn(); }, 'dialog');
+                rowB.appendChild(b);
+            }
+            btn('⤓  Übernehmen', true, function () {
+                var gs = Object.keys(pick).filter(function (k) { return pick[k]; });
+                if (onDone) onDone(true);
+                self.apply(data, gs);
+            });
+            btn('Abbrechen', false, function () { if (onDone) onDone(false); });
+            box.appendChild(rowB);
+            Modal.openBox(box, rowB.firstChild);
+        },
+        /** Übertragene Sicherung holen und fragen */
+        takePending: function () {
+            var self = this;
+            return this.rpc('device_backup_load', { p_which: 'pending' }).then(function (r) {
+                var data; try { data = JSON.parse(r.data); } catch (e) { toast('Die Sicherung ist beschädigt.'); return; }
+                self.choose(data, 'Sicherung von ' + String(r.from || '').toLowerCase() + ' übernehmen?', function () {
+                    self.rpc('device_backup_done', {}).then(null, function () { /* egal */ });
+                });
+            }, function (e) { toast(e.message, 5000); });
+        },
+        restoreOwn: function () {
+            var self = this;
+            this.rpc('device_backup_load', { p_which: 'own' }).then(function (r) {
+                var data; try { data = JSON.parse(r.data); } catch (e) { toast('Die Sicherung ist beschädigt.'); return; }
+                self.choose(data, 'Sicherung zurückspielen');
+            }, function (e) { toast(e.message, 5000); });
+        },
+        /** Beim Start: wartet eine übertragene Sicherung? Täglich sichern. */
+        startup: function () {
+            var self = this;
+            if (!this.ok()) return;
+            Storage.set = (function (orig) { return function (k, v) { orig.call(Storage, k, v); self.touch(k); }; })(Storage.set);
+            this.rpc('device_backup_info', {}).then(function (r) {
+                self.info = r;
+                if (r.pending) {
+                    Modal.open('Sicherung übertragen', 'Für dieses Gerät wurde die Sicherung von ' + String(r.pending_from || '').toLowerCase() + ' bereitgestellt.\nJetzt übernehmen?', [
+                        { label: '⤓  Ansehen und übernehmen', primary: true, action: function () { self.takePending(); } },
+                        { label: 'Nicht übernehmen', action: function () { self.rpc('device_backup_done', {}).then(null, function () { /* egal */ }); } },
+                        { label: 'Später' }
+                    ]);
+                }
+                var last = Storage.get('backupAt', 0);
+                if (self.on() && Date.now() - last > 24 * 3600000) self.save(true).then(null, function () { /* egal */ });
+            }, function () { /* Server ohne Sicherung oder offline */ });
+        },
+        /** Auf diesem (neuen) Gerät die Sicherung eines anderen Geräts holen */
+        transfer: function () {
+            var self = this, poll = null;
+            var link = REMOTE.website + 'sicherung.html?to=' + encodeURIComponent(Device.macText()) + '&key=' + Device.key;
+            var box = h('div', 'modal-box bk-box bk-tr');
+            box.appendChild(h('div', 'modal-title', 'Von anderem Gerät übernehmen'));
+            var cols = h('div', 'bk-cols');
+            var left = h('div', 'bk-left');
+            left.appendChild(h('div', 'bk-step', '1. Den QR-Code mit dem Handy scannen und dort MAC-Adresse und Geräte-Schlüssel des alten Geräts eingeben.'));
+            left.appendChild(h('div', 'bk-step', '2. Sobald die Sicherung übertragen ist, erscheint hier die Auswahl, was übernommen wird.'));
+            left.appendChild(h('div', 'bk-step bk-muted', 'MAC und Schlüssel des alten Geräts stehen in der alten App unter Wiedergabelisten – oder bei deinem Anbieter.'));
+            var st = h('div', 'bk-wait', 'Warte auf die Übertragung …');
+            left.appendChild(st);
+            cols.appendChild(left);
+            var qr = h('div', 'bk-qr');
+            try { qr.innerHTML = window.ImperumQR.svg(link, 300); } catch (e) { qr.classList.add('hidden'); }
+            cols.appendChild(qr);
+            box.appendChild(cols);
+            var rowB = h('div', 'modal-buttons');
+            function btn(label, primary, fn) {
+                var b = h('div', 'button' + (primary ? ' primary' : ''), label);
+                focusable(b, 'bk-t-' + label, function () { clearInterval(poll); Modal.close(); fn(); }, 'dialog');
+                rowB.appendChild(b);
+            }
+            btn('Am Fernseher eingeben', true, function () { self.typeOld(); });
+            btn('Abbrechen', false, function () { });
+            box.appendChild(rowB);
+            Modal.openBox(box, rowB.firstChild);
+            // Übertragung vom Handy abwarten
+            poll = setInterval(function () {
+                if (!Modal.node || !document.body.contains(box)) { clearInterval(poll); return; }
+                self.rpc('device_backup_info', {}).then(function (r) {
+                    if (r && r.pending) { clearInterval(poll); Modal.close(); self.takePending(); }
+                }, function (e) { st.textContent = e.message; });
+            }, 3000);
+        },
+        /** MAC und Schlüssel des alten Geräts mit der Fernbedienung eingeben */
+        typeOld: function () {
+            var self = this;
+            textPrompt('MAC-Adresse des alten Geräts', 'z. B. 1e:e8:92:7a:61:39', '', function (mac) {
+                var hex = String(mac || '').toUpperCase().replace(/[^0-9A-F]/g, '');
+                if (hex.length !== 12) { toast('Die MAC-Adresse hat 12 Zeichen (0–9, A–F).', 5000); return; }
+                var m = hex.match(/.{2}/g).join(':');
+                textPrompt('Geräte-Schlüssel des alten Geräts', '6 Ziffern', '', function (key) {
+                    key = String(key || '').replace(/\D/g, '');
+                    Remote.rpc('device_backup_copy', { p_from_mac: m, p_from_key: key, p_to_mac: Device.mac, p_to_key: Device.key }).then(function (r) {
+                        if (!r || r.ok === false) { toast((r && r.error) || 'Übertragen fehlgeschlagen', 6000); return; }
+                        self.takePending();
+                    }, function (e) { toast(e && e.status === 404 ? 'Die Sicherung ist auf dem Server noch nicht eingerichtet.' : e.message, 6000); });
+                });
+            });
+        }
+    };
+
+    /** Einfache Texteingabe mit Bildschirmtastatur */
+    function textPrompt(title, hint, initial, onDone) {
+        var box = h('div', 'modal-box kbd-box');
+        box.appendChild(h('div', 'modal-title', title));
+        var input = h('input', 'input search-input');
+        input.type = 'text';
+        input.placeholder = hint || '';
+        input.value = initial || '';
+        input.setAttribute('autocomplete', 'off');
+        input.setAttribute('autocapitalize', 'none');
+        focusable(input, 'tp-input', null, 'searchbox');
+        box.appendChild(input);
+        var kb = Keyboard.build(input, 'tp');
+        box.appendChild(kb);
+        var row = h('div', 'modal-buttons');
+        function btn(label, primary, action) {
+            var b = h('div', 'button' + (primary ? ' primary' : ''), label);
+            focusable(b, 'tp-' + label, function () { Modal.close(); action(); }, 'dialog');
+            row.appendChild(b);
+        }
+        btn('Weiter', true, function () { onDone(input.value.trim()); });
+        btn('Abbrechen', false, function () { });
+        box.appendChild(row);
+        Modal.openBox(box, Keyboard.first(kb));
+    }
+
+    /** Einstellungen → Sicherung */
+    function BackupScreen() { }
+    BackupScreen.prototype.render = function (root) {
+        var self = this;
+        root.appendChild(topbar('Sicherung', ''));
+        var wrap = h('div', 'bk');
+        var left = h('div', 'bk-l');
+        var stat = h('div', 'bk-stat');
+        var info = Backup.info || {}, at = info.saved_at ? new Date(info.saved_at) : (Storage.get('backupAt', 0) ? new Date(Storage.get('backupAt', 0)) : null);
+        var good = !!at && !Backup.missing;
+        stat.appendChild(h('div', 'bk-ok' + (good ? '' : ' no'), good ? '✓' : '!'));
+        var st = h('div', 'bk-st');
+        st.appendChild(h('div', 'bk-st-h', Backup.missing ? 'Sicherung noch nicht eingerichtet' : good ? 'Gesichert' : 'Noch keine Sicherung'));
+        st.appendChild(h('div', 'bk-st-t', Backup.missing ? 'Auf dem Server fehlt noch die Einrichtung (sicherung.sql).' :
+            good ? 'Letzte Sicherung: ' + fmtDate(at) + ', ' + fmtClock(at) + ' Uhr' + (info.size ? ' · ' + Math.max(1, Math.round(info.size / 1024)) + ' KB' : '') : 'Drücke „Jetzt sichern“.'));
+        stat.appendChild(st);
+        left.appendChild(stat);
+        var chips = h('div', 'bk-chips');
+        [['MAC', Device.macText()], ['Automatisch', Backup.on() ? 'An' : 'Aus']].forEach(function (c) {
+            var d = h('div', 'bk-chip'); d.appendChild(h('div', 'bk-chip-l', c[0])); d.appendChild(h('div', 'bk-chip-v', c[1])); chips.appendChild(d);
+        });
+        left.appendChild(chips);
+        var acts = h('div', 'bk-acts');
+        function act(key, ic, label, sub, fn) {
+            var b = h('div', 'bk-act');
+            b.appendChild(h('span', 'bk-ic', ic)); b.appendChild(h('span', 'bk-lb', label)); b.appendChild(h('span', 'bk-sub', sub));
+            acts.appendChild(focusable(b, key, fn, 'bkacts'));
+        }
+        act('bk-save', '⤒', 'Jetzt sichern', 'dauert 1 Sekunde', function () { Backup.save(false).then(function () { self.focusKey = 'bk-save'; Nav.show(self); }, function () { /* Meldung kam schon */ }); });
+        act('bk-transfer', '⤓', 'Von anderem Gerät übernehmen', 'z. B. neuer Stick', function () { Backup.transfer(); });
+        act('bk-restore', '↺', 'Sicherung zurückspielen', good ? 'Stand ' + fmtClock(at) + ' Uhr' : '', function () { Backup.restoreOwn(); });
+        act('bk-auto', '⟳', 'Automatisch sichern', Backup.on() ? 'An · bei Änderungen + täglich' : 'Aus', function () {
+            Storage.set('backupAuto', !Backup.on()); self.focusKey = 'bk-auto'; Nav.show(self);
+        });
+        left.appendChild(acts);
+        left.appendChild(h('div', 'bk-note', 'Zugangsdaten deines Anbieters werden nicht gesichert – die stehen auf der Website beim Gerät.'));
+        wrap.appendChild(left);
+        var right = h('div', 'bk-r');
+        right.appendChild(h('div', 'bk-h', 'WAS GESICHERT WIRD'));
+        var cnt = Backup.counts(Backup.collect().items);
+        Backup.GROUPS.forEach(function (g) {
+            var r = h('div', 'bk-it');
+            r.appendChild(h('b', null, '✓'));
+            r.appendChild(h('span', 'bk-it-n', g[1]));
+            r.appendChild(h('span', 'bk-it-c', g[0] === 'settings' ? 'Farbthema, Player, Ersatzsender …' : (cnt[g[0]] || 0) + ' Einträge'));
+            right.appendChild(r);
+        });
+        var r2 = h('div', 'bk-it off'); r2.appendChild(h('b', null, '–')); r2.appendChild(h('span', 'bk-it-n', 'Zugangsdaten des Anbieters')); r2.appendChild(h('span', 'bk-it-c', 'bleiben auf der Website'));
+        right.appendChild(r2);
+        right.appendChild(h('div', 'bk-tip', 'Neuer Stick? Dort „Von anderem Gerät übernehmen“ wählen und den Code mit dem Handy scannen – Favoriten, Profile und Weiterschauen sind sofort wieder da.'));
+        wrap.appendChild(right);
+        root.appendChild(wrap);
+        if (!this.focusKey) this.focusKey = 'bk-save';
+        // Stand vom Server holen
+        if (!this.asked) {
+            this.asked = true;
+            Backup.rpc('device_backup_info', {}).then(function (r) { Backup.info = r; if (Nav.top() === self && !Modal.node) { self.focusKey = Focus.cur ? Focus.cur.getAttribute('data-key') : self.focusKey; Nav.show(self); } }, function () {
+                if (Backup.missing && Nav.top() === self && !Modal.node) Nav.show(self);
+            });
+        }
+    };
+
     function reloadAll() {
         var acc = Api.acc || Storage.get('account', null);
         if (!acc) return;
@@ -8547,6 +8863,7 @@
             }
         }
         row('lists', 'list', 'Wiedergabelisten', 'Wechseln', function () { Nav.push(new PlaylistsScreen()); });
+        row('backup', 'up', 'Sicherung', Backup.missing ? 'nicht eingerichtet' : (Storage.get('backupAt', 0) ? 'Gesichert · ' + fmtClock(new Date(Storage.get('backupAt', 0))) + ' Uhr' : 'Favoriten, Profile …'), function () { Nav.push(new BackupScreen()); });
         if (Help.available()) row('help', 'shield', 'Fernhilfe', Help.on ? 'Läuft · Code ' + Help.codeText() : 'Support hilft aus der Ferne', function () { if (Help.on) Help.menu(); else Help.ask(false); });
         if (!STORE_BUILD) row('account', 'user', 'Konto', License.activated() ? 'Aktiviert' : (License.free() ? License.freeText() : License.text()), function () { Nav.push(new AccountScreen()); });
 
@@ -10230,7 +10547,8 @@
         Player.init();
         Updater.autoCheck();                               // gleich beim Start nach neuer Version suchen
         applyStallWait();
-        setTimeout(function () { GenreScan.start(); }, 15000);   // Genres im Hintergrund sammeln (nur wenn nichts läuft)
+        setTimeout(function () { GenreScan.start(); }, 15000);
+        setTimeout(function () { try { Backup.startup(); } catch (e) { /* egal */ } }, 25000);   // Sicherung: übertragene prüfen, täglich sichern   // Genres im Hintergrund sammeln (nur wenn nichts läuft)
         setTimeout(function () { Updater.flags(); }, 8000);     // vom Admin erzwungenes Update?
         setTimeout(function () { try { Help.resume(); } catch (e) { /* egal */ } }, 6000);   // Fernhilfe lief vor dem Neustart
         setTimeout(function () { Report.flushNative(); }, 8000);   // Absturzbericht vom letzten Mal an die Website
