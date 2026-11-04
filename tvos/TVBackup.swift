@@ -60,7 +60,13 @@ final class Backup: ObservableObject {
     }
     var lastText: String {
         guard let d = savedAt else { return "Favoriten, Profile …" }
-        return "Gesichert · " + Self.dayText(d) + ", " + d.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)) + " Uhr"
+        return "Gesichert · " + Self.dayText(d) + ", " + Self.clock(d) + " Uhr"
+    }
+
+    /// „20:23“ (immer 24 Stunden)
+    static func clock(_ d: Date) -> String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "de_DE"); f.dateFormat = "HH:mm"
+        return f.string(from: d)
     }
 
     static func dayText(_ d: Date) -> String {
@@ -490,7 +496,7 @@ struct BackupChooser: View {
             Color.black.opacity(0.75)
             VStack(alignment: .leading, spacing: 20) {
                 Text(choice.title).font(UI.font(36, .bold)).foregroundColor(UI.gold)
-                Text("Stand: " + (choice.at.map { Backup.dayText($0) + ", " + $0.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)) + " Uhr" } ?? "unbekannt")
+                Text("Stand: " + (choice.at.map { Backup.dayText($0) + ", " + Backup.clock($0) + " Uhr" } ?? "unbekannt")
                      + ". Was soll übernommen werden?").font(UI.font(25))
                 if choice.foreign {
                     Text("Diese Sicherung kommt von Android oder iPhone – übernommen werden die Favoriten (für die gerade gewählte Wiedergabeliste).")
