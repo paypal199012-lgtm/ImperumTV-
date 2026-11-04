@@ -8721,7 +8721,7 @@
             card = h('div', 'set6-card');
             var t = h('div', 'set6-head'); t.innerHTML = icon(ic, 26) + '<span></span>'; t.lastChild.textContent = title;
             card.appendChild(t);
-            var lst = h('div', 'set6-list vscroll');
+            var lst = h('div', 'set6-list');
             card.appendChild(lst);
             card._list = lst;
             cols.appendChild(card);
@@ -8933,14 +8933,14 @@
         box.appendChild(acts);
 
         root.appendChild(box);
-        // Karten, die nicht ganz hineinpassen: unten ausblenden, bis man hinunterscrollt
-        setTimeout(function () {
+        // Alles ohne Scrollen zeigen: passt eine Karte nicht über die Knöpfe unten, Zeilen etwas flacher machen
+        function overflows() {
             var ls = box.querySelectorAll('.set6-list');
-            for (var i = 0; i < ls.length; i++) (function (l) {
-                function upd() { l.classList.toggle('more', l.scrollHeight - l.clientHeight - l.scrollTop > 4); }
-                upd(); l.addEventListener('scroll', upd);
-            })(ls[i]);
-        }, 0);
+            for (var i = 0; i < ls.length; i++) if (ls[i].scrollHeight > ls[i].clientHeight + 2) return true;
+            return false;
+        }
+        function fit() { if (overflows()) { box.classList.add('dense'); if (overflows()) box.classList.add('dense2'); } }
+        fit(); setTimeout(fit, 0);
         if (!this.focusKey) this.focusKey = 'set-format';
     };
 
