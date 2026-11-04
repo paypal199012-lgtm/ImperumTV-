@@ -8682,6 +8682,9 @@
             card = h('div', 'set6-card');
             var t = h('div', 'set6-head'); t.innerHTML = icon(ic, 26) + '<span></span>'; t.lastChild.textContent = title;
             card.appendChild(t);
+            var lst = h('div', 'set6-list vscroll');
+            card.appendChild(lst);
+            card._list = lst;
             cols.appendChild(card);
         }
         function row(key, ic, label, value, action) {
@@ -8691,7 +8694,7 @@
             var v = h('div', 'set-value', value || '');
             r.appendChild(v);
             focusable(r, 'set-' + key, function () { self.focusKey = 'set-' + key; action(v); }, 'setlist');
-            card.appendChild(r);
+            card._list.appendChild(r);
             return r;
         }
 
@@ -8886,6 +8889,14 @@
         box.appendChild(acts);
 
         root.appendChild(box);
+        // Karten, die nicht ganz hineinpassen: unten ausblenden, bis man hinunterscrollt
+        setTimeout(function () {
+            var ls = box.querySelectorAll('.set6-list');
+            for (var i = 0; i < ls.length; i++) (function (l) {
+                function upd() { l.classList.toggle('more', l.scrollHeight - l.clientHeight - l.scrollTop > 4); }
+                upd(); l.addEventListener('scroll', upd);
+            })(ls[i]);
+        }, 0);
         if (!this.focusKey) this.focusKey = 'set-format';
     };
 
