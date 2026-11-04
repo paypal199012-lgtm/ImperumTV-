@@ -893,6 +893,31 @@
      * Farbthema: Alle Gold-Töne der Oberfläche (Rahmen, Schrift, Lichtstrahlen, Knöpfe) werden in die Themenfarbe umgerechnet,
      * das ImperumTV-Logo färbt sich mit. Senderlogos, Cover und Video bleiben unverändert. Gilt pro Gerät.
      */
+    /**
+     * Leichte Darstellung: Auf schwachen Geräten (unter ca. 1,6 GB Arbeitsspeicher, z. B. Fire TV Stick 4K / Lite)
+     * ohne Schatten und Übergangs-Effekte zeichnen. Anordnung, Farben und Größen bleiben gleich.
+     */
+    var Lite = {
+        mem: function () {
+            try { if (AB && AB.totalMemMb) { var m = +AB.totalMemMb(); if (m > 0) return m; } } catch (e) { /* egal */ }
+            try { if (navigator.deviceMemory) return navigator.deviceMemory * 1024; } catch (e2) { /* egal */ }
+            return 0;
+        },
+        mode: function () { return Storage.get('liteMode', 'auto'); },
+        weak: function () { var m = this.mem(); return m > 0 && m < 1600; },
+        active: function () { var md = this.mode(); return md === 'on' || (md === 'auto' && this.weak()); },
+        apply: function () { document.body.classList.toggle('lite', this.active()); },
+        label: function () {
+            var md = this.mode();
+            return md === 'on' ? 'An' : md === 'off' ? 'Aus' : 'Automatisch · ' + (this.weak() ? 'an' : 'aus');
+        },
+        next: function () {
+            var md = this.mode();
+            Storage.set('liteMode', md === 'auto' ? 'on' : md === 'on' ? 'off' : 'auto');
+            this.apply();
+        }
+    };
+
     var Theme = {
         LIST: [['gold', 'Gold'], ['blau', 'Blau'], ['silber', 'Silber'], ['smaragd', 'Smaragd'], ['pink', 'Pink'], ['violett', 'Violett'], ['tuerkis', 'Türkis'], ['kobalt', 'Kobalt']],
         DEF: {
@@ -4393,13 +4418,27 @@
         try { return m ? decodeURIComponent(m[1]) : ''; } catch (e) { return ''; }
     }
 
-    function thumbUrl(url, w) {
-        if (!url) return url;
+    /**
+     * w: angezeigte Breite in Pixeln (Standard: Poster). opt.png: durchsichtig lassen (Senderlogos),
+     * opt.tmdb: TMDB-Größe dazu ('w342', 'w780', 'w1280' – nur Größen, die TMDB für dieses Bild sicher hat)
+     */
+    function thumbUrl(url, w, opt) {
+        if (!url || /\.svg(\?|#|$)/i.test(url)) return url;
+        opt = opt || {};
         var m = /^(https?:\/\/image\.tmdb\.org\/t\/p\/)[^\/]+(\/.+)$/i.exec(url);
-        if (m) url = m[1] + 'w' + (w || 342) + m[2];
+        if (m && (!w || opt.tmdb)) url = m[1] + (opt.tmdb || 'w342') + m[2];
         // Android-App: Bild einmal laden, klein rechnen und auf dem Gerät aufheben (für alle Bild-Server)
-        if (THUMB_HOST && !ThumbStat.off && /^https?:\/\//i.test(url)) return 'https://' + THUMB_HOST + '/p?w=260&u=' + encodeURIComponent(url);
+        if (THUMB_HOST && !ThumbStat.off && /^https?:\/\//i.test(url)) return 'https://' + THUMB_HOST + '/p?w=' + (w || 260) + (opt.png ? '&f=png' : '') + '&u=' + encodeURIComponent(url);
         return url;
+    }
+    /** Senderlogo verkleinert (durchsichtig) */
+    function logoUrl(url) { return thumbUrl(url, 168, { png: true }); }
+    /** Hintergrundbild sofort setzen, verkleinert wo möglich (klappt das nicht: Original) */
+    function setBgImg(n, url, w, opt) {
+        if (!url) return;
+        var t = thumbUrl(url, w, opt);
+        if (THUMB_HOST && t.indexOf('https://' + THUMB_HOST + '/') === 0) LazyImg.viaThumb(n, t);
+        else LazyImg.show(n, t);
     }
 
     function posterNode(item, keyPrefix, isFav, action) {
@@ -6167,7 +6206,7 @@
             var row = h('div', 'row lv' + (self.selected && self.selected.id === ch.id ? ' active' : ''));
             row.appendChild(h('div', 'num', String(ch.num)));
             var logo = h('img', 'logo');
-            if (ch.logo) LazyImg.set(logo, ch.logo);
+            if (ch.logo) LazyImg.set(logo, logoUrl(ch.logo));
             logo.onerror = function () { logo.style.visibility = 'hidden'; };
             row.appendChild(logo);
             var nt = NameTidy.split(ch.name, ch.cat);
@@ -6880,7 +6919,7 @@
         list.forEach(function (e) {
             var node = h('div', 'poster resume');
             var img = h('div', 'img');
-            if (e.logo) img.style.backgroundImage = 'url("' + String(e.logo).replace(/"/g, '%22') + '")';
+            if (e.logo) setBgImg(img, String(e.logo));
             if (!e.next) img.appendChild(progressNode(Resume.part(e)));
             node.appendChild(img);
             node.appendChild(h('div', 'title', Resume.label(e)));
@@ -7224,9 +7263,9 @@
         }
         function fill(info) {
             var img = info.cover || m.logo;
-            if (img) cover.style.backgroundImage = 'url("' + img.replace(/"/g, '%22') + '")';
+            if (img) setBgImg(cover, img, 400, { tmdb: 'w780' });
             var back = info.backdrop || info.cover || m.logo;
-            if (back) bg.style.backgroundImage = 'url("' + back.replace(/"/g, '%22') + '")';
+            if (back) setBgImg(bg, back, 1280, { tmdb: 'w1280' });
             meta.textContent = info.meta || (m.year ? String(m.year) : '');
             var score = info.score || m.rating;
             rating.textContent = score ? ratingText(score) + ' / 10' : '';
@@ -7264,7 +7303,7 @@
         root.appendChild(h('div', 'detail-shade'));
         var d = h('div', 'detail');
         var cover = h('div', 'cover');
-        if (s.logo) cover.style.backgroundImage = 'url("' + s.logo.replace(/"/g, '%22') + '")';
+        if (s.logo) setBgImg(cover, s.logo, 400, { tmdb: 'w780' });
         d.appendChild(cover);
         var body = h('div', 'body');
         body.appendChild(h('h1', null, s.name));
@@ -7302,9 +7341,9 @@
         }
 
         var info = this.info || {};
-        if (info.cover) cover.style.backgroundImage = 'url("' + info.cover.replace(/"/g, '%22') + '")';
+        if (info.cover) setBgImg(cover, info.cover, 400, { tmdb: 'w780' });
         var back = info.backdrop || info.cover || s.logo;
-        if (back) bg.style.backgroundImage = 'url("' + back.replace(/"/g, '%22') + '")';
+        if (back) setBgImg(bg, back, 1280, { tmdb: 'w1280' });
         var sScore = info.score || s.rating;
         if (info.meta || sScore) {
             var sm = h('div', 'meta', info.meta || '');
@@ -7388,7 +7427,7 @@
         list.forEach(function (ep, i) {
             var n = h('div', 'epc'), num = ep.num || i + 1;
             var img = h('div', 'epc-img');
-            if (ep.img) img.style.backgroundImage = 'url("' + ep.img.replace(/"/g, '%22') + '")';
+            if (ep.img) setBgImg(img, ep.img, 360);
             else {
                 var tone = tones[(num - 1) % tones.length];
                 img.style.backgroundImage = 'linear-gradient(160deg, ' + tone + ', #0d0f13)';
@@ -7764,7 +7803,7 @@
             var row = h('div', 'erow');
             row.appendChild(h('div', 'num', String(ch.num)));
             var logo = h('img', 'logo');
-            if (ch.logo) LazyImg.set(logo, ch.logo);
+            if (ch.logo) LazyImg.set(logo, logoUrl(ch.logo));
             logo.onerror = function () { logo.style.visibility = 'hidden'; };
             row.appendChild(logo);
             var main = h('div', 'emain');
@@ -8094,7 +8133,7 @@
             var cn = h('div', 'eg-chan' + (idx === this.chIndex ? ' sel' + (this.col === 'prog' ? ' cur' : '') : ''));
             cn.appendChild(h('div', 'n', String(ch.num)));
             var lg = h('div', 'lg');
-            if (ch.logo) { var im = h('img'); LazyImg.set(im, ch.logo); im.onerror = function () { this.style.visibility = 'hidden'; }; lg.appendChild(im); }
+            if (ch.logo) { var im = h('img'); LazyImg.set(im, logoUrl(ch.logo)); im.onerror = function () { this.style.visibility = 'hidden'; }; lg.appendChild(im); }
             cn.appendChild(lg);
             cn.appendChild(h('div', 'nm', nt.name + (Favs.has('live', ch.id) ? ' ★' : '')));
             if (nt.tags.length) cn.appendChild(h('span', 'ch-tag' + (/^(HD|FHD|UHD|4K|8K|HDR)$/.test(nt.tags[0]) ? ' q' : ''), nt.tags[0]));
@@ -8830,6 +8869,11 @@
             });
             b.push({ label: 'Abbrechen' });
             Modal.open('Farbthema', 'Farbe der Oberfläche auf diesem Gerät. Senderlogos, Cover und das Bild bleiben unverändert.', b);
+        });
+        row('lite', 'speed', 'Leichte Darstellung', Lite.label(), function (v) {
+            Lite.next();
+            v.textContent = Lite.label();
+            toast(Lite.active() ? 'Leichte Darstellung an: ohne Schatten und Übergänge – weniger Arbeit für den Stick.' : 'Leichte Darstellung aus', 5000);
         });
         row('clock', 'clock', 'Uhrzeit oben rechts', Clock.label().replace('An · mit Sekunden', 'Mit Sekunden').replace('An · ohne Sekunden', 'Ohne Sekunden'), function (v) {
             Clock.next();
@@ -10353,7 +10397,7 @@
         var row = h('div', 'zap-row' + (i === this.zapIndex ? ' sel' : '') + (i === this.index ? ' playing' : ''));
         row.appendChild(h('div', 'num', String(ch.num || i + 1)));
         var logo = h('img', 'logo');
-        if (ch.logo) logo.src = ch.logo;
+        if (ch.logo) setBgImg(logo, ch.logo, 168, { png: true });
         logo.onerror = function () { logo.style.visibility = 'hidden'; };
         row.appendChild(logo);
         var main = h('div', 'zmain');
@@ -10643,6 +10687,7 @@
         if (AB) document.body.classList.add('lowfx');
 
         try { if (Theme.cur() !== 'gold') Theme.apply(Theme.cur()); } catch (eT) { /* Farbthema ist nur Kosmetik */ }
+        try { Lite.apply(); } catch (eL) { /* nur Kosmetik */ }
         Device.load();
         var saved = Storage.get('account', null);
         var lastId = Storage.get('playlistId', null);
