@@ -5687,11 +5687,18 @@
             box.appendChild(rowB);
             Modal.openBox(box, rowB.firstChild);
         },
+        /** Sicherung vom Apple TV: dort heißen die Speicherplätze anders – Favoriten übernehmen („Liste|live:12“ → „live:12“) */
+        fromTv: function (data) {
+            if (!data || data.app !== 'tvos') return data;
+            var items = data.items || {}, favs = [];
+            try { var w = JSON.parse(items['tv.favs'] || '{}'); (w.v || []).forEach(function (k) { var m = /\|((live|movie|series):\d+)$/.exec(String(k)); if (m) favs.push(m[1]); }); } catch (e) { /* egal */ }
+            return { v: 1, at: data.at, mac: data.mac, items: { favs: JSON.stringify(favs) } };
+        },
         /** Übertragene Sicherung holen und fragen */
         takePending: function () {
             var self = this;
             return this.rpc('device_backup_load', { p_which: 'pending' }).then(function (r) {
-                var data; try { data = JSON.parse(r.data); } catch (e) { toast('Die Sicherung ist beschädigt.'); return; }
+                var data; try { data = self.fromTv(JSON.parse(r.data)); } catch (e) { toast('Die Sicherung ist beschädigt.'); return; }
                 self.choose(data, 'Sicherung von ' + String(r.from || '').toLowerCase() + ' übernehmen?', function () {
                     self.rpc('device_backup_done', {}).then(null, function () { /* egal */ });
                 });
@@ -5700,7 +5707,7 @@
         restoreOwn: function () {
             var self = this;
             this.rpc('device_backup_load', { p_which: 'own' }).then(function (r) {
-                var data; try { data = JSON.parse(r.data); } catch (e) { toast('Die Sicherung ist beschädigt.'); return; }
+                var data; try { data = self.fromTv(JSON.parse(r.data)); } catch (e) { toast('Die Sicherung ist beschädigt.'); return; }
                 self.choose(data, 'Sicherung zurückspielen');
             }, function (e) { toast(e.message, 5000); });
         },

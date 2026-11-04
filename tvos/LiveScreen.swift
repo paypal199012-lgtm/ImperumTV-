@@ -47,6 +47,8 @@ struct LiveScreen: View {
     @State private var epg: [EPGEntry] = []
     @State private var showProgram = false
     @State private var askPin = false
+    /// Qualitätswahl offen für diesen Sender
+    @State private var qualityFor: MergeGroup?
 
     private var channels: [TVItem] {
         _ = store.unlockTick
@@ -61,7 +63,18 @@ struct LiveScreen: View {
         return l
     }
 
+    /// Gleiche Sender in mehreren Qualitäten zusammengefasst (Favoriten nicht)
+    private var groups: [MergeGroup] {
+        cat == "fav" ? channels.map { MergeGroup(rep: $0, variants: [$0], name: $0.name, key: "") } : store.mergeGroups(channels)
+    }
+
     private var info: TVItem? { shown ?? engine.item ?? channels.first }
+
+    private func group(of it: TVItem?) -> MergeGroup? {
+        guard let it = it else { return nil }
+        let v = store.variants(of: it)
+        return v.count > 1 ? MergeGroup(rep: it, variants: v, name: store.cleanName(it), key: store.mergeKey(it)) : nil
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -95,20 +108,23 @@ struct LiveScreen: View {
                              : cat == "fav" ? "Noch keine Favoriten. Sender auswählen und unten „Favorit“ drücken." : "Keine Sender")
                             .font(UI.font(26)).foregroundColor(UI.muted).padding(30)
                     }
-                    ForEach(channels) { ch in
+                    ForEach(groups) { g in
+                        let ch = g.rep
                         Button { open(ch) } label: {
-                            HStack(spacing: 18) {
+                            HStack(spacing: 14) {
                                 ArtView(art: ch.art).frame(width: 84, height: 56).clipShape(RoundedRectangle(cornerRadius: 4))
-                                Text(ch.name).font(UI.font(28, .semibold)).lineLimit(1)
+                                Text(g.name).font(UI.font(28, .semibold)).lineLimit(1)
                                 Spacer(minLength: 0)
+                                if g.variants.count > 1 { badges(g) }
                                 if store.isFav(ch, .live) { Text("★").font(UI.font(26)).foregroundColor(UI.gold2) }
                             }
                             .padding(.horizontal, 22)
                             .frame(height: 86)
                         }
-                        .buttonStyle(GoldStyle(active: engine.item?.id == ch.id && engine.kind == .live))
+                        .buttonStyle(GoldStyle(active: engine.kind == .live && g.variants.contains { $0.id == engine.item?.id }))
                         .focused($focus, equals: .ch(ch.id))
                         .contextMenu {
+                            if g.variants.count > 1 { Button("◎ Qualität wählen") { qualityFor = g } }
                             Button(store.isFav(ch, .live) ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen") { store.toggleFav(ch, .live) }
                             Button("Sender ausblenden", role: .destructive) { store.hide(ch) }
                         }
@@ -130,12 +146,24 @@ struct LiveScreen: View {
                 }
             }
         }
+        .confirmationDialog(qualityFor.map { "Qualität · " + $0.name } ?? "", isPresented: Binding(get: { qualityFor != nil }, set: { if !$0 { qualityFor = nil } }),
+                            titleVisibility: .visible) {
+            if let g = qualityFor {
+                ForEach(g.variants) { v in
+                    Button((v.id == g.rep.id ? "✓ " : "") + store.qualityLabel(v) + " – " + v.name) { pick(v) }
+                }
+                Button("Nicht zusammenfassen") { store.dontMerge(g.rep); qualityFor = nil }
+                Button("Abbrechen", role: .cancel) { qualityFor = nil }
+            }
+        } message: {
+            Text("Die Wahl wird für diesen Sender gemerkt.")
+        }
         .frame(width: 1920, height: 1080)
         .defaultFocus($focus, .ch(engine.item?.id ?? channels.first?.id ?? 0))
         .onChange(of: focus) { _, f in
             switch f {
             case .cat(let c)?: cat = c
-            case .ch(let id)?: shown = channels.first { $0.id == id }
+            case .ch(let id)?: shown = groups.first { $0.rep.id == id }?.rep
             default: break
             }
         }
@@ -230,23 +258,59 @@ struct LiveScreen: View {
             }
             .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .white.opacity(0.08), ring: false, solid: true))
             .focused($focus, equals: .fav)
-            Button { showProgram.toggle() } label: { pill(showProgram ? "☰ Weniger" : "☰ Ganzes Programm") }
+            Button { showProgram.toggle() } label: { pill(showProgram ? "☰ Weniger" : "☰ Programm") }
                 .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .white.opacity(0.08), ring: false, solid: true))
                 .focused($focus, equals: .prog)
+            if let g = group(of: info) {
+                Button { qualityFor = g } label: { pill("◎ " + store.qualityLabel(g.rep)) }
+                    .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .white.opacity(0.08), ring: false, solid: true))
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func pill(_ t: String) -> some View {
-        Text(t).font(UI.font(26, .bold)).padding(.horizontal, 26).frame(height: 56)
+        Text(t).font(UI.font(26, .bold)).lineLimit(1).padding(.horizontal, 26).frame(height: 56)
+    }
+
+    /// Qualitäts-Abzeichen: höchstens 3, die gewählte hervorgehoben, Rest als „+2“
+    private func badges(_ g: MergeGroup) -> some View {
+        let tags = g.variants.map { store.qualityTags($0).first ?? "STD" }
+        var seen: [String] = []
+        for t in tags where !seen.contains(t) { seen.append(t) }
+        let cur = store.qualityTags(g.rep).first ?? "STD"
+        let shownTags = Array(seen.prefix(3))
+        return HStack(spacing: 6) {
+            ForEach(shownTags, id: \.self) { t in
+                Text(t).font(UI.font(17, .heavy))
+                    .foregroundColor(t == cur ? UI.dark : UI.gold)
+                    .padding(.horizontal, 8).frame(height: 28)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(t == cur ? UI.gold : Color.clear))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(UI.gold.opacity(0.6), lineWidth: 1.5))
+            }
+            if seen.count > 3 { Text("+\(seen.count - 3)").font(UI.font(17, .bold)).foregroundColor(UI.muted) }
+        }
+    }
+
+    /// Qualität gewählt: merken und gleich abspielen
+    private func pick(_ v: TVItem) {
+        store.choose(v)
+        qualityFor = nil
+        guard let u = store.url(v, .live) else { return }
+        let reps = groups.map(\.rep)
+        engine.items = reps
+        engine.index = reps.firstIndex { $0.id == v.id } ?? engine.index
+        engine.play(u, item: v, kind: .live)
+        shown = v
     }
 
     /// OK auf einem Sender: erst Vorschau, nochmal OK = Vollbild (wie auf Android)
     private func open(_ ch: TVItem) {
         if engine.item?.id == ch.id && engine.kind == .live { full(ch); return }
         guard let u = store.url(ch, .live) else { return }
-        engine.items = channels
-        engine.index = channels.firstIndex(of: ch) ?? 0
+        let reps = groups.map(\.rep)
+        engine.items = reps
+        engine.index = reps.firstIndex(of: ch) ?? 0
         engine.play(u, item: ch, kind: .live)
     }
 
@@ -255,8 +319,9 @@ struct LiveScreen: View {
             guard let u = store.url(ch, .live) else { return }
             engine.play(u, item: ch, kind: .live)
         }
-        engine.items = channels
-        engine.index = channels.firstIndex(of: ch) ?? 0
+        let reps = groups.map(\.rep)
+        engine.items = reps
+        engine.index = reps.firstIndex(of: ch) ?? 0
         nav.push(.player)
     }
 }

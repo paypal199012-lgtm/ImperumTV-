@@ -98,10 +98,13 @@ struct VodStreamDTO: Decodable {
     let added: Int
     /// Bewertung 0–10 (0 = keine)
     let rating: Double
+    /// Genre, falls der Anbieter es schon in der Liste mitliefert
+    let genre: String?
 
     enum CodingKeys: String, CodingKey {
         case added
         case rating
+        case genre
         case rating5 = "rating_5based"
         case streamId = "stream_id"
         case name
@@ -122,6 +125,7 @@ struct VodStreamDTO: Decodable {
         ext = c.optionalString(.ext) ?? "mp4"
         added = c.optionalString(.added).flatMap { Int($0) } ?? 0
         rating = VodStreamDTO.parseRating(c.optionalString(.rating), c.optionalString(.rating5))
+        genre = c.optionalString(.genre)
 
         // Jahr: erst aus den Feldern des Anbieters, sonst aus dem Namen, z. B. "Titel (2026)"
         let fromFields = [c.optionalString(.year), c.optionalString(.releaseDate), c.optionalString(.releaseDate2)]
@@ -176,8 +180,13 @@ struct SeriesDTO: Decodable {
     let added: Int
     let rating: Double
     let year: Int?
+    /// Genre und Beschreibung (liefern die meisten Anbieter schon in der Liste)
+    let genre: String?
+    let plot: String?
 
     enum CodingKeys: String, CodingKey {
+        case genre
+        case plot
         case seriesId = "series_id"
         case name
         case cover
@@ -198,6 +207,8 @@ struct SeriesDTO: Decodable {
         categoryId = c.optionalString(.categoryId)
         added = c.optionalString(.added).flatMap { Int($0) } ?? 0
         rating = VodStreamDTO.parseRating(c.optionalString(.rating), c.optionalString(.rating5))
+        genre = c.optionalString(.genre)
+        plot = c.optionalString(.plot)
         let fromFields = [c.optionalString(.releaseDate), c.optionalString(.releaseDate2), c.optionalString(.year)]
             .compactMap { $0 }
             .compactMap { VodStreamDTO.firstYear(in: $0) }

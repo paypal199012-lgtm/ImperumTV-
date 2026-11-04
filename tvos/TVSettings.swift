@@ -170,6 +170,8 @@ struct SettingsScreen: View {
     @EnvironmentObject var nav: Nav
     @EnvironmentObject var engine: PlayerEngine
     @ObservedObject private var help = RemoteHelp.shared
+    @ObservedObject private var genres = GenreBook.shared
+    @ObservedObject private var backup = Backup.shared
     @EnvironmentObject var resume: ResumeBook
     @AppStorage("tv.theme") private var theme = "gold"
     @AppStorage("tv.clock") private var clock = "sec"
@@ -194,6 +196,10 @@ struct SettingsScreen: View {
                     row("play", "Player Live TV", Self.engName(engine.liveEngine)) {
                         engine.liveEngine = Self.nextEngine(engine.liveEngine)
                     }
+                    row("tv", "Sender zusammenfassen", store.mergeOn ? "An" : "Aus") {
+                        store.mergeOn.toggle()
+                        show(store.mergeOn ? "Gleiche Sender in mehreren Qualitäten stehen nur noch einmal da" : "Alle Qualitäten einzeln")
+                    }
                     row("tv", "Ersatzsender", engine.autoAlt ? "An · nach " + String(format: "%g", engine.altWait).replacingOccurrences(of: ".", with: ",") + " s" : "Aus") {
                         // Aus → 1 s → 1,5 s → 2 s → 3 s → Aus
                         if !engine.autoAlt { engine.autoAlt = true; engine.altWait = 1 }
@@ -212,6 +218,10 @@ struct SettingsScreen: View {
                     row("next", "Intro überspringen", introBtn ? "An · 20 s" : "Aus") { introBtn.toggle() }
                 }
                 section("clock", "Anzeige & Familie") {
+                    row("list", "Genres sammeln", genres.status) {
+                        genres.on.toggle()
+                        show(genres.on ? "Die App holt im Hintergrund die Genres aller Filme (eine Abfrage pro Sekunde)" : "Genres sammeln: aus")
+                    }
                     row("tv", "Farbthema", Theme.current.name) {
                         let ids = Theme.all.map(\.id)
                         let i = ids.firstIndex(of: theme) ?? 0
@@ -241,6 +251,7 @@ struct SettingsScreen: View {
                 }
                 section("shield", "Konto") {
                     row("list", "Wiedergabelisten", "Wechseln") { nav.push(.playlists) }
+                    row("up", "Sicherung", backup.missing ? "nicht eingerichtet" : backup.lastText) { nav.push(.backup) }
                     row("shield", "Fernhilfe", help.on ? "Läuft · Code \(help.codeText)" : "Support hilft") {
                         if help.on { help.askingStop = true } else { help.asking = true }
                     }

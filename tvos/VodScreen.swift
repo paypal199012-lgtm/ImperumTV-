@@ -47,6 +47,7 @@ struct VodScreen: View {
     @EnvironmentObject var nav: Nav
     @EnvironmentObject var engine: PlayerEngine
     @EnvironmentObject var resume: ResumeBook
+    @ObservedObject private var genres = GenreBook.shared
 
     enum F: Hashable { case search, sort, cat(String), item(Int) }
     @FocusState private var focus: F?
@@ -76,6 +77,9 @@ struct VodScreen: View {
         case "neweps": l = all.filter { store.newEpisodes.contains($0.id) }
         case "new": l = all.sorted { $0.added > $1.added }.prefix(200).map { $0 }
         case "year": let y = Calendar.current.component(.year, from: Date()); l = all.filter { $0.year == y }
+        case let c where c.hasPrefix("g:"):
+            let bit = 1 << (Int(c.dropFirst(2)) ?? 0)
+            l = all.filter { genres.mask($0, kind, store) & bit != 0 }
         default: l = store.catLocked(kind, cat) ? [] : store.items(kind).filter { $0.cat == cat }
         }
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
@@ -112,6 +116,13 @@ struct VodScreen: View {
                     if kind == .series { row("neweps", "● Neue Folgen", store.newEpisodes.count) }
                     row("new", "Zuletzt hinzugefügt", nil)
                     if kind == .movie { row("unseen", "Nicht gesehen", nil) }
+                    let gc = genres.counts(kind, store.visible(kind), store)
+                    if gc.contains(where: { $0 > 0 }) || !genres.progressText.isEmpty {
+                        SectionHead(text: "Genres" + (kind == .movie && !genres.progressText.isEmpty ? " · wird ergänzt " + genres.progressText : ""))
+                        ForEach(Array(GenreMask.names.enumerated()).filter { gc[$0.offset] > 0 }, id: \.offset) { i, n in
+                            row("g:\(i)", n, gc[i])
+                        }
+                    }
                     SectionHead(text: "Kategorien")
                     ForEach(store.visibleCats(kind)) { c in
                         row(c.id, (store.catLocked(kind, c.id) ? "🔒 " : "") + c.name, nil)
@@ -280,6 +291,7 @@ struct SeriesScreen: View {
         .task {
             let r = await store.seriesDetails(series)
             episodes = r.episodes; info = r.info
+            if let i = r.info { GenreBook.shared.learn(.series, series.id, genre: i.genre, plot: i.plot) }
             store.markSeriesOpened(series, count: r.episodes.count)
             if let s = saved, let ep = s.episode, ep < sortedAll.count { season = sortedAll[ep].season } else { season = seasons.first ?? 1 }
             loading = false

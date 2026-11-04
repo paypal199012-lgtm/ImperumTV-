@@ -87,6 +87,7 @@ struct MovieDetailScreen: View {
         .defaultFocus($focus, .play)
         .task {
             info = await store.movieInfo(movie)
+            if let i = info { GenreBook.shared.learn(.movie, movie.id, genre: i.genre, plot: i.plot) }
             loading = false
         }
     }

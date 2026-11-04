@@ -31,6 +31,8 @@ struct TVItem: Identifiable, Hashable {
     var year: Int? = nil
     var ext: String = "mp4"
     var added: Int = 0
+    /// Genres als Bitmaske (GenreMask), soweit der Anbieter sie in der Liste mitliefert
+    var g: Int = 0
 }
 
 // MARK: - Demo (freie Testvideos, wie auf Android)
@@ -43,7 +45,16 @@ enum DemoData {
         TVItem(id: 2, name: "Demo 2 · Testbild", cat: "1", art: .demo("Testbild", 0x2f5f9e)),
         TVItem(id: 3, name: "Demo 3 · Tears of Steel", cat: "2", art: .demo("Tears of Steel", 0x8a3b3b))
     ]
+    /// Nur für den Simulator-Test „merge“: derselbe Sender in mehreren Qualitäten
+    static let mergeTest: [TVItem] = [
+        TVItem(id: 11, name: "Demo 1 · Big Buck Bunny FHD", cat: "1", art: .demo("Big Buck Bunny", 0x3f7d3a)),
+        TVItem(id: 12, name: "Demo 1 · Big Buck Bunny HD", cat: "1", art: .demo("Big Buck Bunny", 0x3f7d3a)),
+        TVItem(id: 13, name: "Demo 1 · Big Buck Bunny 4K RAW", cat: "1", art: .demo("Big Buck Bunny", 0x3f7d3a))
+    ]
     static let liveURLs: [Int: String] = [
+        11: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+        12: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+        13: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
         1: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
         2: "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8",
         3: "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8"
@@ -112,11 +123,17 @@ final class TVStore: ObservableObject {
         case m3u(String, String)          // Name, Adresse
     }
 
+    /// Sender zusammenfassen: Schlüssel je Sender (Land + Name ohne Qualität), wird beim Laden geleert
+    var mergeCache: [Int: String] = [:]
+    var mergeTagCache: [Int: [String]] = [:]
+
     /// M3U: Adressen und Serienfolgen (die Liste liefert sie direkt)
     private var m3uURLs: [Int: URL] = [:]
     private var m3uEpisodes: [Int: [Episode]] = [:]
 
-    @Published var source: Source = .none
+    @Published var source: Source = .none {
+        didSet { GenreBook.shared.use(sourceName); mergeCache = [:]; mergeTagCache = [:] }
+    }
     @Published var liveCats: [TVCat] = []
     @Published var live: [TVItem] = []
     @Published var vodCats: [TVCat] = []
@@ -277,8 +294,11 @@ final class TVStore: ObservableObject {
         source = .demo
         message = nil
         liveCats = DemoData.liveCats; live = DemoData.live
-        vodCats = DemoData.vodCats; vod = DemoData.vod
-        seriesCats = DemoData.seriesCats; series = DemoData.series
+        vodCats = DemoData.vodCats
+        vod = DemoData.vod.map { var m = $0; m.g = GenreMask.mask(DemoData.info[m.id]?.genre); return m }
+        seriesCats = DemoData.seriesCats
+        series = DemoData.series.map { var m = $0; m.g = GenreMask.mask("Animation"); return m }
+        if Self.env["IMPTV_SCREEN"] == "merge" { live = DemoData.live + DemoData.mergeTest }
         expiry = nil
     }
 
@@ -320,6 +340,7 @@ final class TVStore: ObservableObject {
             let streams = try await api.liveStreams()
             liveCats = cats.map { TVCat(id: $0.id, name: $0.name) }
             live = streams.map { TVItem(id: $0.streamId, name: $0.name, cat: $0.categoryId ?? "", art: Art.from($0.icon)) }
+            mergeCache = [:]; mergeTagCache = [:]
         } catch {
             message = "Die Wiedergabeliste konnte nicht geladen werden: \(error.localizedDescription)"
             return
@@ -333,10 +354,10 @@ final class TVStore: ObservableObject {
         let sc = await tSc.value ?? [], ss = await tSs.value ?? []
         vodCats = vc.map { TVCat(id: $0.id, name: $0.name) }
         vod = vs.map { TVItem(id: $0.streamId, name: $0.name, cat: $0.categoryId ?? "", art: Art.from($0.icon),
-                              rating: $0.rating, year: $0.year, ext: $0.ext, added: $0.added) }
+                              rating: $0.rating, year: $0.year, ext: $0.ext, added: $0.added, g: GenreMask.mask($0.genre)) }
         seriesCats = sc.map { TVCat(id: $0.id, name: $0.name) }
         series = ss.map { TVItem(id: $0.seriesId, name: $0.name, cat: $0.categoryId ?? "", art: Art.from($0.cover),
-                                 rating: $0.rating, year: $0.year, added: $0.added) }
+                                 rating: $0.rating, year: $0.year, added: $0.added, g: GenreMask.mask($0.genre, plot: $0.plot)) }
     }
 
     // MARK: M3U-Liste (ohne Xtream-Zugang)
@@ -417,6 +438,7 @@ final class TVStore: ObservableObject {
         vodCats = vOrder.map { TVCat(id: vCats[$0]!, name: $0) }
         seriesCats = sOrder.map { TVCat(id: sCats[$0]!, name: $0) }
         live = l; vod = v; series = ser
+        mergeCache = [:]; mergeTagCache = [:]
         expiry = nil
     }
 
@@ -524,14 +546,14 @@ final class TVStore: ObservableObject {
         "50fps", "60fps", "fps", "backup", "bkp", "alt", "multi", "audio", "1080p", "720p", "1080", "720", "plus", "+", "vip", "premium", "orig"]
     private static let weakWords: Set<String> = ["mobile", "low", "lq", "sd"]
 
-    private static func words(_ s: String) -> [String] {
+    static func words(_ s: String) -> [String] {
         s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).lowercased()
             .replacingOccurrences(of: #"\([^)]*\)|\[[^\]]*\]"#, with: " ", options: .regularExpression)
             .split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "+" }).map(String.init)
     }
 
     /// Land aus dem Namen („DE: …“, „DE | …“) oder der Kategorie
-    private func country(_ it: TVItem) -> String {
+    func country(_ it: TVItem) -> String {
         let n = it.name.trimmingCharacters(in: .whitespaces)
         if let r = n.range(of: #"^[A-Za-z]{2,3}\s*[:|]"#, options: .regularExpression) {
             return n[r].filter { $0.isLetter }.uppercased()
@@ -542,7 +564,7 @@ final class TVStore: ObservableObject {
     }
 
     /// Name ohne Land und Qualitätsangaben: „DE: DAZN 1 FHD“ → „dazn 1“
-    private func baseKey(_ it: TVItem) -> String {
+    func baseKey(_ it: TVItem) -> String {
         var n = it.name
         if let r = n.range(of: #"^[A-Za-z]{2,3}\s*[:|]"#, options: .regularExpression) { n.removeSubrange(r) }
         return Self.words(n).filter { !Self.qualityWords.contains($0) && !Self.weakWords.contains($0) }.joined(separator: " ")
@@ -552,9 +574,15 @@ final class TVStore: ObservableObject {
         let key = baseKey(it)
         guard key.count >= 2 else { return [] }
         let land = country(it)
+        let myTag = qualityTags(it).first, myRank = qualityRank(it)
+        // zuerst dieselbe Qualität (FHD → anderes FHD), dann die nächstliegende
         return live.filter { o in
             o.id != it.id && baseKey(o) == key && country(o) == land
                 && !Self.words(o.name).contains(where: { Self.weakWords.contains($0) })
+        }.sorted { a, b in
+            let sa = qualityTags(a).first == myTag ? 0 : 1, sb = qualityTags(b).first == myTag ? 0 : 1
+            if sa != sb { return sa < sb }
+            return abs(qualityRank(a) - myRank) < abs(qualityRank(b) - myRank)
         }
     }
 

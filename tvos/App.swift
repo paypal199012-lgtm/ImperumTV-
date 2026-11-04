@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum TVRoute: Hashable {
-    case home, live, epg, movies, series, seriesDetail(TVItem), movieDetail(TVItem), continueWatching, player, playlists, settings, favorites, search, football, profiles, nettest, lockCats
+    case home, live, epg, movies, series, seriesDetail(TVItem), movieDetail(TVItem), continueWatching, player, playlists, settings, favorites, search, football, profiles, nettest, lockCats, backup
 }
 
 /// Bildschirm-Stapel wie auf Android: Menü-Taste der Fernbedienung = Zurück
@@ -44,6 +44,7 @@ struct RootView: View {
     @AppStorage("tv.theme") private var theme = "gold"
     @State private var started = false
     @ObservedObject private var help = RemoteHelp.shared
+    @ObservedObject private var backup = Backup.shared
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -53,6 +54,16 @@ struct RootView: View {
                 ClockView().place(1400, 24, 480, 70, alignment: .topTrailing)
             }
             HelpBanner().place(460, 14, 1000, 56, alignment: .top)
+            // Übertragene Sicherung (Auswahl) und Meldungen der Sicherung außerhalb des Sicherungs-Bildschirms
+            if nav.top != .backup {
+                if let c = backup.choice { BackupChooser(choice: c) }
+                if let m = backup.message {
+                    Text(m).font(UI.font(26, .semibold)).padding(.horizontal, 30).padding(.vertical, 16)
+                        .background(Capsule().fill(.black.opacity(0.85))).overlay(Capsule().stroke(UI.tan(0.5), lineWidth: 1.5))
+                        .place(0, 960, 1920, 70, alignment: .center)
+                        .task(id: m) { try? await Task.sleep(nanoseconds: 5_000_000_000); if backup.message == m { backup.message = nil } }
+                }
+            }
             if store.loading {
                 VStack(spacing: 24) {
                     ProgressView().scaleEffect(2).tint(UI.gold)
@@ -79,6 +90,13 @@ struct RootView: View {
         } message: {
             Text("Dein Code: \(help.codeText)" + (help.viewer ? "\nDer Support sieht gerade deinen Bildschirm." : ""))
         }
+        .alert("Sicherung übertragen", isPresented: $backup.askPending) {
+            Button("Ansehen und übernehmen") { Task { await backup.takePending() } }
+            Button("Nicht übernehmen", role: .destructive) { backup.dismissPending() }
+            Button("Später", role: .cancel) {}
+        } message: {
+            Text("Für dieses Apple TV wurde die Sicherung von \((backup.pendingFrom ?? "").lowercased()) bereitgestellt. Jetzt übernehmen?")
+        }
         .alert(help.message ?? "", isPresented: Binding(get: { help.message != nil }, set: { if !$0 { help.message = nil } })) {
             Button("OK", role: .cancel) {}
         }
@@ -89,6 +107,9 @@ struct RootView: View {
             engine.altProvider = { [weak store] it in store?.alternatives(it) ?? [] }
             engine.urlProvider = { [weak store] it in store?.url(it, .live) }
             engine.onStall = { it, what in Report.stall(it.name, what) }
+            engine.variantsProvider = { [weak store] it in store?.variants(of: it) ?? [it] }
+            engine.qualityName = { [weak store] it in store?.qualityLabel(it) ?? "" }
+            engine.onChooseVariant = { [weak store] it in store?.choose(it) }
             engine.onSleep = { [weak nav] in nav?.reset(.home) }
             help.nav = nav; help.engine = engine; help.store = store
             if !TVStore.testMode { help.resume() }
@@ -99,6 +120,8 @@ struct RootView: View {
             let resIds = resume.list(source: src).filter { $0.kind == "series" }.map(\.itemId)
             Task { await store.checkNewEpisodes(Array(Set(favIds + resIds))) }
             if !store.hasSource { nav.reset(.playlists) }
+            GenreBook.shared.start(store)
+            Backup.shared.startup(store: store, resume: resume)
             testSetup()
         }
     }
@@ -122,6 +145,7 @@ struct RootView: View {
         case .profiles: ProfilesScreen()
         case .nettest: NetTestScreen()
         case .lockCats: LockCatsScreen()
+        case .backup: BackupScreen()
         }
     }
 
@@ -135,7 +159,7 @@ struct RootView: View {
     private func testSetup() {
         guard TVStore.testMode, let s = TVStore.env["IMPTV_SCREEN"] else { return }
         switch s {
-        case "live":
+        case "live", "merge":
             nav.reset(.home); nav.push(.live)
             if let it = store.live.first, let u = store.url(it, .live) {
                 engine.items = store.live; engine.index = 0
@@ -154,6 +178,10 @@ struct RootView: View {
         case "epg": nav.reset(.home); nav.push(.epg)
         case "playlists": nav.reset(.playlists)
         case "settings": nav.reset(.home); nav.push(.settings)
+        case "backup": nav.reset(.home); nav.push(.settings); nav.push(.backup)
+        case "backupchoose": nav.reset(.home); nav.push(.settings); Backup.shared.testChoice()
+        case "backupqr": nav.reset(.home); nav.push(.settings); nav.push(.backup)
+        case "genres": nav.reset(.home); nav.push(.movies)
         case "search": nav.reset(.home); nav.push(.search)
         case "favorites": nav.reset(.home); nav.push(.favorites)
         case "football": nav.reset(.home); nav.push(.football)

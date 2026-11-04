@@ -57,6 +57,10 @@ final class PlayerEngine: ObservableObject {
     var altProvider: ((TVItem) -> [TVItem])?
     /// Adresse eines Senders
     var urlProvider: ((TVItem) -> URL?)?
+    /// Sender zusammenfassen: alle Qualitäten eines Senders, Name der Qualität, Wahl merken
+    var variantsProvider: ((TVItem) -> [TVItem])?
+    var qualityName: ((TVItem) -> String)?
+    var onChooseVariant: ((TVItem) -> Void)?
     /// Hänger melden (Fehlerberichte)
     var onStall: ((TVItem, String) -> Void)?
     /// Schlaf-Timer abgelaufen
@@ -291,6 +295,15 @@ final class PlayerEngine: ObservableObject {
         notice("Hänger – gewechselt auf " + alt.name)
         play(u, item: alt, kind: .live, keepAltState: true)
         return true
+    }
+
+    /// Im Player: andere Qualität desselben Senders (FHD, HD, 4K …)
+    func switchVariant(_ v: TVItem) {
+        guard kind == .live, let u = urlProvider?(v) else { return }
+        if items.indices.contains(index) { items[index] = v }
+        onChooseVariant?(v)
+        play(u, item: v, kind: .live)
+        notice("Qualität: " + (qualityName?(v) ?? v.name))
     }
 
     /// Im Player: dasselbe mit dem anderen Player weiter abspielen (Apple-Player ⇄ VLC)
@@ -693,6 +706,11 @@ struct PlayerScreen: View {
                         row("Ganzes Bild", engine.gravity == "fit") { engine.setGravity("fit"); close(menu: true) }
                         row("Zoomen (füllen)", engine.gravity == "fill") { engine.setGravity("fill"); close(menu: true) }
                         row("Strecken", engine.gravity == "stretch") { engine.setGravity("stretch"); close(menu: true) }
+                    case "quality":
+                        let vs = engine.item.flatMap { engine.variantsProvider?($0) } ?? []
+                        ForEach(vs) { v in
+                            row((engine.qualityName?(v) ?? "") + " – " + v.name, v.id == engine.item?.id) { close(menu: true); engine.switchVariant(v) }
+                        }
                     case "sleep":
                         ForEach([0, 15, 30, 60, 90, 120], id: \.self) { mins in
                             row(mins == 0 ? "Aus" : "\(mins) Minuten", mins == 0 ? engine.sleepAt == nil : false) {
@@ -708,6 +726,9 @@ struct PlayerScreen: View {
                         row("🌙  Schlaf-Timer" + (engine.sleepAt != nil ? " (an)" : ""), false) { menu = "sleep" }
                         if PlayerEngine.hasVLC {
                             row("⇄  Anderer Player (jetzt: " + (engine.usingVLC ? "VLC" : "Apple-Player") + ")", false) { close(menu: true); engine.switchPlayer() }
+                        }
+                        if engine.kind == .live, let it = engine.item, (engine.variantsProvider?(it).count ?? 0) > 1 {
+                            row("◎  Qualität · " + (engine.qualityName?(it) ?? ""), false) { menu = "quality" }
                         }
                         if engine.kind == .live {
                             row("🔁  Ersatzsender suchen", false) { close(menu: true); if !engine.tryAlt() { engine.notice("Kein Ersatzsender gefunden") } }
@@ -727,7 +748,7 @@ struct PlayerScreen: View {
 
     private func menuTitle(_ m: String) -> String {
         switch m { case "audio": return "Tonspur"; case "text": return "Untertitel"; case "format": return "Bildformat"
-        case "sleep": return "Schlaf-Timer"; default: return "Optionen" }
+        case "sleep": return "Schlaf-Timer"; case "quality": return "Qualität"; default: return "Optionen" }
     }
 
     private func row(_ t: String, _ sel: Bool, _ action: @escaping () -> Void) -> some View {
