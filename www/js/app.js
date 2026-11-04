@@ -5639,7 +5639,7 @@
                 focusable(b, 'bk-b-' + label, function () { Modal.close(); fn(); }, 'dialog');
                 rowB.appendChild(b);
             }
-            btn('⤓  Übernehmen', true, function () {
+            btn('↓  Übernehmen', true, function () {
                 var gs = Object.keys(pick).filter(function (k) { return pick[k]; });
                 if (onDone) onDone(true);
                 self.apply(data, gs);
@@ -5674,7 +5674,7 @@
                 self.info = r;
                 if (r.pending) {
                     Modal.open('Sicherung übertragen', 'Für dieses Gerät wurde die Sicherung von ' + String(r.pending_from || '').toLowerCase() + ' bereitgestellt.\nJetzt übernehmen?', [
-                        { label: '⤓  Ansehen und übernehmen', primary: true, action: function () { self.takePending(); } },
+                        { label: '↓  Ansehen und übernehmen', primary: true, action: function () { self.takePending(); } },
                         { label: 'Nicht übernehmen', action: function () { self.rpc('device_backup_done', {}).then(null, function () { /* egal */ }); } },
                         { label: 'Später' }
                     ]);
@@ -5791,8 +5791,8 @@
             b.appendChild(h('span', 'bk-ic', ic)); b.appendChild(h('span', 'bk-lb', label)); b.appendChild(h('span', 'bk-sub', sub));
             acts.appendChild(focusable(b, key, fn, 'bkacts'));
         }
-        act('bk-save', '⤒', 'Jetzt sichern', 'dauert 1 Sekunde', function () { Backup.save(false).then(function () { self.focusKey = 'bk-save'; Nav.show(self); }, function () { /* Meldung kam schon */ }); });
-        act('bk-transfer', '⤓', 'Von anderem Gerät übernehmen', 'z. B. neuer Stick', function () { Backup.transfer(); });
+        act('bk-save', '↑', 'Jetzt sichern', 'dauert 1 Sekunde', function () { Backup.save(false).then(function () { self.focusKey = 'bk-save'; Nav.show(self); }, function () { /* Meldung kam schon */ }); });
+        act('bk-transfer', '↓', 'Von anderem Gerät übernehmen', 'z. B. neuer Stick', function () { Backup.transfer(); });
         act('bk-restore', '↺', 'Sicherung zurückspielen', good ? 'Stand ' + fmtClock(at) + ' Uhr' : '', function () { Backup.restoreOwn(); });
         act('bk-auto', '⟳', 'Automatisch sichern', Backup.on() ? 'An · bei Änderungen + täglich' : 'Aus', function () {
             Storage.set('backupAuto', !Backup.on()); self.focusKey = 'bk-auto'; Nav.show(self);
