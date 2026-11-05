@@ -3638,6 +3638,9 @@
         on: function (handlers) { this.handlers = handlers || {}; },
         emit: function (name, a, b) {
             if (name === 'buffer') NetQ.onBuffer(!!a);
+            if (name === 'ready') this.gotReady = true;
+            if (name === 'buffer') this.isBuf = !!a;
+            if (name === 'frame') this.gotFrame = true;
             var f = this.handlers[name]; if (f) f(a, b);
         },
 
@@ -3659,6 +3662,7 @@
             this.subtitleOn = false;
             this.subIndex = -1;
             this.audioLangs = this.nextLangs || '';            // nur für genau diesen Film/diese Folge
+            this.gotReady = false; this.gotFrame = false;
             this.nextLangs = '';
             NetQ.reset();
             Sleep.awake(true);
@@ -6623,6 +6627,7 @@
             notice: function (msg) { if (/^Bild hing/.test(msg || '')) Report.stall(ch, 'Vorschau: Bild stand still – Sender automatisch neu geöffnet'); },
             stall: function (msg) { Report.stall(ch, 'Vorschau: ' + msg); },
             blank: function (what) { self.previewNoPicture(ch, what); },
+            stuck: function (what) { self.previewNoPicture(ch, what, true); },
             novideo: function (what) { self.previewNoPicture(ch, what); }
         });
         var url = Api.liveUrl(ch.id), rect = stageRect(this.previewBox);
@@ -6633,12 +6638,15 @@
         });
     };
     /** Vorschau zeigt kein Bild (z. B. 4K auf diesem Gerät): merken und die nächste Qualität desselben Senders zeigen */
-    LiveScreen.prototype.previewNoPicture = function (ch, what) {
-        NoVideo.mark(ch.id);
+    LiveScreen.prototype.previewNoPicture = function (ch, what, source) {
+        if (!source) NoVideo.mark(ch.id);
+        var gk = (this.selected && this.selected._mkey) || ch.id;      // schon probierte Qualitäten dieses Senders
+        this.pvTried = (this.pvTried && this.pvTried.k === gk) ? this.pvTried : { k: gk, ids: {} };
+        this.pvTried.ids[ch.id] = 1;
         Report.player(ch, 'Vorschau: kein Bild' + (what ? ' (' + what + ')' : ''));
         var group = (this.selected && this.selected._mv) || ch._mv || [];
         var next = null;
-        for (var i = 0; i < group.length; i++) { var v = group[i].c || group[i]; if (v.id !== ch.id && !NoVideo.has(v.id)) { next = v; break; } }
+        for (var i = 0; i < group.length; i++) { var v = group[i].c || group[i]; if (v.id !== ch.id && !NoVideo.has(v.id) && !this.pvTried.ids[v.id]) { next = v; break; } }
         if (!next || !this.selected) { toast('Dieser Sender zeigt auf diesem Gerät kein Bild' + (what ? ' (' + what + ')' : '') + '.', 7000); return; }
         toast('Kein Bild in dieser Qualität – nächste Qualität wird gezeigt …', 4000);
         this.startPreview(next);
@@ -9957,8 +9965,7 @@
         this.seekPending = at > 5 ? at : 0;
         if (this.popFor !== this.index) { this.popFor = this.index; this.introDone = false; this.nextCancelled = false; }
         this.showPop(null);
-        Player.on({
-            buffer: function (b) {
+        var onBuffer = function (b) {
                 self.buffering = b;
                 // Kurzer Hänger (Bild und Ton stehen, lädt nach): ab 2 s mitzählen
                 if (!self.rdy) return;
@@ -9975,7 +9982,9 @@
                 clearTimeout(self.longT);
                 if (self.bufAt && Date.now() - self.bufAt >= 2000) self.noteShort();
                 self.bufAt = 0;
-            },
+            };
+        Player.on({
+            buffer: onBuffer,
             hiccup: function () { if (self.rdy) self.noteShort(); },
             frozen: function () { if (self.rdy) self.tryAlt('Bild stand'); },
             time: function (t) {
@@ -9996,7 +10005,9 @@
                 // lief 60 s: Ersatzsender dürfen später wieder im Kreis probiert werden
                 var at60 = self.index;
                 setTimeout(function () { if (self.index === at60 && self.started) self.altCycle = 0; }, 60000);
-                setTimeout(function () { self.rdy = true; self.bufAt = 0; }, 3000);
+                // Hängt er schon direkt nach dem Start beim Laden: jetzt zählen (vorher ging dieser Hänger verloren)
+                var atR = self.index;
+                setTimeout(function () { if (self.index !== atR) return; self.rdy = true; self.bufAt = 0; if (self.buffering && Nav.top() === self) onBuffer(true); }, 3000);
                 try { var wi = self.item(); Watch.set(Watch.of(self.kind, wi && wi.name)); } catch (e) { /* egal */ }                             // läuft wieder: nächste Ablehnung zählt neu
                 if (self.seekPending) {
                     var target = self.seekPending;
@@ -10016,6 +10027,7 @@
             stall: function (msg) { Report.stall(self.item(), msg, self.openedAt); self.noteStall(); },
             frame: function () { if (self.hs) { self.hs.ok = true; if (!self.hs.ms) self.hs.ms = Date.now() - self.hs.t0; } },
             blank: function (what) { self.noPicture('Kein Bild', what); },
+            stuck: function (what) { self.noPicture('Sender lädt nicht', what, true); },
             novideo: function (what) { self.noPicture('Bildformat wird auf diesem Gerät nicht unterstützt', what); },
             subtitle: function (text, ms) { self.showSubtitle(text, ms); }
         });
@@ -10025,8 +10037,15 @@
         this.handoff = false;
         if (!this.openedAt || this.openedFor !== this.index) { this.openedAt = Date.now(); this.openedFor = this.index; }
         if (reuse && Player.keep(this.url(), null)) {
-            self.buffering = false;
-            if (this.hs) this.hs.ok = true;                   // lief schon in der Vorschau
+            self.buffering = !!Player.isBuf;
+            if (!Player.gotReady) this.watchStart();          // war in der Vorschau noch nicht gestartet
+            else {
+                // lief schon in der Vorschau: Hänger ab jetzt überwachen (vorher blieb das im Vollbild aus → kein Ersatzsender)
+                this.started = true;
+                if (this.hs && (Player.gotFrame || !(AB && AB.maxVideoHeight))) this.hs.ok = true;   // Android: nur mit Bild
+                var atH = this.index;
+                setTimeout(function () { if (self.index !== atH) return; self.rdy = true; self.bufAt = 0; if (self.buffering && Nav.top() === self) onBuffer(true); }, 500);
+            }
             try { Watch.set(Watch.of('live', this.item().name)); } catch (e) { /* egal */ }                    // Bild läuft schon: nur auf Vollbild vergrößert
         } else {
             Player.open(this.url(), null);
@@ -10170,11 +10189,11 @@
         else if (s.fail) Health.record(s.sid, 'r', null, !!s.local);
     };
     /** Schwarzes Bild / Format nicht abspielbar: Variante auf diesem Gerät merken und auf die nächste Qualität wechseln */
-    PlayerScreen.prototype.noPicture = function (why, what) {
+    PlayerScreen.prototype.noPicture = function (why, what, source) {
         if (this.kind !== 'live') { toast(why + (what ? ' (' + what + ')' : '') + '.', 6000); return; }
         var sid = this.hSid();
-        if (sid) NoVideo.mark(sid);
-        if (this.hs) { this.hs.ok = false; this.hs.fail = true; this.hs.local = true; }
+        if (sid && !source) NoVideo.mark(sid);               // nur „geht auf diesem Gerät nicht“ merken, nicht „Quelle liefert gerade nichts“
+        if (this.hs) { this.hs.ok = false; this.hs.fail = true; this.hs.local = !source; }
         Report.player(this.item(), why + (what ? ' (' + what + ')' : ''));
         if (this.tryAlt(why)) return;
         toast(why + (what ? ' (' + what + ')' : '') + ' – keine andere Qualität dieses Senders vorhanden.', 8000);
