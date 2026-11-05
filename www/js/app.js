@@ -921,7 +921,12 @@
             if (!this.online()) this.set(false);
         },
         /** Bei einem Fehler: liegt es am Internet? (dann wartet die App einfach) */
-        check: function () { if (!this.off && !this.online()) this.set(false); return this.off; },
+        check: function () {
+            // Kam eben noch eine echte Antwort aus dem Internet, nicht auf die Meldung des Geräts hören
+            if (Date.now() - (this.okAt || 0) < 60000) return this.off;
+            if (!this.off && !this.online()) this.set(false);
+            return this.off;
+        },
         set: function (on) {
             if (on === !this.off) return;
             this.off = !on;
@@ -930,13 +935,40 @@
             if (this.off) {
                 this.since = Date.now();
                 this.show();
+                this.poll();
                 if (top && top.onNetOff) top.onNetOff();
             } else {
+                clearTimeout(this.pollT); this.pollT = null;
                 this.hide();
                 this.backAt = Date.now();
                 if (top && top.onNetBack) top.onNetBack(Date.now() - this.since);
                 else toast('Internet ist wieder da', 2500);
             }
+        },
+        /**
+         * Solange die Meldung steht: alle 3 s selbst nachsehen, ob das Internet wieder da ist
+         * (nicht nur auf eine Meldung des Geräts warten – die kam auf manchen Sticks nicht, dann blieb die Meldung stehen).
+         * Zusätzlich jede 2. Runde ein echter kurzer Abruf ins Internet.
+         */
+        poll: function () {
+            var self = this, n = 0;
+            clearTimeout(this.pollT);
+            (function tick() {
+                self.pollT = setTimeout(function () {
+                    if (!self.off) return;
+                    n++;
+                    if (self.online()) { self.set(true); return; }
+                    if (n % 2 === 0) {
+                        var done = false;
+                        try {
+                            fetch(REMOTE.url.replace(/\/+$/, '') + '/rest/v1/', { method: 'HEAD', mode: 'no-cors', cache: 'no-store' })
+                                .then(function () { done = true; self.okAt = Date.now(); if (self.off) self.set(true); }, function () { /* noch offline */ });
+                        } catch (e) { /* egal */ }
+                        void done;
+                    }
+                    tick();
+                }, 3000);
+            })();
         },
         show: function () {
             if (!this.node) {
