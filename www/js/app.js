@@ -900,6 +900,56 @@
      * das ImperumTV-Logo färbt sich mit. Senderlogos, Cover und Video bleiben unverändert. Gilt pro Gerät.
      */
     /**
+     * Internet weg: klare Meldung oben, keine Fehler und kein Ersatzsender-Durchprobieren.
+     * Kommt das Internet zurück, läuft der Sender bzw. Film von selbst weiter.
+     * Android meldet das Netz selbst (window.__androidNet), sonst die Ereignisse des Browsers.
+     */
+    var Net = {
+        off: false, since: 0, node: null,
+        native: function () { return !!(AB && AB.isOnline); },
+        online: function () {
+            if (this.native()) { try { return !!AB.isOnline(); } catch (e) { return true; } }
+            return navigator.onLine !== false;
+        },
+        init: function () {
+            var self = this;
+            window.__androidNet = function (on) { self.set(!!on); };
+            if (!this.native()) {
+                window.addEventListener('offline', function () { self.set(false); });
+                window.addEventListener('online', function () { self.set(true); });
+            }
+            if (!this.online()) this.set(false);
+        },
+        /** Bei einem Fehler: liegt es am Internet? (dann wartet die App einfach) */
+        check: function () { if (!this.off && !this.online()) this.set(false); return this.off; },
+        set: function (on) {
+            if (on === !this.off) return;
+            this.off = !on;
+            var top = null;
+            try { top = Nav.top(); } catch (e) { /* noch kein Bildschirm */ }
+            if (this.off) {
+                this.since = Date.now();
+                this.show();
+                if (top && top.onNetOff) top.onNetOff();
+            } else {
+                this.hide();
+                this.backAt = Date.now();
+                if (top && top.onNetBack) top.onNetBack(Date.now() - this.since);
+                else toast('Internet ist wieder da', 2500);
+            }
+        },
+        show: function () {
+            if (!this.node) {
+                this.node = h('div', 'net-off');
+                this.node.innerHTML = '<span class="net-off-i">!</span><span class="net-off-t"><b>Keine Internetverbindung</b>' +
+                    '<em>ImperumTV wartet und spielt automatisch weiter, sobald das Internet wieder da ist.</em></span><span class="net-off-s"></span>';
+            }
+            document.body.appendChild(this.node);
+        },
+        hide: function () { if (this.node && this.node.parentNode) this.node.parentNode.removeChild(this.node); }
+    };
+
+    /**
      * Leichte Darstellung: Auf schwachen Geräten (unter ca. 1,6 GB Arbeitsspeicher, z. B. Fire TV Stick 4K / Lite)
      * ohne Schatten und Übergangs-Effekte zeichnen. Anordnung, Farben und Größen bleiben gleich.
      */
@@ -9766,7 +9816,7 @@
     };
     PlayerScreen.prototype.checkStall = function () {
         // Hängt das Bild länger als 15 Sekunden, Sender neu laden (max. 2 Mal)
-        if (Nav.top() !== this || !Player.isPlaying()) { this.lastProgress = Date.now(); return; }
+        if (Nav.top() !== this || !Player.isPlaying() || Net.off) { this.lastProgress = Date.now(); return; }
         // Lief der Sender nach dem letzten Neuladen wieder 90 s sauber: neue Hänger dürfen wieder repariert werden
         if (this.retries && Date.now() - (this.retryAt || 0) > 90000 && Date.now() - this.lastProgress < 5000) this.retries = 0;
         if (Date.now() - this.lastProgress > 15000 && this.retries < 3) {
@@ -9867,6 +9917,21 @@
         this.showPop(null);
         toast('Automatische Wiedergabe abgebrochen');
     };
+    /** Internet weg: Stand merken (Filme), Zähler für Hänger nicht hochzählen */
+    PlayerScreen.prototype.onNetOff = function () {
+        this.saveProgress(false);
+        clearTimeout(this.longT); clearTimeout(this.startT);
+        this.stallLog = []; this.shortLog = [];
+    };
+    /** Internet wieder da: weiterspielen (Live neu verbinden, Film ab dem gemerkten Stand) */
+    PlayerScreen.prototype.onNetBack = function (ms) {
+        var self = this;
+        this.netWait = false; this.retries = 0; this.startFails = 0;
+        toast('Internet ist wieder da – geht weiter …', 2500);
+        if (this.kind !== 'live') { var pos = Player.current(); if (pos > 5) this.startAt = pos; }
+        setTimeout(function () { if (Nav.top() === self) self.start(); }, 800);
+        void ms;
+    };
     /** Hänger mitzählen: 3 in 5 Minuten → Ersatzsender versuchen */
     PlayerScreen.prototype.noteStall = function () {
         if (this.kind !== 'live') return false;
@@ -9898,6 +9963,7 @@
         clearTimeout(this.startT);
         this.startT = setTimeout(function () {
             if (Nav.top() !== self || self.index !== at || self.started) return;
+            if (Net.check()) return;                         // Internet weg: warten, nicht umschalten
             Report.stall(self.item(), 'Sender startet nicht (5 s kein Bild)', self.openedAt);
             if (self.tryAlt('Sender startet nicht')) return;
             self.startFails = (self.startFails || 0) + 1;
@@ -9909,6 +9975,7 @@
     /** Auf denselben Sender in anderer Variante umschalten. true = umgeschaltet */
     PlayerScreen.prototype.tryAlt = function (why) {
         if (this.kind !== 'live' || !Settings.altSwitch || (Api.acc && Api.acc.demo)) return false;
+        if (Net.check()) return false;                       // Internet weg: kein Durchprobieren der Varianten
         var it = this.item();
         if (!it) return false;
         this.altTried = this.altTried || {};
@@ -9952,6 +10019,8 @@
     };
     PlayerScreen.prototype.onError = function (msg) {
         var it = this.item(), self = this;
+        if (Net.check()) { this.netWait = true; return; }    // Internet weg: Meldung oben, weiter geht es, wenn es zurück ist
+        if (Net.backAt && Date.now() - Net.backAt < 4000) return;   // alter Fehler aus der Zeit ohne Internet: Neustart läuft schon
         // Demo-Film lädt nicht (z. B. 403): einmal die zweite Quelle versuchen
         if (Api.acc && Api.acc.demo && this.kind === 'movie' && !(this.altUrl && this.altFor === this.index) && Demo.altMovieUrl(it.id)) {
             this.altUrl = Demo.altMovieUrl(it.id); this.altFor = this.index;
@@ -10740,6 +10809,7 @@
 
         try { if (Theme.cur() !== 'gold') Theme.apply(Theme.cur()); } catch (eT) { /* Farbthema ist nur Kosmetik */ }
         try { Lite.apply(); } catch (eL) { /* nur Kosmetik */ }
+        try { Net.init(); } catch (eN) { /* egal */ }
         Device.load();
         var saved = Storage.get('account', null);
         var lastId = Storage.get('playlistId', null);
