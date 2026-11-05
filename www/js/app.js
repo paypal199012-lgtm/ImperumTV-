@@ -6632,11 +6632,15 @@
         this.previewBox.innerHTML = '';
         this.startPreview(ch);
     };
-    LiveScreen.prototype.startPreview = function (ch) {
+    LiveScreen.prototype.startPreview = function (ch, isAlt) {
         var self = this;
+        // Lief für diesen Sender schon eine andere Qualität (Vorschau hat umgeschaltet): dabei bleiben
+        if (!isAlt && this.pvAlt && this.selected && this.pvAlt.base === this.selected.id && ch.id === this.selected.id) ch = this.pvAlt.c;
+        if (!isAlt && !(this.pvAlt && this.selected && this.pvAlt.base === this.selected.id)) this.pvAlt = null;
+        this.pvCur = ch;
         Player.on({
-            error: function () { toast('Vorschau nicht verfügbar: ' + ch.name); },
-            ready: function () { Player.applyPreferences(); Watch.set(Watch.of('preview', ch.name)); },
+            error: function (msg) { if (!self.previewNext(ch, 'Fehler' + (msg ? ': ' + msg : ''), true)) toast('Vorschau nicht verfügbar: ' + ch.name); },
+            ready: function () { clearTimeout(self.pvT); Player.applyPreferences(); Watch.set(Watch.of('preview', ch.name)); },
             notice: function (msg) { if (/^Bild hing/.test(msg || '')) Report.stall(ch, 'Vorschau: Bild stand still – Sender automatisch neu geöffnet'); },
             stall: function (msg) { Report.stall(ch, 'Vorschau: ' + msg); },
             blank: function (what) { self.previewNoPicture(ch, what); },
@@ -6645,24 +6649,55 @@
         });
         var url = Api.liveUrl(ch.id), rect = stageRect(this.previewBox);
         if (!Player.keep(url, rect)) Player.open(url, rect);     // läuft schon (z. B. aus dem Vollbild zurück): nur verkleinern
+        // Start überwachen: nach 5 s noch nicht gestartet (schwarz, lädt endlos) → nächste Qualität
+        clearTimeout(this.pvT);
+        if (!Player.gotReady) {
+            this.pvT = setTimeout(function () {
+                if (Nav.top() !== self || self.pvCur !== ch || Player.gotReady || Net.check()) return;
+                self.previewNoPicture(ch, 'startet nicht', true);
+            }, 5000);
+        }
         this.renderInfo(ch, []);
         Data.shortEpg(ch.id).then(function (list) {
-            if (self.selected && self.selected.id === ch.id) self.renderInfo(ch, list);
+            if (self.selected && (self.selected.id === ch.id || self.pvCur === ch)) self.renderInfo(ch, list);
         });
     };
-    /** Vorschau zeigt kein Bild (z. B. 4K auf diesem Gerät): merken und die nächste Qualität desselben Senders zeigen */
-    LiveScreen.prototype.previewNoPicture = function (ch, what, source) {
-        if (!source) NoVideo.mark(ch.id);
-        var gk = (this.selected && this.selected._mkey) || ch.id;      // schon probierte Qualitäten dieses Senders
+    /** Andere Varianten desselben Senders für die Vorschau: zusammengefasste + gleichnamige aus anderen Kategorien, wie beim Vollbild sortiert */
+    LiveScreen.prototype.previewCands = function (ch) {
+        var base = this.selected || ch, seen = {}, all = [];
+        var add = function (c) { if (c && !seen[c.id]) { seen[c.id] = 1; all.push(c); } };
+        add(base);
+        ((base && base._mv) || []).forEach(function (v) { add(v.c || v); });
+        AltCh.find(base).forEach(add);
+        var curT = Merge.tags(ch), curQ = curT.length ? curT[0] : '', curR = Merge.rank(curT);
+        return all.map(function (c, i) {
+            var t = Merge.tags(c), q = t.length ? t[0] : '', rk = Merge.rank(t);
+            return { c: c, i: i, same: q === curQ ? 0 : 1, d: rk >= curR ? rk - curR : 100 + curR - rk };
+        }).sort(function (a, b) { return a.same - b.same || a.d - b.d || a.i - b.i; }).map(function (x) { return x.c; });
+    };
+    /** Vorschau auf die nächste Variante umschalten. true = umgeschaltet */
+    LiveScreen.prototype.previewNext = function (ch, why, source) {
+        if (!Settings.altSwitch || (Api.acc && Api.acc.demo) || !this.selected) return false;
+        var gk = this.selected._mkey || this.selected.id;      // schon probierte Qualitäten dieses Senders
         this.pvTried = (this.pvTried && this.pvTried.k === gk) ? this.pvTried : { k: gk, ids: {} };
         this.pvTried.ids[ch.id] = 1;
-        Report.player(ch, 'Vorschau: kein Bild' + (what ? ' (' + what + ')' : ''));
-        var group = (this.selected && this.selected._mv) || ch._mv || [];
-        var next = null;
-        for (var i = 0; i < group.length; i++) { var v = group[i].c || group[i]; if (v.id !== ch.id && !NoVideo.has(v.id) && !this.pvTried.ids[v.id]) { next = v; break; } }
-        if (!next || !this.selected) { toast('Dieser Sender zeigt auf diesem Gerät kein Bild' + (what ? ' (' + what + ')' : '') + '.', 7000); return; }
-        toast('Kein Bild in dieser Qualität – nächste Qualität wird gezeigt …', 4000);
-        this.startPreview(next);
+        Report.player(ch, 'Vorschau: ' + why);
+        var tried = this.pvTried.ids, next = null;
+        var cands = this.previewCands(ch);
+        for (var i = 0; i < cands.length; i++) { var v = cands[i]; if (v.id !== ch.id && !NoVideo.has(v.id) && !tried[v.id]) { next = v; break; } }
+        if (!next) return false;
+        this.pvAlt = next.id === this.selected.id ? null : { base: this.selected.id, c: next };
+        var nt = NameTidy.split(next.name, next.cat);
+        toast(why.replace(/^Fehler.*/, 'Sender startet nicht') + ' – nächste Qualität: ' + nt.name + (nt.tags.length ? ' ' + nt.tags.join(' ') : ''), 4000);
+        this.startPreview(next, true);
+        return true;
+    };
+    /** Vorschau zeigt kein Bild / startet nicht: merken (nur „geht auf diesem Gerät nicht“) und die nächste Qualität zeigen */
+    LiveScreen.prototype.previewNoPicture = function (ch, what, source) {
+        if (!source) NoVideo.mark(ch.id);
+        var why = what === 'startet nicht' ? 'Sender startet nicht' : 'Kein Bild';
+        if (this.previewNext(ch, why, source)) return;
+        toast('Dieser Sender zeigt gerade kein Bild' + (what && what !== 'startet nicht' ? ' (' + what + ')' : '') + ' – keine andere Qualität gefunden.', 7000);
     };
     /** Hintergrund überall, nur über dem Vorschaubild frei lassen (dort liegt das Video) */
     /** Goldener Hintergrund überall, nur über dem Vorschaubild frei (dort liegt das Video) */
@@ -6759,9 +6794,16 @@
     };
     LiveScreen.prototype.openFullscreen = function (index) {
         Player.on({});
+        clearTimeout(this.pvT);
         this.handoff = true;                           // Bild weiterlaufen lassen, nur groß machen
         var screen = new PlayerScreen(this.list, index, 'live');
         screen.handoff = true;
+        // Vorschau hatte schon auf eine andere Qualität umgeschaltet: im Vollbild damit weiter (nicht wieder die schwarze)
+        var base = this.list[index], pc = this.pvCur;
+        if (base && pc && pc.id !== base.id && this.pvAlt && this.pvAlt.base === base.id) {
+            screen.altUrl = Api.liveUrl(pc.id); screen.altFor = index; screen.altCur = pc; screen.altName = pc.name;
+            screen.altTried = {}; screen.altTried[base.id] = [base.id].concat(Object.keys((this.pvTried && this.pvTried.ids) || {}).map(Number)).concat([pc.id]);
+        }
         Nav.push(screen);
     };
     /** Favoriten: Menü bei OK lang */
