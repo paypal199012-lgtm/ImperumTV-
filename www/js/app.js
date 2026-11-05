@@ -6150,7 +6150,7 @@
             this.saveT = setTimeout(function () { Storage.set('health.' + self.mapFor, self.map); }, 3000);
             if (localOnly) return;                               // gerätebezogen (z. B. kann dieses Gerät kein 4K): nicht an andere Geräte geben
             this.queue.push({ s: sid, r: r, m: r === 'g' ? ms || null : null });
-            if (!this.flushT) this.flushT = setTimeout(function () { self.flush(); }, 30000);
+            if (!this.flushT) this.flushT = setTimeout(function () { self.flush(); }, 10000);
         },
         flush: function () {
             var self = this;
@@ -6162,10 +6162,10 @@
                 if (self.queue.length < 400) self.queue = items.concat(self.queue);      // später nochmal
             });
         },
-        /** Stand der anderen Geräte holen (höchstens alle 5 Minuten) */
+        /** Stand der anderen Geräte holen (höchstens jede Minute) */
         sync: function (done) {
             var self = this, k = this.acc();
-            if (!k || this.missing || !this.on() || !Device.mac || Date.now() - this.syncedAt < 300000) return;
+            if (!k || this.missing || !this.on() || !Device.mac || Date.now() - this.syncedAt < 60000) return;
             this.syncedAt = Date.now();
             this.flush();
             Remote.rpc('health_get', { p_mac: Device.mac, p_key: Device.key, p_acc: k }).then(function (r) {
