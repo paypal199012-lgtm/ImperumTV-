@@ -6107,7 +6107,7 @@
             return head + ' · letzte ' + hist.length + ': ' + parts.join(', ') + (e[1] ? ' · Start in ' + String(Math.round(e[1] / 100) / 10).replace('.', ',') + ' s' : '');
         },
         /** Ergebnis eines Senders merken (und gesammelt an die Website schicken) */
-        record: function (sid, r, ms) {
+        record: function (sid, r, ms, localOnly) {
             var k = this.acc();
             if (!k || !sid || !this.on()) return;
             var m = this.load(), key = String(sid), e = m[key] || ['', null, 0];
@@ -6116,6 +6116,7 @@
             var self = this;
             clearTimeout(this.saveT);
             this.saveT = setTimeout(function () { Storage.set('health.' + self.mapFor, self.map); }, 3000);
+            if (localOnly) return;                               // gerätebezogen (z. B. kann dieses Gerät kein 4K): nicht an andere Geräte geben
             this.queue.push({ s: sid, r: r, m: r === 'g' ? ms || null : null });
             if (!this.flushT) this.flushT = setTimeout(function () { self.flush(); }, 30000);
         },
@@ -6158,6 +6159,26 @@
         }
     };
 
+    /**
+     * Varianten, die auf DIESEM Gerät kein Bild zeigen (schwarzes Bild, Format nicht unterstützt, z. B. 4K auf einem Full-HD-Stick).
+     * Werden bei der Auswahl übersprungen (30 Tage gemerkt).
+     */
+    var NoVideo = {
+        map: null,
+        load: function () { if (!this.map) this.map = Storage.get('noVideo', {}) || {}; return this.map; },
+        has: function (id) { var t = this.load()[String(id)]; return !!t && Date.now() - t < 30 * 86400000; },
+        mark: function (id) { this.load()[String(id)] = Date.now(); Storage.set('noVideo', this.map); },
+        /** Kann der Fernseher 4K ausgeben? (Android meldet die Bildhöhe; sonst annehmen: ja) */
+        uhdOk: function () {
+            if (this._uhd === undefined) {
+                var hgt = 0;
+                try { hgt = AB && AB.maxVideoHeight ? +AB.maxVideoHeight() : 0; } catch (e) { hgt = 0; }
+                this._uhd = !hgt || hgt >= 2000;
+            }
+            return this._uhd;
+        }
+    };
+
     var Merge = {
         on: function () { return Storage.get('mergeCh', true) !== false; },
         SYN: [[/(^| )(austria|osterreich|oesterreich|österreich)( |$)/g, '$1at$3'], [/(^| )(deutschland|germany|german|ger|deu)( |$)/g, '$1de$3'],
@@ -6197,7 +6218,7 @@
         rank: function (t) {
             var has = function (x) { return t.indexOf(x) >= 0; };
             var r = 4;
-            if (has('4K') || has('UHD') || has('8K')) r = 0;
+            if (has('4K') || has('UHD') || has('8K')) r = NoVideo.uhdOk() ? 0 : 2.2;   // Fernseher ohne 4K: erst nach FHD
             else if (has('FHD')) r = 2;
             else if (has('HD')) r = 3;
             else if (has('RAW')) r = 1;
@@ -6237,7 +6258,7 @@
                 var want = pref[g.key], rep = vs[0];
                 if (want === undefined) {
                     // ohne eigene Wahl: die beste Qualität, die laut Sender-Ampel zuletzt nicht ausgefallen ist
-                    for (var jh = 0; jh < vs.length; jh++) if (Health.level(vs[jh].c.id) !== 'r') { rep = vs[jh]; break; }
+                    for (var jh = 0; jh < vs.length; jh++) if (Health.level(vs[jh].c.id) !== 'r' && !NoVideo.has(vs[jh].c.id)) { rep = vs[jh]; break; }
                 }
                 for (var j = 0; j < vs.length; j++) if (String(vs[j].c.id) === String(want)) rep = vs[j];
                 // Name: die ausführlichste Bezeichnung ohne Qualität und Länderkürzel
@@ -6568,7 +6589,9 @@
             error: function () { toast('Vorschau nicht verfügbar: ' + ch.name); },
             ready: function () { Player.applyPreferences(); Watch.set(Watch.of('preview', ch.name)); },
             notice: function (msg) { if (/^Bild hing/.test(msg || '')) Report.stall(ch, 'Vorschau: Bild stand still – Sender automatisch neu geöffnet'); },
-            stall: function (msg) { Report.stall(ch, 'Vorschau: ' + msg); }
+            stall: function (msg) { Report.stall(ch, 'Vorschau: ' + msg); },
+            blank: function (what) { self.previewNoPicture(ch, what); },
+            novideo: function (what) { self.previewNoPicture(ch, what); }
         });
         var url = Api.liveUrl(ch.id), rect = stageRect(this.previewBox);
         if (!Player.keep(url, rect)) Player.open(url, rect);     // läuft schon (z. B. aus dem Vollbild zurück): nur verkleinern
@@ -6576,6 +6599,17 @@
         Data.shortEpg(ch.id).then(function (list) {
             if (self.selected && self.selected.id === ch.id) self.renderInfo(ch, list);
         });
+    };
+    /** Vorschau zeigt kein Bild (z. B. 4K auf diesem Gerät): merken und die nächste Qualität desselben Senders zeigen */
+    LiveScreen.prototype.previewNoPicture = function (ch, what) {
+        NoVideo.mark(ch.id);
+        Report.player(ch, 'Vorschau: kein Bild' + (what ? ' (' + what + ')' : ''));
+        var group = (this.selected && this.selected._mv) || ch._mv || [];
+        var next = null;
+        for (var i = 0; i < group.length; i++) { var v = group[i].c || group[i]; if (v.id !== ch.id && !NoVideo.has(v.id)) { next = v; break; } }
+        if (!next || !this.selected) { toast('Dieser Sender zeigt auf diesem Gerät kein Bild' + (what ? ' (' + what + ')' : '') + '.', 7000); return; }
+        toast('Kein Bild in dieser Qualität – nächste Qualität wird gezeigt …', 4000);
+        this.startPreview(next);
     };
     /** Hintergrund überall, nur über dem Vorschaubild frei lassen (dort liegt das Video) */
     /** Goldener Hintergrund überall, nur über dem Vorschaubild frei (dort liegt das Video) */
@@ -9924,7 +9958,8 @@
                 self.r407 = 0;
                 self.started = true;
                 clearTimeout(self.startT);
-                if (self.hs && !self.hs.ok) { self.hs.ok = true; self.hs.ms = Date.now() - self.hs.t0; }
+                // „gut“ erst, wenn wirklich ein Bild gezeichnet wurde (Android meldet das); sonst schon beim Start
+                if (self.hs && !self.hs.ok) { self.hs.ms = Date.now() - self.hs.t0; if (!(AB && AB.maxVideoHeight)) self.hs.ok = true; }
                 self.startFails = 0;
                 // lief 60 s: Ersatzsender dürfen später wieder im Kreis probiert werden
                 var at60 = self.index;
@@ -9947,6 +9982,9 @@
                 else Report.player(self.item(), 'Hinweis: ' + msg);
             },
             stall: function (msg) { Report.stall(self.item(), msg, self.openedAt); self.noteStall(); },
+            frame: function () { if (self.hs) { self.hs.ok = true; if (!self.hs.ms) self.hs.ms = Date.now() - self.hs.t0; } },
+            blank: function (what) { self.noPicture('Kein Bild', what); },
+            novideo: function (what) { self.noPicture('Bildformat wird auf diesem Gerät nicht unterstützt', what); },
             subtitle: function (text, ms) { self.showSubtitle(text, ms); }
         });
         Player.aspectKey = this.aspectKey();               // Bildformat dieses Senders/Films/dieser Serie
@@ -10097,7 +10135,17 @@
         this.hs = null;
         if (!s || Net.off) return;
         if (s.ok) Health.record(s.sid, s.bad ? 'y' : 'g', s.ms);
-        else if (s.fail) Health.record(s.sid, 'r', null);
+        else if (s.fail) Health.record(s.sid, 'r', null, !!s.local);
+    };
+    /** Schwarzes Bild / Format nicht abspielbar: Variante auf diesem Gerät merken und auf die nächste Qualität wechseln */
+    PlayerScreen.prototype.noPicture = function (why, what) {
+        if (this.kind !== 'live') { toast(why + (what ? ' (' + what + ')' : '') + '.', 6000); return; }
+        var sid = this.hSid();
+        if (sid) NoVideo.mark(sid);
+        if (this.hs) { this.hs.ok = false; this.hs.fail = true; this.hs.local = true; }
+        Report.player(this.item(), why + (what ? ' (' + what + ')' : ''));
+        if (this.tryAlt(why)) return;
+        toast(why + (what ? ' (' + what + ')' : '') + ' – keine andere Qualität dieses Senders vorhanden.', 8000);
     };
     /** Internet weg: Stand merken (Filme), Zähler für Hänger nicht hochzählen */
     PlayerScreen.prototype.onNetOff = function () {
