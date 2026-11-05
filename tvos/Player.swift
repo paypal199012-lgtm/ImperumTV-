@@ -92,7 +92,15 @@ final class PlayerEngine: ObservableObject {
     }
     /// So lange darf ein Live-Sender hängen, bevor der Ersatzsender startet (Sekunden, Standard 1,5)
     var altWait: Double {
-        get { UserDefaults.standard.object(forKey: "tv.altWait") as? Double ?? 1.5 }
+        get {
+            // Standard 1 s; der alte Standard 1,5 s wird einmal umgestellt
+            let ud = UserDefaults.standard
+            if !ud.bool(forKey: "tv.altWait1s") {
+                ud.set(true, forKey: "tv.altWait1s")
+                if ud.object(forKey: "tv.altWait") as? Double == 1.5 { ud.set(1.0, forKey: "tv.altWait") }
+            }
+            return ud.object(forKey: "tv.altWait") as? Double ?? 1.0
+        }
         set { UserDefaults.standard.set(newValue, forKey: "tv.altWait"); objectWillChange.send() }
     }
     var vodEngine: String {

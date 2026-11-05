@@ -873,7 +873,13 @@
     var Settings = {
         autoNext: Storage.get('autoNext', true),     // Serien: nächste Folge automatisch
         altSwitch: Storage.get('altSwitch', true),   // Live: bei Problemen automatisch auf denselben Sender in anderer Variante
-        altWait: Storage.get('altWait', 1500),       // so lange darf ein Live-Sender hängen, bevor der Ersatzsender startet (ms)
+        // so lange darf ein Live-Sender hängen, bevor der Ersatzsender startet (ms). Standard 1 s; der alte Standard 1,5 s wird einmal umgestellt
+        altWait: (function () {
+            var w = Storage.get('altWait', 1000);
+            if (w === 1500 && !Storage.get('altWait1s', false)) { w = 1000; Storage.set('altWait', 1000); }
+            Storage.set('altWait1s', true);
+            return w;
+        })(),
         introBtn: Storage.get('introBtn', true),     // Serien: Knopf „Intro überspringen“
         introSec: 20,
         setFlag: function (name, on) { this[name] = on; Storage.set(name, on); },
@@ -5553,7 +5559,7 @@
     };
 
     /** Wartezeit bis zum Ersatzsender auch dem Android-Player sagen (stehendes Bild) */
-    function applyStallWait() { try { if (AB && AB.setStallMs) AB.setStallMs(Settings.altWait || 1500); } catch (e) { /* egal */ } }
+    function applyStallWait() { try { if (AB && AB.setStallMs) AB.setStallMs(Settings.altWait || 1000); } catch (e) { /* egal */ } }
 
     // =====================================================================
     // Sicherung in der Cloud: Favoriten, Profile, Weiterschauen, Gesehen, Erinnerungen, Kindersicherung, Einstellungen.
@@ -8826,8 +8832,8 @@
             var cur = Settings.altSwitch ? Settings.altWait : 0;
             Modal.open('Ersatzsender', 'Hängt ein Live-Sender, schaltet die App automatisch auf denselben Sender in anderer Variante.\nWie lange soll sie vorher warten?\n' +
                 'Kürzer = schneller umgeschaltet, aber bei kurzen Aussetzern wird öfter gewechselt.', [
-                { label: 'Nach 1 s', primary: cur === 1000, action: function () { pick(1000); } },
-                { label: 'Nach 1,5 s (empfohlen)', primary: cur === 1500, action: function () { pick(1500); } },
+                { label: 'Nach 1 s (empfohlen)', primary: cur === 1000, action: function () { pick(1000); } },
+                { label: 'Nach 1,5 s', primary: cur === 1500, action: function () { pick(1500); } },
                 { label: 'Nach 2 s', primary: cur === 2000, action: function () { pick(2000); } },
                 { label: 'Nach 3 s', primary: cur === 3000, action: function () { pick(3000); } },
                 { label: 'Aus', primary: cur === 0, action: function () { pick(0); } }
@@ -9682,12 +9688,12 @@
                 if (!self.rdy) return;
                 if (b) {
                     if (!self.bufAt) self.bufAt = Date.now();
-                    // Hängt es länger als eingestellt (Standard 1,5 s): gleich beim ersten Mal auf den Ersatzsender
+                    // Hängt es länger als eingestellt (Standard 1 s): gleich beim ersten Mal auf den Ersatzsender
                     clearTimeout(self.longT);
                     var at = self.index;
                     self.longT = setTimeout(function () {
                         if (Nav.top() === self && self.index === at && self.buffering && self.rdy) self.tryAlt('Sender hing');
-                    }, Settings.altWait || 1500);
+                    }, Settings.altWait || 1000);
                     return;
                 }
                 clearTimeout(self.longT);
