@@ -2137,6 +2137,7 @@
             if (!item) return;
             var k = item.type + ':' + item.id, now = Date.now();
             if (this.stallAt[k] && now - this.stallAt[k] < 60000) return;
+            try { StickState.stall(); } catch (e) { /* egal */ }
             if (this.stalls >= 20) return;
             this.stallAt[k] = now; this.stalls++;
             var eng = 'ImperumTV', buf = '', kbps = '';
@@ -2217,6 +2218,28 @@
             if (!force && now - this.last < 60000 && vpn === this.lastVpn) return;
             this.last = now; this.lastVpn = vpn;
             Remote.rpc('device_hello', { p_mac: Device.mac, p_key: Device.key, p_version: Report.version(), p_device: Report.platform(), p_vpn: vpn })
+                .then(null, function () { /* ältere Datenbank ohne diese Funktion oder offline: egal */ });
+        }
+    };
+
+    /** Stick-Zustand für die Admin-Seite (Speicher, Arbeitsspeicher, WLAN, Tempo …): alle 10 Minuten, nur Android */
+    var StickState = {
+        day: function () { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); },
+        /** Hänger heute mitzählen (bleibt über einen Neustart der App erhalten) */
+        stall: function () {
+            var c = Storage.get('stallsToday', null), d = this.day();
+            if (!c || c.d !== d) c = { d: d, n: 0 };
+            c.n++;
+            Storage.set('stallsToday', c);
+        },
+        send: function () {
+            if (STORE_BUILD || !AB || !AB.health || !Device.validMac(Device.mac) || !Device.validKey(Device.key)) return;
+            var data;
+            try { data = JSON.parse(AB.health() || '{}') || {}; } catch (e) { return; }
+            var c = Storage.get('stallsToday', null);
+            data.stalls = c && c.d === this.day() ? c.n : 0;
+            data.lite = document.body.classList.contains('lite');
+            Remote.rpc('device_state', { p_mac: Device.mac, p_key: Device.key, p_data: data })
                 .then(null, function () { /* ältere Datenbank ohne diese Funktion oder offline: egal */ });
         }
     };
@@ -11219,6 +11242,7 @@
             start(saved);
             Remote.load().then(function () {
                 setTimeout(function () { Hello.send(true); }, 5000);
+                setTimeout(function () { StickState.send(); }, 40000);
                 if (!License.active() && !saved.demo) { Nav.replace(new LockScreen()); return; }
                 var chosen = Remote.find(lastId);
                 var acc = chosen ? playlistAccount(chosen) : null;
@@ -11231,6 +11255,7 @@
         Remote.load().then(function () {
             loader(false);
             setTimeout(function () { Hello.send(true); }, 5000);
+            setTimeout(function () { StickState.send(); }, 40000);
             var chosen = lastId !== null ? Remote.find(lastId) : null;
             if (!License.active() && !(chosen && chosen.demo)) { Nav.replace(new LockScreen()); return; }
             var acc = chosen ? playlistAccount(chosen) : null;
@@ -11249,6 +11274,7 @@
         setInterval(function () {
             if (Nav.top() instanceof LockScreen) return;
             Hello.send(true);
+            StickState.send();
             Updater.flags();
             Watch.refresh();
             Remote.load().then(null, function () { /* offline: gespeicherter Stand */ }).then(function () {
