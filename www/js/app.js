@@ -285,8 +285,8 @@
                 setTimeout(function () {
                     if (st[1] >= 0) self.card(st[0], 'done', st[1], 0);
                     else self.card(st[0], 'later', 0, 0, 'lädt im Hintergrund');
-                    if (i === steps.length - 1) setTimeout(function () { self.finish('Alles bereit', then, 600); }, 300);
-                }, 250 + i * 280);
+                    if (i === steps.length - 1) setTimeout(function () { self.finish('Alles bereit', then, 250); }, 120);
+                }, 120 + i * 120);
             });
         },
         hide: function () {
@@ -1234,7 +1234,9 @@
         available: function () { return !!(AB && AB.setBuffer && AB.getBuffer); },
         get: function () { try { var m = AB.getBuffer(); return m === 'small' || m === 'large' ? m : 'normal'; } catch (e) { return 'normal'; } },
         set: function (m) { try { AB.setBuffer(m); } catch (e) { /* egal */ } toast('Puffer: ' + this.label(m)); },
-        label: function (m) { return m === 'small' ? 'Klein · 1 s' : m === 'large' ? 'Groß · 5 s' : 'Normal · 2,5 s'; }
+        /** Startpuffer bei „Normal“ */
+        normalText: function () { return '2,5 s'; },
+        label: function (m) { return m === 'small' ? 'Klein · 1 s' : m === 'large' ? 'Groß · 5 s' : 'Normal · ' + this.normalText(); }
     };
 
     var Favs = {
@@ -2520,8 +2522,14 @@
         save: function () {
             var self = this;
             // selten speichern: die Liste kann zehntausende Einträge haben (spart Speicher auf kleinen Sticks)
-            if (++this.dirty >= 300) { this.flush(); return; }
-            if (!this.saveT) this.saveT = setTimeout(function () { self.flush(); }, 180000);
+            ++this.dirty;
+            if (!this.saveT) this.saveT = setTimeout(function () { self.saveT = null; self.flushIdle(); }, this.dirty >= 300 ? 2000 : 180000);
+        },
+        /** Erst speichern, wenn 8 s keine Taste gedrückt wurde (sonst ruckelt das Menü kurz) */
+        flushIdle: function () {
+            var self = this;
+            if (Date.now() - (Nav.userAt || 0) < 8000) { this.saveT = setTimeout(function () { self.saveT = null; self.flushIdle(); }, 4000); return; }
+            this.flush();
         },
         flush: function () {
             clearTimeout(this.saveT); this.saveT = null; this.dirty = 0;
@@ -2614,6 +2622,7 @@
         tick: function () {
             var self = this;
             if (this.busy >= this.PARALLEL || !this.idle()) return;
+            if (Date.now() - (Nav.userAt || 0) < 3000 && !(Nav.top() instanceof PlayerScreen)) return;   // Menü wird bedient: kurz warten
             var n = this.next();
             if (!n) { if (!this.busy) Genre.flush(); return; }
             this.busy++;
@@ -2629,7 +2638,13 @@
             }, function (e) {
                 self.busy--; delete self.flying[fk];
                 // Anbieter bremst (zu viele Anfragen / gesperrt): gleich 10 Minuten Pause
-                if (e && /HTTP (429|403|503)/.test(e.message || '')) self.fails = 4;
+                // Anbieter sperrt (403): Genres sammeln 6 Stunden ganz ruhen lassen – kein weiteres Anklopfen, das die Sperre verlängert
+                if (e && /HTTP 403/.test(e.message || '')) {
+                    self.pauseUntil = Date.now() + 6 * 3600000; self.fails = 0;
+                    try { Report.send('fehler', 'Genres sammeln: Anbieter antwortet mit 403 – 6 Stunden Pause'); } catch (x) { /* egal */ }
+                    return;
+                }
+                if (e && /HTTP (429|503)/.test(e.message || '')) { self.pauseUntil = Date.now() + 30 * 60000; self.fails = 0; return; }
                 // Fehler: kurz warten; derselbe Titel 3× kaputt → überspringen; viele Fehler hintereinander → 10 Minuten Pause
                 var k = n.type + n.id;
                 self.failCount = self.failId === k ? (self.failCount || 0) + 1 : 1;
@@ -8994,7 +9009,7 @@
                 Modal.open('Puffer', 'Wie viel Vorrat die App lädt, bevor das Bild startet.\nKlein: Sender starten schneller, bei schwachem WLAN eher Ruckler.\n' +
                     'Groß: Start dauert etwas länger, dafür flüssiger bei schwachem Internet.', [
                     { label: 'Klein · 1 s (schneller Start)', primary: Buffer.get() === 'small', action: function () { Buffer.set('small'); v.textContent = Buffer.label('small'); } },
-                    { label: 'Normal · 2,5 s (empfohlen)', primary: Buffer.get() === 'normal', action: function () { Buffer.set('normal'); v.textContent = Buffer.label('normal'); } },
+                    { label: 'Normal · ' + Buffer.normalText() + ' (empfohlen)', primary: Buffer.get() === 'normal', action: function () { Buffer.set('normal'); v.textContent = Buffer.label('normal'); } },
                     { label: 'Groß · 5 s (bei schwachem Internet)', primary: Buffer.get() === 'large', action: function () { Buffer.set('large'); v.textContent = Buffer.label('large'); } },
                     { label: 'Abbrechen' }
                 ]);
