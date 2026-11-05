@@ -1,1 +1,0 @@
-/Users/runner/work/ImperumTV-/ImperumTV-/tvos/TVStore.swift:586:53: error: call to main actor-isolated instance method 'qualityRank' in a synchronous nonisolated context
