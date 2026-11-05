@@ -6059,7 +6059,7 @@
      * (Schlüssel = Prüfwert aus Server + Benutzername, keine Zugangsdaten).
      */
     var Health = {
-        map: null, mapFor: '', queue: [], flushT: null, saveT: null, syncedAt: 0, missing: false,
+        map: {}, mapFor: '', queue: [], flushT: null, saveT: null, syncedAt: 0, missing: false,
         on: function () { return Storage.get('healthOn', true) !== false; },
         acc: function () {
             var a = Api.acc;
@@ -6070,12 +6070,12 @@
         load: function () {
             var k = this.acc();
             if (this.mapFor !== k) { this.map = k ? (Storage.get('health.' + k, {}) || {}) : {}; this.mapFor = k; this.syncedAt = 0; }
-            return this.map;
+            return this.map || (this.map = {});
         },
         entry: function (sid) { return this.load()[String(sid)] || null; },
         /** '', 'g', 'y' oder 'r' */
         level: function (sid) {
-            if (!this.on()) return '';
+            if (!this.on() || !this.acc()) return '';
             var e = this.entry(sid), hist = e && e[0];
             if (!hist) return '';
             var last = hist.charAt(hist.length - 1);
@@ -6416,7 +6416,7 @@
                 if (more) qs.appendChild(h('b', '', '+' + more));
                 row.appendChild(qs);
             }
-            if (Health.on()) { var hl = Health.level(ch.id); row.appendChild(h('i', 'hdot' + (hl ? ' ' + hl : ' none'))); }
+            if (Health.on() && Health.acc()) { var hl = Health.level(ch.id); row.appendChild(h('i', 'hdot' + (hl ? ' ' + hl : ' none'))); }
             if (Merge.favHas(ch)) row.appendChild(h('div', 'star', '★'));
             row._channel = ch;
             row._onLong = function () {

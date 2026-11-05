@@ -1696,3 +1696,17 @@ body.video-mode:not(.osd) .ios-back { display: none; }
 .pv-health:before { content: ""; display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 9px; vertical-align: 0; }
 .pv-health.g:before { background: #5fd27a; } .pv-health.y:before { background: #f0c25a; } .pv-health.r:before { background: #ff6b5b; }
 body.lite .row .hdot { box-shadow: none !important; }
+
+/* ---------- Flüssigeres Menü: Hintergrund (Lichtstrahlen) auf eigener Ebene ----------
+   Beim Bewegen der Auswahl muss der Stick die großen Verläufe dahinter nicht jedes Mal neu zeichnen. */
+#app { background: transparent; z-index: 0; }
+#app::before {
+    content: ""; position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; z-index: -1; pointer-events: none;
+    background:
+        linear-gradient(160deg, transparent 29%, rgba(217,176,102,.30) 32%, rgba(217,176,102,.08) 46%, transparent 49%),
+        linear-gradient(115deg, transparent 57%, rgba(217,176,102,.14) 60%, rgba(217,176,102,.14) 69%, transparent 72%),
+        linear-gradient(20deg, transparent 61%, rgba(0,0,0,.40) 64%, rgba(0,0,0,.40) 68%, transparent 71%),
+        linear-gradient(135deg, #1d1a17, #0c0d10);
+    -webkit-transform: translateZ(0); transform: translateZ(0); will-change: transform;
+}
+body.preview-mode #app::before, body.video-mode #app::before { display: none; }
