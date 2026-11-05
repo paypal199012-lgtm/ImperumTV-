@@ -6038,6 +6038,98 @@
      * Sender zusammenfassen: „Sky Sport Austria 1 FHD“, „Sky Sport AT 1 HD“, „AT: Sky Sport Austria 1 (Backup)“ → ein Eintrag
      * „Sky Sport Austria 1“ mit wählbarer Qualität. Nur innerhalb einer Kategorie bzw. (unter „Alle“/Suche) desselben Landes.
      */
+    /**
+     * Sender-Ampel: wie lief ein Sender die letzten 5 Mal? (g = gut, y = hing, r = startete nicht)
+     * Lokal gemerkt und über die Website mit den anderen Geräten mit DERSELBEN Wiedergabeliste geteilt
+     * (Schlüssel = Prüfwert aus Server + Benutzername, keine Zugangsdaten).
+     */
+    var Health = {
+        map: null, mapFor: '', queue: [], flushT: null, saveT: null, syncedAt: 0, missing: false,
+        on: function () { return Storage.get('healthOn', true) !== false; },
+        acc: function () {
+            var a = Api.acc;
+            if (!a || a.demo) return '';
+            var k = String(a.server).replace(/\/+$/, '').toLowerCase() + '|' + a.username;
+            return hash32(k, 11).toString(36) + hash32(k, 29).toString(36) + hash32(k, 47).toString(36);
+        },
+        load: function () {
+            var k = this.acc();
+            if (this.mapFor !== k) { this.map = k ? (Storage.get('health.' + k, {}) || {}) : {}; this.mapFor = k; this.syncedAt = 0; }
+            return this.map;
+        },
+        entry: function (sid) { return this.load()[String(sid)] || null; },
+        /** '', 'g', 'y' oder 'r' */
+        level: function (sid) {
+            if (!this.on()) return '';
+            var e = this.entry(sid), hist = e && e[0];
+            if (!hist) return '';
+            var last = hist.charAt(hist.length - 1);
+            if (last === 'r') return 'r';
+            return /[yr]/.test(hist) ? 'y' : 'g';
+        },
+        text: function (sid) {
+            var e = this.entry(sid), lv = this.level(sid);
+            if (!lv) return '';
+            var hist = e[0], ok = (hist.match(/g/g) || []).length, y = (hist.match(/y/g) || []).length, r = (hist.match(/r/g) || []).length;
+            var parts = [];
+            if (ok) parts.push(ok + '× gut');
+            if (y) parts.push(y + '× gehangen');
+            if (r) parts.push(r + '× nicht gestartet');
+            var head = lv === 'g' ? 'Lief zuletzt gut' : lv === 'y' ? 'Hing manchmal' : 'Startete zuletzt nicht';
+            return head + ' · letzte ' + hist.length + ': ' + parts.join(', ') + (e[1] ? ' · Start in ' + String(Math.round(e[1] / 100) / 10).replace('.', ',') + ' s' : '');
+        },
+        /** Ergebnis eines Senders merken (und gesammelt an die Website schicken) */
+        record: function (sid, r, ms) {
+            var k = this.acc();
+            if (!k || !sid || !this.on()) return;
+            var m = this.load(), key = String(sid), e = m[key] || ['', null, 0];
+            e = [(e[0] + r).slice(-5), r === 'g' && ms ? ms : e[1], Date.now()];
+            m[key] = e;
+            var self = this;
+            clearTimeout(this.saveT);
+            this.saveT = setTimeout(function () { Storage.set('health.' + self.mapFor, self.map); }, 3000);
+            this.queue.push({ s: sid, r: r, m: r === 'g' ? ms || null : null });
+            if (!this.flushT) this.flushT = setTimeout(function () { self.flush(); }, 30000);
+        },
+        flush: function () {
+            var self = this;
+            clearTimeout(this.flushT); this.flushT = null;
+            if (!this.queue.length || this.missing || !Device.mac) return;
+            var items = this.queue.splice(0, 200);
+            Remote.rpc('health_report', { p_mac: Device.mac, p_key: Device.key, p_acc: this.mapFor, p_items: items }).then(null, function (e) {
+                if (e && e.status === 404) { self.missing = true; return; }
+                if (self.queue.length < 400) self.queue = items.concat(self.queue);      // später nochmal
+            });
+        },
+        /** Stand der anderen Geräte holen (höchstens alle 5 Minuten) */
+        sync: function (done) {
+            var self = this, k = this.acc();
+            if (!k || this.missing || !this.on() || !Device.mac || Date.now() - this.syncedAt < 300000) return;
+            this.syncedAt = Date.now();
+            this.flush();
+            Remote.rpc('health_get', { p_mac: Device.mac, p_key: Device.key, p_acc: k }).then(function (r) {
+                if (!r || r.ok === false || self.mapFor !== k) return;
+                var m = self.load(), items = r.items || {}, changed = false;
+                Object.keys(items).forEach(function (sid) {
+                    var it = items[sid], mine = m[sid];
+                    if (!mine || (it[2] || 0) > (mine[2] || 0) + 2000) { m[sid] = [it[0] || '', it[1] || null, it[2] || 0]; changed = true; }
+                });
+                if (changed) { Storage.set('health.' + k, m); if (done) done(); }
+            }, function (e) { if (e && e.status === 404) self.missing = true; });
+        },
+        /** Punkte in den sichtbaren Senderzeilen neu setzen */
+        paint: function () {
+            var rows = document.querySelectorAll('.row.lv');
+            for (var i = 0; i < rows.length; i++) {
+                var ch = rows[i]._channel, d = rows[i].querySelector('.hdot');
+                if (!ch) continue;
+                var lv = this.level(ch.id);
+                if (!d) { d = h('i', 'hdot'); var st = rows[i].querySelector('.star'); rows[i].insertBefore(d, st || null); }
+                d.className = 'hdot' + (lv ? ' ' + lv : ' none');
+            }
+        }
+    };
+
     var Merge = {
         on: function () { return Storage.get('mergeCh', true) !== false; },
         SYN: [[/(^| )(austria|osterreich|oesterreich|österreich)( |$)/g, '$1at$3'], [/(^| )(deutschland|germany|german|ger|deu)( |$)/g, '$1de$3'],
@@ -6090,6 +6182,10 @@
                 var vs = g.list.map(function (v) { var t = self.tags(v); return { c: v, t: t, r: self.rank(t) }; });
                 vs.sort(function (a, b) { return a.r - b.r; });
                 var want = pref[g.key], rep = vs[0];
+                if (want === undefined) {
+                    // ohne eigene Wahl: die beste Qualität, die laut Sender-Ampel zuletzt nicht ausgefallen ist
+                    for (var jh = 0; jh < vs.length; jh++) if (Health.level(vs[jh].c.id) !== 'r') { rep = vs[jh]; break; }
+                }
                 for (var j = 0; j < vs.length; j++) if (String(vs[j].c.id) === String(want)) rep = vs[j];
                 // Name: die ausführlichste Bezeichnung ohne Qualität und Länderkürzel
                 var name = '';
@@ -6219,6 +6315,7 @@
         return Merge.group(all.filter(function (c) { return c.cat === cat; }), false);
     };
     LiveScreen.prototype.render = function (root) {
+        try { Health.sync(function () { Health.paint(); }); } catch (eH) { /* egal */ }
         var self = this;
         document.body.classList.add('preview-mode');
         // Hintergrund wie überall, nur das Vorschaubild bleibt frei (dort liegt das Video)
@@ -6304,6 +6401,7 @@
                 if (more) qs.appendChild(h('b', '', '+' + more));
                 row.appendChild(qs);
             }
+            if (Health.on()) { var hl = Health.level(ch.id); row.appendChild(h('i', 'hdot' + (hl ? ' ' + hl : ' none'))); }
             if (Merge.favHas(ch)) row.appendChild(h('div', 'star', '★'));
             row._channel = ch;
             row._onLong = function () {
@@ -6498,6 +6596,8 @@
         info.appendChild(tl);
         info.appendChild(h('div', 'pv-now', cur ? 'Jetzt: ' + cur.title + (cur.end ? ' · ' + fmtClock(new Date(cur.start)) + '–' + fmtClock(new Date(cur.end)) : '')
             : 'Kanal ' + ch.num + (ch.cat ? ' · ' + NameTidy.cat(ch.cat) : '')));
+        var ht = Health.text(ch.id);
+        if (ht) info.appendChild(h('div', 'pv-health ' + Health.level(ch.id), ht));
         if (cur && cur.end > cur.start) {
             var pr = h('div', 'pv-pr'), pi = h('i');
             pi.style.width = Math.max(2, Math.min(100, (now - cur.start) / (cur.end - cur.start) * 100)) + '%';
@@ -8933,6 +9033,12 @@
             b.push({ label: 'Abbrechen' });
             Modal.open('Farbthema', 'Farbe der Oberfläche auf diesem Gerät. Senderlogos, Cover und das Bild bleiben unverändert.', b);
         });
+        row('health', 'tv', 'Sender-Ampel', Health.on() ? 'An' : 'Aus', function (v) {
+            var on = !Health.on();
+            Storage.set('healthOn', on);
+            v.textContent = on ? 'An' : 'Aus';
+            toast(on ? 'Neben jedem Sender zeigt ein Punkt, wie er zuletzt lief (grün gut, gelb hing, rot startete nicht)' : 'Sender-Ampel: aus', 6000);
+        });
         row('lite', 'speed', 'Leichte Darstellung', Lite.label(), function (v) {
             Lite.next();
             v.textContent = Lite.label();
@@ -9718,6 +9824,7 @@
         clearTimeout(this.longT);
         clearTimeout(this.startT);
         if (this.startFor !== this.index) { this.startFor = this.index; this.startFails = 0; this.altCycle = 0; }
+        this.hBegin();
         this.lastTime = -1;
         this.lastProgress = Date.now();
         $('#subtitle').classList.add('hidden');
@@ -9764,6 +9871,7 @@
                 self.r407 = 0;
                 self.started = true;
                 clearTimeout(self.startT);
+                if (self.hs && !self.hs.ok) { self.hs.ok = true; self.hs.ms = Date.now() - self.hs.t0; }
                 self.startFails = 0;
                 // lief 60 s: Ersatzsender dürfen später wieder im Kreis probiert werden
                 var at60 = self.index;
@@ -9795,6 +9903,7 @@
         if (!this.openedAt || this.openedFor !== this.index) { this.openedAt = Date.now(); this.openedFor = this.index; }
         if (reuse && Player.keep(this.url(), null)) {
             self.buffering = false;
+            if (this.hs) this.hs.ok = true;                   // lief schon in der Vorschau
             try { Watch.set(Watch.of('live', this.item().name)); } catch (e) { /* egal */ }                    // Bild läuft schon: nur auf Vollbild vergrößert
         } else {
             Player.open(this.url(), null);
@@ -9917,6 +10026,26 @@
         this.showPop(null);
         toast('Automatische Wiedergabe abgebrochen');
     };
+    /** Sender-Ampel: welcher Sender läuft gerade wirklich (Ersatzsender berücksichtigt) */
+    PlayerScreen.prototype.hSid = function () {
+        var it = this.item();
+        if (this.kind !== 'live' || !it || it.url) return 0;
+        return (this.altFor === this.index && this.altCur) ? this.altCur.id : it.id;
+    };
+    PlayerScreen.prototype.hBegin = function () {
+        var sid = this.hSid();
+        if (this.hs && this.hs.sid === sid) return;          // derselbe Sender wird nur neu verbunden
+        this.hEnd();
+        this.hs = sid ? { sid: sid, t0: Date.now(), ok: false, bad: false, fail: false } : null;
+    };
+    /** Ergebnis festhalten: gestartet → gut/hing; nicht gestartet → nur bei echtem Fehler (kurz weitergezappt zählt nicht) */
+    PlayerScreen.prototype.hEnd = function () {
+        var s = this.hs;
+        this.hs = null;
+        if (!s || Net.off) return;
+        if (s.ok) Health.record(s.sid, s.bad ? 'y' : 'g', s.ms);
+        else if (s.fail) Health.record(s.sid, 'r', null);
+    };
     /** Internet weg: Stand merken (Filme), Zähler für Hänger nicht hochzählen */
     PlayerScreen.prototype.onNetOff = function () {
         this.saveProgress(false);
@@ -9938,6 +10067,7 @@
         var now = Date.now();
         this.stallLog = (this.stallLog || []).filter(function (t) { return now - t < 300000; });
         this.stallLog.push(now);
+        if (this.hs) this.hs.bad = true;
         return this.stallLog.length >= 3 && this.tryAlt('Sender hing mehrfach');
     };
     /** Kurze Hänger (2–8 s, erholt sich von selbst): 3 in 5 Minuten → Ersatzsender */
@@ -9948,6 +10078,7 @@
         this.lastShort = now;
         this.shortLog = (this.shortLog || []).filter(function (t) { return now - t < 300000; });
         this.shortLog.push(now);
+        if (this.hs) this.hs.bad = true;
         if (this.shortLog.length < 3) return false;
         this.shortLog = [];
         Report.stall(this.item(), 'Mehrere kurze Hänger (3 in 5 Min.)', this.openedAt);
@@ -9964,6 +10095,7 @@
         this.startT = setTimeout(function () {
             if (Nav.top() !== self || self.index !== at || self.started) return;
             if (Net.check()) return;                         // Internet weg: warten, nicht umschalten
+            if (self.hs) self.hs.fail = true;
             Report.stall(self.item(), 'Sender startet nicht (5 s kein Bild)', self.openedAt);
             if (self.tryAlt('Sender startet nicht')) return;
             self.startFails = (self.startFails || 0) + 1;
@@ -9976,6 +10108,7 @@
     PlayerScreen.prototype.tryAlt = function (why) {
         if (this.kind !== 'live' || !Settings.altSwitch || (Api.acc && Api.acc.demo)) return false;
         if (Net.check()) return false;                       // Internet weg: kein Durchprobieren der Varianten
+        if (this.hs) this.hs.bad = true;
         var it = this.item();
         if (!it) return false;
         this.altTried = this.altTried || {};
@@ -10089,6 +10222,7 @@
             setTimeout(function () { if (Nav.top() === me && me.index === at) me.start(); }, this.retries > 1 ? 2500 : 300);
             return;
         }
+        if (this.hs) this.hs.fail = true;
         if (this.tryAlt('Sender ließ sich nicht abspielen')) return;
         toast('Wiedergabe fehlgeschlagen' + (msg ? ' (' + msg + ')' : '') + '. Versuche es erneut oder wähle etwas anderes.', 7000);
         Report.player(this.item(), msg);                    // landet unter Admin → Fehlerberichte
@@ -10599,6 +10733,7 @@
         clearTimeout(this.t407);
         clearTimeout(this.longT);
         clearTimeout(this.startT);
+        try { this.hEnd(); Health.flush(); } catch (eH) { /* egal */ }
         this.saveProgress(false);
         this.showPop(null);
         this.popFor = null;
