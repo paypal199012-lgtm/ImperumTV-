@@ -4075,13 +4075,16 @@
         /** Gemerkten Eintrag suchen, notfalls weitere Stapel nachladen */
         loadUntil: function (key) {
             var batches = document.querySelectorAll('#app .batch');
+            var root = document.querySelector(Modal.node ? '#modal' : '#stage');
+            var sel = '.focusable[data-key="' + String(key).replace(/["\\]/g, '\\$&') + '"]';
+            // Erst nachladen, bis der Eintrag im Dokument ist (ohne jedes Mal das Layout zu berechnen – das war auf dem Stick langsam)
             for (var guard = 0; guard < 60; guard++) {
+                if (root && root.querySelector(sel)) break;
                 var any = false;
                 for (var j = 0; j < batches.length; j++) if (batches[j]._batchMore && batches[j]._batchMore()) any = true;
-                var t = Focus.byKey(key);
-                if (t || !any) return t;
+                if (!any) break;
             }
-            return null;
+            return Focus.byKey(key);
         },
 
         push: function (screen) {
@@ -5969,7 +5972,12 @@
         VAR: /(^|[^a-z0-9])(backup|mobile|alt|ersatz|multi|low|hq|lq|uhd|fhd|hd|sd|4k|8k|hevc|h265|h264|raw|vip|gold|50fps|60fps|25fps|1080p?|720p?|2160p?)(?=$|[^a-z0-9])/g,
         country: function (n) { var m = /^\s*\|?([A-Z]{2,3})\s*[|:]/.exec(NameTidy.plain(n || '')); return m ? m[1].toUpperCase() : ''; },
         key: function (c) {
-            var t = NameTidy.plain(NameTidy.split(c.name, c.cat).name).toLowerCase();
+            if (c._ak !== undefined && c._akN === c.name) return c._ak;
+            c._akN = c.name;
+            return (c._ak = this.keyRaw(c));
+        },
+        keyRaw: function (c) {
+            var t = NameTidy.plain(NameTidy.of(c).name).toLowerCase();
             t = t.replace(/^\s*[a-z0-9+]{2,8}\s*[:|]\s*/, '');          // Anbieter-Vorsatz wie „SKYGO:“
             t = t.replace(/[()\[\]]/g, ' ').replace(this.VAR, ' ').replace(this.VAR, ' ');
             return t.replace(/[^a-z0-9+]+/g, ' ').trim();
@@ -6027,6 +6035,11 @@
             return m ? m[1].toUpperCase() + ' · ' + rest : rest;            // Land bleibt sichtbar: „DE · PRIME RAW 60fps“
         },
         sepTitle: function (n) { return this.plain(n || '').replace(/[#=*\-|]+/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase(); },
+        /** split() für einen Sender, einmal berechnet und am Sender gemerkt (Live TV öffnet so viel schneller) */
+        of: function (c) {
+            if (!c._nt || c._ntN !== c.name) { c._nt = this.split(c.name, c.cat); c._ntN = c.name; }
+            return c._nt;
+        },
         split: function (name, cat) {
             var src = String(name || ''), tags = [], rest = '', run = '', self = this, c, i;
             // hochgestellte Zusätze (ᴿᴬᵂ ⁶⁰ᶠᵖˢ) sammeln
@@ -6150,18 +6163,35 @@
         SYN: [[/(^| )(austria|osterreich|oesterreich|österreich)( |$)/g, '$1at$3'], [/(^| )(deutschland|germany|german|ger|deu)( |$)/g, '$1de$3'],
             [/(^| )(schweiz|swiss|suisse|svizzera)( |$)/g, '$1ch$3'], [/(^| )(bundesliga)( |$)/g, '$1buli$3']],
         key: function (c) {
+            if (c._mk !== undefined && c._mkN === c.name) return c._mk;
             var k = AltCh.key(c).replace(/([a-z])(\d)/g, '$1 $2').replace(/(\d)([a-z])/g, '$1 $2');
             for (var i = 0; i < this.SYN.length; i++) k = k.replace(this.SYN[i][0], this.SYN[i][1]).replace(this.SYN[i][0], this.SYN[i][1]);
-            return k.replace(/\s+/g, ' ').trim();
+            c._mkN = c.name;
+            return (c._mk = k.replace(/\s+/g, ' ').trim());
+        },
+        /** Im Hintergrund (in kleinen Stücken, nur wenn niemand bedient) Namen und Qualitäten aller Sender vorberechnen – dann öffnet Live TV schneller */
+        warm: function () {
+            var list = Data.channels, i = 0, self = this;
+            if (!list || !list.length || this.warmedFor === list) return;
+            this.warmedFor = list;
+            (function step() {
+                if (Data.channels !== list) return;
+                if (Date.now() - (Nav.userAt || 0) < 1500) { setTimeout(step, 1000); return; }
+                var end = Math.min(list.length, i + 400);
+                for (; i < end; i++) { var c = list[i]; if (c && c.name) { self.key(c); self.tags(c); } }
+                if (i < list.length) setTimeout(step, 30);
+            })();
         },
         off: function () { return Storage.get('mergeOff', {}) || {}; },
         pref: function () { return Storage.get('mergePref', {}) || {}; },
         /** Qualität einer Variante als kurzer Text (FHD, HD, 4K, SD, Backup …) */
         tags: function (c) {
-            var t = NameTidy.split(c.name, c.cat).tags.slice();
-            if (/(^|[^a-z])(backup|alt|ersatz|reserve)([^a-z]|$)/i.test(NameTidy.plain(c.name))) t.push('Backup');
-            if (/(^|[^a-z])(mobile|low|lq)([^a-z]|$)/i.test(NameTidy.plain(c.name)) && t.indexOf('SD') < 0) t.push('SD');
-            return t;
+            if (c._mt && c._mtN === c.name) return c._mt;
+            var t = NameTidy.of(c).tags.slice(), pl = NameTidy.plain(c.name);
+            if (/(^|[^a-z])(backup|alt|ersatz|reserve)([^a-z]|$)/i.test(pl)) t.push('Backup');
+            if (/(^|[^a-z])(mobile|low|lq)([^a-z]|$)/i.test(pl) && t.indexOf('SD') < 0) t.push('SD');
+            c._mtN = c.name;
+            return (c._mt = t);
         },
         /** Beste Qualität zuerst: 4K/UHD, FHD RAW, RAW, FHD, HD RAW, HD, ohne Angabe, SD – Backup und Handy-Versionen ganz hinten */
         rank: function (t) {
@@ -6392,7 +6422,7 @@
             if (ch.logo) LazyImg.set(logo, logoUrl(ch.logo));
             logo.onerror = function () { logo.style.visibility = 'hidden'; };
             row.appendChild(logo);
-            var nt = NameTidy.split(ch.name, ch.cat);
+            var nt0 = NameTidy.of(ch), nt = { name: nt0.name, tags: nt0.tags };     // Kopie: der gemerkte Wert darf nicht verändert werden
             if (ch._mv) nt = { name: ch._mname, tags: [] };
             if (ch._mcc && Merge.on()) nt.name += ' · ' + ch._mcc;
             var now = ch.epg ? nowMap[ch.epg] : null;
@@ -10882,6 +10912,8 @@
         Updater.autoCheck();                               // gleich beim Start nach neuer Version suchen
         applyStallWait();
         setTimeout(function () { GenreScan.start(); }, 15000);
+        // Sendernamen vorberechnen, sobald die Liste da ist (Live TV öffnet dann schneller)
+        (function warmLater(n) { setTimeout(function () { try { if (Data.channels && Data.channels.length) Merge.warm(); else if (n < 20) warmLater(n + 1); } catch (e) { /* egal */ } }, 3000); })(0);
         setTimeout(function () { try { Backup.startup(); } catch (e) { /* egal */ } }, 25000);   // Sicherung: übertragene prüfen, täglich sichern   // Genres im Hintergrund sammeln (nur wenn nichts läuft)
         setTimeout(function () { Updater.flags(); }, 8000);     // vom Admin erzwungenes Update?
         setTimeout(function () { try { Help.resume(); } catch (e) { /* egal */ } }, 6000);   // Fernhilfe lief vor dem Neustart
