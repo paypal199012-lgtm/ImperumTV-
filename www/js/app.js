@@ -6007,6 +6007,19 @@
         index: null, of: null,
         VAR: /(^|[^a-z0-9])(backup|mobile|alt|ersatz|multi|low|hq|lq|uhd|fhd|hd|sd|4k|8k|hevc|h265|h264|raw|vip|gold|50fps|60fps|25fps|1080p?|720p?|2160p?)(?=$|[^a-z0-9])/g,
         country: function (n) { var m = /^\s*\|?([A-Z]{2,3})\s*[|:]/.exec(NameTidy.plain(n || '')); return m ? m[1].toUpperCase() : ''; },
+        /** Land eines Senders: Kürzel im Namen („AT: …“), sonst in der Kategorie, sonst aus dem Namen („Sky Sport Austria 1“ → AT) – gemerkt */
+        cc: function (c) {
+            if (c._cc !== undefined && c._ccN === c.name) return c._cc;
+            var cc = this.country(c.name) || this.country(c.cat);
+            if (!cc) {
+                var t = ' ' + NameTidy.plain(c.name || '').toLowerCase() + ' ';
+                if (/[^a-z](austria|österreich|osterreich|oesterreich)[^a-z]/.test(t)) cc = 'AT';
+                else if (/[^a-z](schweiz|swiss|suisse|svizzera)[^a-z]/.test(t)) cc = 'CH';
+                else if (/[^a-z](deutschland|germany)[^a-z]/.test(t)) cc = 'DE';
+            }
+            c._ccN = c.name;
+            return (c._cc = cc);
+        },
         key: function (c) {
             if (c._ak !== undefined && c._akN === c.name) return c._ak;
             c._akN = c.name;
@@ -6033,10 +6046,10 @@
         find: function (ch) {
             if (!ch) return [];
             this.build();
-            var self = this, co = this.country(ch.name) || this.country(ch.cat);
+            var self = this, co = this.cc(ch);
             // Reihenfolge: gleiches Land, ohne Land, deutsch, sonst
             function rank(c) {
-                var cc = self.country(c.name) || self.country(c.cat);
+                var cc = self.cc(c);
                 return cc === co ? 0 : !cc ? 1 : cc === 'DE' ? 2 : 3;
             }
             return (this.index[Merge.key(ch)] || []).filter(function (c) {
@@ -6044,7 +6057,7 @@
                 // Schwache Varianten (MOBILE, LOW, LQ, SD) nie als Ersatz – auf dem Fernseher zu unscharf
                 if (/mobile|(^|[^a-z])(low|lq|sd)([^a-z]|$)/i.test(NameTidy.plain(c.name))) return false;
                 // Land: aus dem Namen („DE: …“), sonst aus der Kategorie („DE| DAZN“). Nur dasselbe Land (ohne Land: nur ohne Land)
-                var cc = self.country(c.name) || self.country(c.cat);
+                var cc = self.cc(c);
                 return co ? cc === co : !cc;
             }).sort(function (a, b) { return rank(a) - rank(b); }).slice(0, 8);
         }
@@ -6277,7 +6290,7 @@
                 c = list[i];
                 if (NameTidy.isSep(c.name)) { order.push({ sep: c }); continue; }
                 k = this.key(c);
-                var cc = AltCh.country(c.name) || AltCh.country(c.cat);
+                var cc = AltCh.cc(c);
                 var gk = (byCountry ? 'L:' + cc : 'C:' + (c.cat || '')) + '|' + k;
                 if (!k || k.length < 2 || off[gk]) { order.push({ one: c }); continue; }
                 if (!groups[gk]) { groups[gk] = { key: gk, list: [], cc: cc }; order.push({ g: groups[gk] }); }
@@ -6286,7 +6299,7 @@
             var out = [], self = this;
             order.forEach(function (o) {
                 if (o.sep) { out.push(o.sep); return; }
-                if (o.one) { o.one._mv = null; o.one._mcc = byCountry ? AltCh.country(o.one.name) || AltCh.country(o.one.cat) : ''; out.push(o.one); return; }
+                if (o.one) { o.one._mv = null; o.one._mcc = byCountry ? AltCh.cc(o.one) : ''; out.push(o.one); return; }
                 var g = o.g;
                 if (g.list.length === 1) { g.list[0]._mv = null; g.list[0]._mcc = byCountry ? g.cc : ''; out.push(g.list[0]); return; }
                 var vs = g.list.map(function (v) { var t = self.tags(v); return { c: v, t: t, r: self.rank(t) }; });
