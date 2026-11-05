@@ -9657,8 +9657,11 @@
     PlayerScreen.prototype.start = function () {
         var self = this;
         this.rdy = false;                  // erst nach dem Start zählen kurze Hänger (nicht das Laden beim Umschalten)
+        this.started = false;              // erstes Bild da?
         this.bufAt = 0;
         clearTimeout(this.longT);
+        clearTimeout(this.startT);
+        if (this.startFor !== this.index) { this.startFor = this.index; this.startFails = 0; this.altCycle = 0; }
         this.lastTime = -1;
         this.lastProgress = Date.now();
         $('#subtitle').classList.add('hidden');
@@ -9703,6 +9706,12 @@
             ready: function () {
                 Player.applyPreferences();
                 self.r407 = 0;
+                self.started = true;
+                clearTimeout(self.startT);
+                self.startFails = 0;
+                // lief 60 s: Ersatzsender dürfen später wieder im Kreis probiert werden
+                var at60 = self.index;
+                setTimeout(function () { if (self.index === at60 && self.started) self.altCycle = 0; }, 60000);
                 setTimeout(function () { self.rdy = true; self.bufAt = 0; }, 3000);
                 try { var wi = self.item(); Watch.set(Watch.of(self.kind, wi && wi.name)); } catch (e) { /* egal */ }                             // läuft wieder: nächste Ablehnung zählt neu
                 if (self.seekPending) {
@@ -9733,6 +9742,7 @@
             try { Watch.set(Watch.of('live', this.item().name)); } catch (e) { /* egal */ }                    // Bild läuft schon: nur auf Vollbild vergrößert
         } else {
             Player.open(this.url(), null);
+            this.watchStart();
         }
         this.nowTitle = '';
         this.nowEnd = 0;
@@ -9872,6 +9882,24 @@
         Report.stall(this.item(), 'Mehrere kurze Hänger (3 in 5 Min.)', this.openedAt);
         return this.tryAlt('Sender hing mehrmals kurz');
     };
+    /**
+     * Sender kommt gar nicht erst ins Bild (lädt endlos, ohne Fehler): nach 8 s auf den Ersatzsender,
+     * sonst bis zu 2× neu öffnen. Vorher blieb es dann einfach stehen (z. B. UHD → FHD, FHD startet nie).
+     */
+    PlayerScreen.prototype.watchStart = function () {
+        if (this.kind !== 'live') return;
+        var self = this, at = this.index;
+        clearTimeout(this.startT);
+        this.startT = setTimeout(function () {
+            if (Nav.top() !== self || self.index !== at || self.started) return;
+            Report.stall(self.item(), 'Sender startet nicht (8 s kein Bild)', self.openedAt);
+            if (self.tryAlt('Sender startet nicht')) return;
+            self.startFails = (self.startFails || 0) + 1;
+            if (self.startFails <= 2) { toast('Sender startet nicht – neuer Versuch …', 3000); self.start(); return; }
+            toast('Dieser Sender startet gerade nicht. Später noch einmal versuchen oder einen anderen Sender wählen.', 8000);
+            self.showOverlay();
+        }, 8000);
+    };
     /** Auf denselben Sender in anderer Variante umschalten. true = umgeschaltet */
     PlayerScreen.prototype.tryAlt = function (why) {
         if (this.kind !== 'live' || !Settings.altSwitch || (Api.acc && Api.acc.demo)) return false;
@@ -9886,6 +9914,16 @@
             var t = Merge.tags(c), q = t.length ? t[0] : '';
             return { c: c, i: i, same: q === curQ ? 0 : 1, d: Math.abs(Merge.rank(t) - curR) };
         });
+        // Alle Varianten schon probiert: noch einmal im Kreis (z. B. zurück auf UHD), höchstens 2 Runden bis der Sender wieder 60 s läuft
+        if (!cands.length && tried.length > 1 && (this.altCycle || 0) < 2) {
+            this.altCycle = (this.altCycle || 0) + 1;
+            tried.length = 0; tried.push(cur.id);
+            var all = [it].concat(AltCh.find(it)).filter(function (c) { return c.id !== cur.id; });
+            cands = all.map(function (c, i) {
+                var t = Merge.tags(c), q = t.length ? t[0] : '';
+                return { c: c, i: i, same: q === curQ ? 0 : 1, d: Math.abs(Merge.rank(t) - curR) };
+            });
+        }
         cands.sort(function (a, b) { return a.same - b.same || a.d - b.d || a.i - b.i; });
         var alt = cands.length ? cands[0].c : null;
         if (!alt) {
@@ -10485,6 +10523,7 @@
         Quiet.set(false);
         clearTimeout(this.t407);
         clearTimeout(this.longT);
+        clearTimeout(this.startT);
         this.saveProgress(false);
         this.showPop(null);
         this.popFor = null;
