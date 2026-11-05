@@ -62,7 +62,7 @@ extension TVStore {
         return out
     }
 
-    /// Kleiner = besser: 4K/UHD, „FHD RAW“, RAW, „HD RAW“, FHD, HD, ohne Angabe, SD – Backup und Handy-Versionen ganz hinten
+    /// Kleiner = besser: 4K/UHD, „FHD RAW“, RAW, FHD, „HD RAW“, HD, ohne Angabe, SD – Backup und Handy-Versionen ganz hinten
     func qualityRank(_ it: TVItem) -> Double {
         let t = qualityTags(it)
         var r: Double = 4
@@ -71,7 +71,8 @@ extension TVStore {
         else if t.contains("HD") { r = 3 }
         else if t.contains("RAW") { r = 1 }
         else if t.contains("SD") { r = 6 }
-        if t.contains("RAW") && r != 1 { r -= 1.1 }
+        // RAW-Zusatz: „FHD RAW“ vor „RAW“ vor „FHD“; „HD RAW“ nach FHD, aber vor HD
+        if t.contains("RAW") { if r == 2 { r = 0.9 } else if r == 3 { r = 2.5 } else if r == 0 { r = -0.1 } }
         if t.contains("50FPS") { r -= 0.2 }
         if t.contains("Backup") { r += 5 }
         if t.contains("SD") && r < 6 { r += 6 }

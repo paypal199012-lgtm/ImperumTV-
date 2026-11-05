@@ -6163,7 +6163,7 @@
             if (/(^|[^a-z])(mobile|low|lq)([^a-z]|$)/i.test(NameTidy.plain(c.name)) && t.indexOf('SD') < 0) t.push('SD');
             return t;
         },
-        /** Beste Qualität zuerst: 4K/UHD, RAW, FHD, HD, ohne Angabe, SD – Backup und Handy-Versionen ganz hinten */
+        /** Beste Qualität zuerst: 4K/UHD, FHD RAW, RAW, FHD, HD RAW, HD, ohne Angabe, SD – Backup und Handy-Versionen ganz hinten */
         rank: function (t) {
             var has = function (x) { return t.indexOf(x) >= 0; };
             var r = 4;
@@ -6172,7 +6172,10 @@
             else if (has('HD')) r = 3;
             else if (has('RAW')) r = 1;
             else if (has('SD')) r = 6;
-            if (has('RAW') && r !== 1) r -= 1.1;               // „FHD RAW“ vor „RAW“ vor „FHD“, „HD RAW“ vor „FHD“
+            // RAW-Zusatz: „FHD RAW“ vor „RAW“ vor „FHD“; „HD RAW“ nach FHD, aber vor HD
+            if (has('RAW') && r === 2) r = 0.9;
+            else if (has('RAW') && r === 3) r = 2.5;
+            else if (has('RAW') && r === 0) r = -0.1;
             if (has('50FPS') || has('60FPS')) r -= 0.2;
             if (has('Backup')) r += 5;
             if (has('SD') && r < 6) r += 6;
