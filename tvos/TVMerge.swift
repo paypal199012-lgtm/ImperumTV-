@@ -62,14 +62,19 @@ extension TVStore {
         return out
     }
 
-    /// Kleiner = besser: FHD vor HD vor ohne Angabe vor 4K (4K ruckelt auf vielen Leitungen), Backup und SD zuletzt
+    /// Kleiner = besser: 4K/UHD, „FHD RAW“, RAW, „HD RAW“, FHD, HD, ohne Angabe, SD – Backup und Handy-Versionen ganz hinten
     func qualityRank(_ it: TVItem) -> Double {
         let t = qualityTags(it)
-        var r = t.contains("FHD") ? 0 : t.contains("HD") ? 1 : t.contains("4K") ? 3 : 2.5
-        if t.contains("RAW") || t.contains("50FPS") { r += 0.5 }
-        if t.contains("HEVC") { r += 0.7 }
+        var r: Double = 4
+        if t.contains("4K") { r = 0 }
+        else if t.contains("FHD") { r = 2 }
+        else if t.contains("HD") { r = 3 }
+        else if t.contains("RAW") { r = 1 }
+        else if t.contains("SD") { r = 6 }
+        if t.contains("RAW") && r != 1 { r -= 1.1 }
+        if t.contains("50FPS") { r -= 0.2 }
         if t.contains("Backup") { r += 5 }
-        if t.contains("SD") { r += 6 }
+        if t.contains("SD") && r < 6 { r += 6 }
         if Self.words(it.name).contains(where: { ["mobile", "low", "lq"].contains($0) }) { r += 8 }
         return r
     }

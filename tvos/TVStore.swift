@@ -582,7 +582,9 @@ final class TVStore: ObservableObject {
         }.sorted { a, b in
             let sa = qualityTags(a).first == myTag ? 0 : 1, sb = qualityTags(b).first == myTag ? 0 : 1
             if sa != sb { return sa < sb }
-            return abs(qualityRank(a) - myRank) < abs(qualityRank(b) - myRank)
+            // danach die nächstschlechtere Qualität (2. beste, 3. beste …), bessere zuletzt
+            func d(_ x: TVItem) -> Double { let r = qualityRank(x); return r >= myRank ? r - myRank : 100 + myRank - r }
+            return d(a) < d(b)
         }
     }
 

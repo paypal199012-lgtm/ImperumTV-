@@ -6163,14 +6163,19 @@
             if (/(^|[^a-z])(mobile|low|lq)([^a-z]|$)/i.test(NameTidy.plain(c.name)) && t.indexOf('SD') < 0) t.push('SD');
             return t;
         },
-        /** Welche Variante zuerst: FHD, HD, ohne Angabe, 4K, 50 FPS/RAW, HEVC, Backup, SD */
+        /** Beste Qualität zuerst: 4K/UHD, RAW, FHD, HD, ohne Angabe, SD – Backup und Handy-Versionen ganz hinten */
         rank: function (t) {
-            var r = 2.5;
-            if (t.indexOf('FHD') >= 0) r = 0; else if (t.indexOf('HD') >= 0) r = 1; else if (t.indexOf('4K') >= 0 || t.indexOf('UHD') >= 0 || t.indexOf('8K') >= 0) r = 3;
-            if (t.indexOf('RAW') >= 0 || t.indexOf('50FPS') >= 0 || t.indexOf('60FPS') >= 0) r += 0.5;
-            if (t.indexOf('HEVC') >= 0) r += 0.7;
-            if (t.indexOf('Backup') >= 0) r += 5;
-            if (t.indexOf('SD') >= 0) r += 6;
+            var has = function (x) { return t.indexOf(x) >= 0; };
+            var r = 4;
+            if (has('4K') || has('UHD') || has('8K')) r = 0;
+            else if (has('FHD')) r = 2;
+            else if (has('HD')) r = 3;
+            else if (has('RAW')) r = 1;
+            else if (has('SD')) r = 6;
+            if (has('RAW') && r !== 1) r -= 1.1;               // „FHD RAW“ vor „RAW“ vor „FHD“, „HD RAW“ vor „FHD“
+            if (has('50FPS') || has('60FPS')) r -= 0.2;
+            if (has('Backup')) r += 5;
+            if (has('SD') && r < 6) r += 6;
             return r;
         },
         label: function (t) { return t.length ? t.join(' ') : 'Standard'; },
@@ -10133,7 +10138,7 @@
         var curT = Merge.tags(cur), curQ = curT.length ? curT[0] : '', curR = Merge.rank(curT);
         var cands = AltCh.find(it).filter(function (c) { return tried.indexOf(c.id) < 0; }).map(function (c, i) {
             var t = Merge.tags(c), q = t.length ? t[0] : '';
-            return { c: c, i: i, same: q === curQ ? 0 : 1, d: Math.abs(Merge.rank(t) - curR) };
+            return { c: c, i: i, same: q === curQ ? 0 : 1, d: (function (rk) { return rk >= curR ? rk - curR : 100 + curR - rk; })(Merge.rank(t)) };
         });
         // Alle Varianten schon probiert: noch einmal im Kreis (z. B. zurück auf UHD), höchstens 2 Runden bis der Sender wieder 60 s läuft
         if (!cands.length && tried.length > 1 && (this.altCycle || 0) < 2) {
@@ -10142,7 +10147,7 @@
             var all = [it].concat(AltCh.find(it)).filter(function (c) { return c.id !== cur.id; });
             cands = all.map(function (c, i) {
                 var t = Merge.tags(c), q = t.length ? t[0] : '';
-                return { c: c, i: i, same: q === curQ ? 0 : 1, d: Math.abs(Merge.rank(t) - curR) };
+                return { c: c, i: i, same: q === curQ ? 0 : 1, d: (function (rk) { return rk >= curR ? rk - curR : 100 + curR - rk; })(Merge.rank(t)) };
             });
         }
         cands.sort(function (a, b) { return a.same - b.same || a.d - b.d || a.i - b.i; });
