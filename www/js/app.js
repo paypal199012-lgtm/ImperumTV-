@@ -9883,7 +9883,7 @@
         return this.tryAlt('Sender hing mehrmals kurz');
     };
     /**
-     * Sender kommt gar nicht erst ins Bild (lädt endlos, ohne Fehler): nach 8 s auf den Ersatzsender,
+     * Sender kommt gar nicht erst ins Bild (lädt endlos, ohne Fehler): nach 5 s auf den Ersatzsender,
      * sonst bis zu 2× neu öffnen. Vorher blieb es dann einfach stehen (z. B. UHD → FHD, FHD startet nie).
      */
     PlayerScreen.prototype.watchStart = function () {
@@ -9892,13 +9892,13 @@
         clearTimeout(this.startT);
         this.startT = setTimeout(function () {
             if (Nav.top() !== self || self.index !== at || self.started) return;
-            Report.stall(self.item(), 'Sender startet nicht (8 s kein Bild)', self.openedAt);
+            Report.stall(self.item(), 'Sender startet nicht (5 s kein Bild)', self.openedAt);
             if (self.tryAlt('Sender startet nicht')) return;
             self.startFails = (self.startFails || 0) + 1;
             if (self.startFails <= 2) { toast('Sender startet nicht – neuer Versuch …', 3000); self.start(); return; }
             toast('Dieser Sender startet gerade nicht. Später noch einmal versuchen oder einen anderen Sender wählen.', 8000);
             self.showOverlay();
-        }, 8000);
+        }, 5000);
     };
     /** Auf denselben Sender in anderer Variante umschalten. true = umgeschaltet */
     PlayerScreen.prototype.tryAlt = function (why) {
