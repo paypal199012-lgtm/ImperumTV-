@@ -1891,7 +1891,7 @@
         url: 'https://dprwastkfqhisvsjrvrv.supabase.co',
         key: 'sb_publishable_LZau0nT_CfDUYqrzlQfM2Q_61r7g-K3',
         // Website, auf der man Wiedergabelisten einträgt und das Gerät aktiviert (Cloudflare)
-        website: 'https://holy-mode-e130.imperumtv.workers.dev/',
+        website: 'https://imperumtv.xyz/',
         // Hier baut GitHub die Android-App; die App sucht dort nach Updates
         updateRepo: 'paypal199012-lgtm/ImperumTV-Android',
         // Wird nur angezeigt, der echte Preis steht in der Stripe-Funktion

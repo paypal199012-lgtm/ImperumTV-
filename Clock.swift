@@ -271,7 +271,7 @@ struct NetTestView: View {
 
         // 1) Internet
         set("net", .run, "prüft …")
-        let site = URL(string: "https://holy-mode-e130.imperumtv.workers.dev/robots.txt?t=\(Int(Date().timeIntervalSince1970))")!
+        let site = URL(string: "https://imperumtv.xyz/robots.txt?t=\(Int(Date().timeIntervalSince1970))")!
         let net = await ByteMeter.run(site, maxSeconds: 6)
         guard net.ok else {
             set("net", .bad, "Keine Antwort aus dem Internet", "Keine Verbindung")
