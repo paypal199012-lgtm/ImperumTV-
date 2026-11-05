@@ -285,8 +285,8 @@
                 setTimeout(function () {
                     if (st[1] >= 0) self.card(st[0], 'done', st[1], 0);
                     else self.card(st[0], 'later', 0, 0, 'lädt im Hintergrund');
-                    if (i === steps.length - 1) setTimeout(function () { self.finish('Alles bereit', then, 250); }, 120);
-                }, 120 + i * 120);
+                    if (i === steps.length - 1) setTimeout(function () { self.finish('Alles bereit', then, 250); }, 150);
+                }, 200 + i * 200);                      // zusammen etwa 1 Sekunde
             });
         },
         hide: function () {

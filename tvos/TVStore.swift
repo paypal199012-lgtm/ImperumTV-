@@ -575,17 +575,16 @@ final class TVStore: ObservableObject {
         guard key.count >= 2 else { return [] }
         let land = country(it)
         let myTag = qualityTags(it).first, myRank = qualityRank(it)
-        // zuerst dieselbe Qualität (FHD → anderes FHD), dann die nächstliegende
-        return live.filter { o in
+        // zuerst dieselbe Qualität (FHD → anderes FHD), danach die nächstschlechtere (2. beste, 3. beste …), bessere zuletzt
+        let cands = live.filter { o in
             o.id != it.id && baseKey(o) == key && country(o) == land
                 && !Self.words(o.name).contains(where: { Self.weakWords.contains($0) })
-        }.sorted { a, b in
-            let sa = qualityTags(a).first == myTag ? 0 : 1, sb = qualityTags(b).first == myTag ? 0 : 1
-            if sa != sb { return sa < sb }
-            // danach die nächstschlechtere Qualität (2. beste, 3. beste …), bessere zuletzt
-            func d(_ x: TVItem) -> Double { let r = qualityRank(x); return r >= myRank ? r - myRank : 100 + myRank - r }
-            return d(a) < d(b)
         }
+        let scored: [(item: TVItem, same: Int, d: Double)] = cands.map { o in
+            let r = qualityRank(o)
+            return (o, qualityTags(o).first == myTag ? 0 : 1, r >= myRank ? r - myRank : 100 + myRank - r)
+        }
+        return scored.sorted { $0.same != $1.same ? $0.same < $1.same : $0.d < $1.d }.map(\.item)
     }
 
     // MARK: Favoriten
