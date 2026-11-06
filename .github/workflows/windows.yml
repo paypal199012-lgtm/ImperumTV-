@@ -54,7 +54,7 @@ jobs:
           Get-ChildItem dist | Select-Object Name, Length
 
       - name: Selbsttest mit Bildschirmfotos
-        shell: pwsh
+        shell: powershell
         continue-on-error: true
         run: |
           Add-Type -AssemblyName System.Windows.Forms, System.Drawing
