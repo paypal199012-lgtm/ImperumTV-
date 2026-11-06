@@ -10499,14 +10499,14 @@
                     if (!this.wantState) break;
                     this.wantState = false;
                     this.lastActor = m.from;
-                    this.openItem(m.item, m.pos + (m.paused ? 0 : 0.3), m.paused);
+                    this.openLater(m.item, m.pos, m.paused);
                     break;
                 case 'item':
                     this.lastActor = m.from;
                     if (this.keyOf(m.item) === this.curKey || this.keyOf(m.item) === this.remoteKey) break;
                     this.remoteKey = this.keyOf(m.item);
                     toast('👥 ' + (m.nm || 'Anderes Gerät') + ': ' + (m.item.name || 'neuer Titel'), 3000);
-                    this.openItem(m.item, m.pos || 0, false);
+                    this.openLater(m.item, m.pos || 0, false);
                     break;
                 case 'pause': case 'play': case 'seek':
                     this.lastActor = m.from;
@@ -10548,6 +10548,22 @@
             try { fn(); } catch (e) { /* egal */ }
             var self = this;
             setTimeout(function () { self.applying = false; }, 50);
+        },
+        /**
+         * Nicht alle Geräte im selben Moment verbinden: viele Anbieter lehnen mehrere neue Verbindungen aus einem
+         * Anschluss in derselben Sekunde ab („Sender startet nicht“ auf allen Geräten). Jedes Gerät wartet je nach
+         * Reihenfolge 0,3 / 1,8 / 3,3 … s. Live gleicht sich danach über die Geschwindigkeit an, Filme springen an die Stelle.
+         */
+        openLater: function (item, pos, paused) {
+            var self = this, rank = 0, now = Date.now(), k, sent = now;
+            for (k in this.peers) if (now - this.peers[k].at < 25000 && k < this.me) rank++;
+            var wait = 300 + rank * 1500 + Math.random() * 400, key = this.keyOf(item), seq = this.openSeq = (this.openSeq || 0) + 1;
+            setTimeout(function () {
+                if (!self.active() || self.openSeq !== seq) return;           // inzwischen etwas anderes gewählt
+                var lag = item.kind === 'live' || paused ? 0 : (Date.now() - sent) / 1000;   // Film lief beim anderen weiter
+                self.openItem(item, (pos || 0) + lag, paused);
+            }, wait);
+            void key;
         },
         /** Denselben Titel in der eigenen Liste suchen und starten */
         fold: function (t) { return Football.fold(t).replace(/[^a-z0-9]+/g, ' ').trim(); },
