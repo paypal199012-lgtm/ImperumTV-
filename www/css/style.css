@@ -1370,6 +1370,20 @@ body:not(.clock-on) #sleepbadge { right: 40px; }
 .epc-ok { position: absolute; right: 10px; bottom: 14px; width: 34px; height: 34px; line-height: 34px; text-align: center; border-radius: 50%;
     background: #3aa35b; font-size: 20px; font-weight: 900; color: #fff; }
 .epc-bar { position: absolute; left: 0; bottom: 0; height: 6px; background: #d9b066; }
+/* Serien-Fortschritt: Staffel fertig, „Staffel 2: 5 von 10 gesehen“ */
+.season.done:not(.focused) { color: #9be3a8; }
+.season.done:not(.active):not(.focused) { background: rgba(58,163,91,.2); }
+.detail.s1 > .seasons.with-prog { right: 500px; }
+.s-prog { position: absolute; right: 0; top: 466px; width: 470px; }
+.s-prog-t { display: flex; align-items: baseline; font-size: 23px; color: rgba(255,255,255,.85); white-space: nowrap; }
+.s-prog-t b { color: #f4dc9e; margin-left: 6px; }
+.s-prog.done .s-prog-t b { color: #9be3a8; }
+.s-prog-p { margin-left: auto; font-size: 20px; color: #a7a39a; }
+.s-prog-bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.14); overflow: hidden; margin-top: 8px; }
+.s-prog-bar i { display: block; height: 100%; background: #d9b066; border-radius: 4px; }
+.s-prog.done .s-prog-bar i { background: #3aa35b; }
+.s-prog-hint { font-size: 17px; color: #8d8a83; margin-top: 7px; }
+.poster .sub.done { color: #9be3a8; }
 .epc-tag { position: absolute; left: 10px; top: 10px; padding: 3px 12px; border-radius: 8px; font-size: 18px; font-weight: 800; }
 .epc-tag.neu { background: #f4dc9e; color: #1a1408; }
 .epc-tag.next { background: #d9b066; color: #1a1408; }

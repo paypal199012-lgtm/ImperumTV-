@@ -1357,10 +1357,72 @@
             this.cache = all;
             Storage.set('seen', all);
         },
+        /** Folge von Hand als gesehen / ungesehen markieren */
+        setEpisode: function (id, done) {
+            if (done) { this.mark(id, 1, true); return; }
+            var all = this.raw();
+            delete all[this.key(id)];
+            this.cache = all;
+            Storage.set('seen', all);
+        },
         dateText: function (e) {
             if (!e || !e.at) return '';
             var d = new Date(e.at), months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
             return d.getDate() + '. ' + months[d.getMonth()] + (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '');
+        }
+    };
+
+    /**
+     * Serien-Fortschritt: welche Folgen eine Serie hat (gemerkt beim Öffnen der Serie) und wie viele davon gesehen sind.
+     * Kachel: „S2 · 5/10 gesehen“ bzw. „Alle gesehen“, Serienseite: „Staffel 2: 5 von 10 gesehen“.
+     */
+    var SeriesProg = {
+        MAX: 200, raw: null,
+        load: function () {
+            if (!this.raw) { var o = Storage.get('seriesEps', {}); this.raw = (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; }
+            return this.raw;
+        },
+        key: function (sid) { return Resume.accKey() + '|' + sid; },
+        /** Folgen der Serie merken: { Staffel: [Folgen-IDs] } */
+        remember: function (sid, episodes) {
+            var m = {}, order = [];
+            episodes.forEach(function (e) {
+                var s = String(e.season);
+                if (!m[s]) { m[s] = []; order.push(s); }
+                m[s].push(String(e.id));
+            });
+            var all = this.load(), k = this.key(sid), old = all[k];
+            if (old && JSON.stringify(old.s) === JSON.stringify(m)) old.at = Date.now();
+            else all[k] = { s: m, o: order, at: Date.now() };
+            var keys = Object.keys(all);
+            if (keys.length > this.MAX) {
+                keys.sort(function (a, b) { return (all[a].at || 0) - (all[b].at || 0); });
+                keys.slice(0, keys.length - this.MAX).forEach(function (x) { delete all[x]; });
+            }
+            Storage.set('seriesEps', all);
+        },
+        seen: function (id) { var x = Seen.get(id); return !!(x && x.d); },
+        count: function (ids) {
+            var n = 0, self = this;
+            ids.forEach(function (id) { if (self.seen(id)) n++; });
+            return { seen: n, total: ids.length };
+        },
+        /** Für die Kachel: { season, seen, total } bzw. { done: true } oder null (noch nichts gesehen / Serie nie geöffnet) */
+        summary: function (sid) {
+            var e = this.load()[this.key(sid)];
+            if (!e || !e.s) return null;
+            var order = e.o || Object.keys(e.s), self = this, tot = 0, seenAll = 0, per = {};
+            order.forEach(function (s) { var c = self.count(e.s[s] || []); per[s] = c; tot += c.total; seenAll += c.seen; });
+            if (!seenAll || !tot) return null;
+            if (seenAll >= tot) return { done: true, seen: seenAll, total: tot };
+            var r = Resume.forSeries(sid), cur = r && per[String(r.season)] ? String(r.season) : null;
+            if (!cur) {
+                // Letzte Staffel mit Gesehenem – ist sie fertig, die nächste
+                for (var i = 0; i < order.length; i++) if (per[order[i]].seen) cur = order[i];
+                var ci = order.indexOf(cur);
+                if (per[cur].seen >= per[cur].total && ci < order.length - 1) cur = order[ci + 1];
+            }
+            return { done: false, season: cur, seen: per[cur].seen, total: per[cur].total };
         }
     };
 
@@ -2208,6 +2270,9 @@
      */
     var WhatsNew = {
         LIST: [
+            { v: 255, items: [
+                ['📊', 'Serien-Fortschritt', 'Bei Serien siehst du jetzt „Staffel 2: 5 von 10 gesehen“, fertige Staffeln bekommen einen Haken. Folge lange OK drücken: als gesehen oder ungesehen markieren.']
+            ] },
             { v: 248, items: [
                 ['📴', 'Fernseher aus? Die App hält an', 'Schaltest du nur den Fernseher aus, hält der Stick nach ein paar Sekunden an. Filme gehen beim Einschalten an derselben Stelle weiter.']
             ] },
@@ -4739,14 +4804,17 @@
         var e = null;
         if (item.type === 'movie') { e = Resume.forItem('movie', item); if (e && e.pos < 30) e = null; }
         else if (item.type === 'series') e = Resume.forSeries(item.id);
-        if (e && !e.next) img.appendChild(progressNode(Resume.part(e)));
+        var fresh = item.type === 'series' ? NewEps.fresh(item.id) : [];
+        // Serie: Balken = Fortschritt der aktuellen Staffel
+        var sp = item.type === 'series' ? SeriesProg.summary(item.id) : null;
+        if (sp && !sp.done) img.appendChild(progressNode(sp.seen / sp.total));
+        else if (e && !e.next) img.appendChild(progressNode(Resume.part(e)));
         // Film schon gesehen: Haken; Serie mit neuen Folgen: „+2 NEU“
-        if (item.type === 'movie' && !e && Seen.movie(item.id)) {
+        if ((item.type === 'movie' && !e && Seen.movie(item.id)) || (sp && sp.done && !fresh.length)) {
             node.classList.add('seen');
             img.appendChild(h('div', 'seen-chk', '✓'));
             img.appendChild(h('div', 'seen-lbl', 'GESEHEN'));
         }
-        var fresh = item.type === 'series' ? NewEps.fresh(item.id) : [];
         if (fresh.length) img.appendChild(h('div', 'new-badge', '+' + fresh.length + ' NEU'));
         node.appendChild(img);
         node.appendChild(h('div', 'title', item.name));
@@ -4755,6 +4823,9 @@
         if (fresh.length) {
             node.classList.add('has-sub');
             node.appendChild(h('div', 'sub new', 'Neu: ' + NewEps.label(fresh)));
+        } else if (sp) {
+            node.classList.add('has-sub');
+            node.appendChild(h('div', 'sub' + (sp.done ? ' done' : ''), sp.done ? '✓ Alle gesehen' : 'S' + sp.season + ' · ' + sp.seen + '/' + sp.total + ' gesehen'));
         } else if (e && item.type === 'series') {
             node.classList.add('has-sub');
             node.appendChild(h('div', 'sub', 'S' + e.season + ' F' + (e.num || '?') + ' · ' + Resume.leftText(e)));
@@ -7763,6 +7834,7 @@
                 self.info = res.info;
                 var ser = { id: s.id, name: s.name, logo: s.logo || '' };
                 self.episodes.forEach(function (e) { e.series = ser; });
+                try { SeriesProg.remember(s.id, self.episodes); } catch (e0) { /* egal */ }
                 if (self.episodes.length) self.season = self.episodes[0].season;
                 // Mit der Staffel weitermachen, in der man zuletzt war
                 var last = Resume.forSeries(s.id);
@@ -7845,8 +7917,11 @@
         var row = h('div', 'seasons hscroll');          // viele Staffeln: Leiste scrollt seitlich mit
         var newPerSeason = {};
         freshEps.forEach(function (f) { newPerSeason[f.s] = (newPerSeason[f.s] || 0) + 1; });
+        var perSeason = {};
+        this.episodes.forEach(function (e) { (perSeason[e.season] = perSeason[e.season] || []).push(String(e.id)); });
         seasons.forEach(function (n) {
-            var b = h('div', 'season' + (n === self.season ? ' active' : ''), 'Staffel ' + n);
+            var sc = SeriesProg.count(perSeason[n] || []), sDone = sc.total > 0 && sc.seen >= sc.total;
+            var b = h('div', 'season' + (n === self.season ? ' active' : '') + (sDone ? ' done' : ''), 'Staffel ' + n + (sDone ? ' ✓' : ''));
             if (newPerSeason[n]) b.appendChild(h('span', 'season-nb', String(newPerSeason[n])));
             focusable(b, 'season-' + n, function () {
                 self.season = n;
@@ -7856,6 +7931,23 @@
             row.appendChild(b);
         });
         d.appendChild(row);
+        // Fortschritt der gewählten Staffel: „Staffel 2: 5 von 10 gesehen“
+        var cur = SeriesProg.count(perSeason[this.season] || []);
+        if (cur.total) {
+            var sp = h('div', 's-prog' + (cur.seen >= cur.total ? ' done' : ''));
+            var spt = h('div', 's-prog-t');
+            spt.appendChild(document.createTextNode('Staffel ' + this.season + ': '));
+            spt.appendChild(h('b', null, cur.seen >= cur.total ? 'alle ' + cur.total + ' gesehen' : cur.seen + ' von ' + cur.total + ' gesehen'));
+            spt.appendChild(h('span', 's-prog-p', Math.round(cur.seen / cur.total * 100) + ' %'));
+            sp.appendChild(spt);
+            var spb = h('div', 's-prog-bar'), spi = h('i');
+            spi.style.width = Math.round(cur.seen / cur.total * 100) + '%';
+            spb.appendChild(spi);
+            sp.appendChild(spb);
+            sp.appendChild(h('div', 's-prog-hint', document.body.classList.contains('touch') ?'Folge lange drücken: gesehen / ungesehen' : 'Folge lange OK drücken: gesehen / ungesehen'));
+            d.appendChild(sp);
+            row.classList.add('with-prog');
+        }
         // Gewählte Staffel sichtbar machen (z. B. Staffel 11 ganz rechts)
         function moreRight() { row.classList.toggle('more', row.scrollLeft + row.clientWidth < row.scrollWidth - 4); }
         row.addEventListener('scroll', moreRight);
@@ -7904,6 +7996,14 @@
             n.appendChild(h('div', 'epc-t', num + '. ' + ep.name));
             n.appendChild(h('div', 'epc-s', sub || ' '));
             focusable(n, 'ep-' + ep.id, function () { playWithResume(all, all.indexOf(ep), 'episode'); }, 'episodes');
+            // Lange OK: von Hand als gesehen / ungesehen markieren (z. B. woanders geschaut)
+            n._onLong = function () {
+                var was = SeriesProg.seen(ep.id);
+                Seen.setEpisode(ep.id, !was);
+                toast('Folge ' + num + (was ? ' als ungesehen markiert' : ' als gesehen markiert'), 2500);
+                self.focusKey = 'ep-' + ep.id;
+                Nav.show(self);
+            };
             eps.appendChild(n);
         });
         d.appendChild(eps);
