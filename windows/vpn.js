@@ -39,7 +39,7 @@ class Vpn extends EventEmitter {
   addOvpnTail() {
     try {
       if (!this.ovpnLogFile || !fs.existsSync(this.ovpnLogFile)) { this.log('(kein OpenVPN-Protokoll)'); return; }
-      const t = fs.readFileSync(this.ovpnLogFile, 'utf8').split(/\r?\n/).filter((l) => l.trim() && !/password|passwort/i.test(l));
+      const t = fs.readFileSync(this.ovpnLogFile, 'utf8').split(/\r?\n/).filter((l) => l.trim() && !/username|password|passwort|MANAGEMENT: CMD/i.test(l));
       this.log('--- OpenVPN-Protokoll (Ende) ---');
       t.slice(-35).forEach((l) => this.log('  ' + l.replace(/^\w{3} \w{3}\s+\d+ [\d:]+ \d{4}\s*/, '').slice(0, 200)));
     } catch (e) { this.log('(OpenVPN-Protokoll nicht lesbar: ' + e.message + ')'); }
@@ -53,8 +53,10 @@ class Vpn extends EventEmitter {
       this.guard = setTimeout(() => {
         if (this.state !== 'verbindet') return;
         this.log('Zeitüberschreitung: nach 40 s keine Verbindung (Dienst: ' + (this.svcAnswer || 'keine Antwort') + ', Management: ' + (this.mgmtSeen ? 'verbunden' : 'nicht erreicht') + ')');
-        this.set('fehler', 'Keine Verbindung nach 40 Sekunden');
+        this.stopping = true;
         if (this.mgmt) this.send('signal SIGTERM');
+        // OpenVPN schreibt sein Protokoll beim Beenden zu Ende – kurz warten, dann melden
+        setTimeout(() => { this.stopping = false; this.dropAuth(); this.set('fehler', 'Keine Verbindung nach 40 Sekunden'); }, 2500);
       }, 40000);
     }
     if (state === this.state && (err || '') === this.error) return;
@@ -64,6 +66,7 @@ class Vpn extends EventEmitter {
   }
 
   log(line) {
+    if (/username|password|passwort/i.test(line)) return;          // keine Zugangsdaten ins Protokoll
     this.logLines.push(new Date().toLocaleTimeString('de-DE') + ' ' + line);
     if (this.logLines.length > 300) this.logLines.splice(0, this.logLines.length - 300);
   }
@@ -130,7 +133,10 @@ class Vpn extends EventEmitter {
     this.set('verbindet', '');
     // Bereinigte Konfiguration speichern
     const lines = s.conf.replace(/\r/g, '').split('\n').filter((l) => !BLOCK.test(l));
-    if (!lines.some((l) => /^\s*auth-user-pass\s*$/i.test(l)) && s.user) lines.push('auth-user-pass');
+    // Benutzername/Passwort: als Datei für OpenVPN (wird nach dem Verbinden gelöscht); „auth-user-pass“ ohne Datei aus der .ovpn entfernen
+    for (let i = lines.length - 1; i >= 0; i--) if (/^\s*auth-user-pass\s*$/i.test(lines[i])) lines.splice(i, 1);
+    this.authFile = path.join(this.dir, 'zugang.txt');
+    fs.writeFileSync(this.authFile, String(s.user || '').replace(/[\r\n]+/g, '') + '\n' + String(s.pass || '').replace(/[\r\n]+/g, '') + '\n', { encoding: 'utf8', mode: 0o600 });
     // Ältere Anbieter-Dateien (z. B. Surfshark) nutzen „cipher AES-256-CBC“: OpenVPN 2.6 braucht dafür eine Zusatzangabe
     const cipher = lines.map((l) => /^\s*cipher\s+(\S+)/i.exec(l)).filter(Boolean).map((m) => m[1].toUpperCase())[0];
     if (!lines.some((l) => /^\s*data-ciphers\s/i.test(l))) {
@@ -145,7 +151,7 @@ class Vpn extends EventEmitter {
     this.log('Starte OpenVPN über den Dienst (Konfiguration ' + lines.length + ' Zeilen, Server ' + (this.info().server || '?') + ')');
     this.ovpnLogFile = path.join(this.dir, 'openvpn.log');
     try { fs.unlinkSync(this.ovpnLogFile); } catch (e) { /* gab es nicht */ }
-    const options = '--config "' + cfg + '" --log "' + this.ovpnLogFile + '" --management 127.0.0.1 ' + this.port + ' stdin --management-query-passwords --management-hold --auth-retry interact --verb 3';
+    const options = '--config "' + cfg + '" --log "' + this.ovpnLogFile + '" --auth-user-pass "' + this.authFile + '" --auth-retry nointeract --management 127.0.0.1 ' + this.port + ' stdin --management-hold --verb 3';
     this.startViaService(options);
   }
 
@@ -164,6 +170,7 @@ class Vpn extends EventEmitter {
       this.svcAnswer = parts.slice(0, 3).join(' | ').replace(/\0/g, '').slice(0, 200);
       this.log('Dienst antwortet: ' + this.svcAnswer);
       buf = '';
+      if (this.stopping) return;                       // Beenden nach Zeitüberschreitung: Meldung kommt gleich
       if (code === 0) { this.log('OpenVPN gestartet (' + parts[2].replace(/\0/g, '') + ' ' + parseInt(parts[1], 16) + ')'); this.connectMgmt(0); }
       else {
         const why = (parts[1] || '').replace(/\0/g, '').trim();
@@ -201,6 +208,7 @@ class Vpn extends EventEmitter {
     m.on('close', () => {
       if (this.mgmt !== m) return;
       this.mgmt = null;
+      if (this.stopping) return;
       if (this.state !== 'fehler') this.set('aus', '');
     });
   }
@@ -218,17 +226,21 @@ class Vpn extends EventEmitter {
       return;
     }
     if (/^>PASSWORD:Verification Failed/.test(line)) { this.set('fehler', 'Benutzername oder Passwort für das VPN falsch'); this.send('signal SIGTERM'); return; }
-    if (/^>FATAL:/.test(line)) { this.set('fehler', line.slice(7)); return; }
+    if (/^>FATAL:/.test(line)) { this.dropAuth(); this.set('fehler', line.slice(7)); return; }
+    if (/AUTH_FAILED/.test(line)) { this.dropAuth(); this.set('fehler', 'Benutzername oder Passwort für das VPN falsch'); return; }
     if (/^(SUCCESS|ERROR):/.test(line)) this.log('Management: ' + line);
     if (/^>STATE:/.test(line)) {
       const st = (line.split(',')[1] || '').toUpperCase();
-      if (st === 'CONNECTED') this.set('an', '');
-      else if (st === 'EXITING') { if (this.state !== 'fehler') this.set('aus', ''); }
+      if (st === 'CONNECTED') { this.set('an', ''); this.dropAuth(); }
+      else if (st === 'EXITING') { if (this.state !== 'fehler' && !this.stopping) this.set('aus', ''); }
       else if (this.state !== 'fehler') this.set('verbindet', '');
     }
   }
 
+  dropAuth() { if (this.authFile) { try { fs.unlinkSync(this.authFile); } catch (e) { /* schon weg */ } } }
+
   disconnect() {
+    this.dropAuth();
     if (this.mgmt) { this.send('signal SIGTERM'); const m = this.mgmt; setTimeout(() => { try { m.destroy(); } catch (e) { /* egal */ } }, 3000); }
     if (this.svc) { const p = this.svc; this.svc = null; setTimeout(() => { try { p.destroy(); } catch (e) { /* egal */ } }, 3000); }
     this.set('aus', '');
