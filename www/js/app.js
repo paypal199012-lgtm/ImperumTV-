@@ -403,6 +403,7 @@
         clean: '<path d="M14.5 3.5l6 6M17.5 6.5L9 15"/><path d="M9 15l-5.5 1.5L5 21l5.5-2.5z"/><path d="M4 21l1-2.5M7 21.5l.5-2"/>',
         up: '<path d="M12 19V6M6 11l6-6 6 6"/><path d="M5 21h14"/>',
         lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
+        download: '<path d="M12 3.5v11.5M7 10.5l5 5 5-5"/><path d="M4.5 16.5v3h15v-3"/>',
         rec: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4" fill="currentColor"/>',
         gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.9 1.9M16.6 16.6l1.9 1.9M5.5 18.5l1.9-1.9M16.6 7.4l1.9-1.9"/><circle cx="12" cy="12" r="6.2"/>',
         clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
@@ -4925,6 +4926,10 @@
             var open = h('div', 'button', 'Website öffnen');
             buttons.appendChild(focusable(open, 'pl-open', function () { AB.openUrl(Device.link()); }, 'side'));
         }
+        if (Dl.available() && Dl.done().length) {        // ohne Internet: heruntergeladene Filme und Folgen trotzdem schauen
+            var dlb = h('div', 'button', '⬇  Downloads (' + Dl.done().length + ')');
+            buttons.appendChild(focusable(dlb, 'pl-dl', function () { Nav.push(new DownloadsScreen()); }, 'side'));
+        }
         col3.appendChild(buttons);
         sideIn.appendChild(col1);
         sideIn.appendChild(col2);
@@ -5503,6 +5508,140 @@
         }
     };
 
+    // =====================================================================
+    // Downloads: Filme und Folgen aufs Gerät laden und offline schauen (iPhone- und Android-App)
+    // Die App lädt selbst (auch im Hintergrund); die Oberfläche fragt nur die Liste ab.
+    // =====================================================================
+
+    var Dl = {
+        cache: null, cacheAt: 0,
+        available: function () { return !!(AB && AB.dlStart && AB.dlList); },
+        key: function (kind, id) { return (kind === 'episode' ? 'episode-' : 'movie-') + id; },
+        list: function () {
+            if (!this.available()) return [];
+            if (this.cache && Date.now() - this.cacheAt < 400) return this.cache;
+            var l = [];
+            try { l = JSON.parse(AB.dlList()) || []; } catch (e) { l = []; }
+            this.cache = l; this.cacheAt = Date.now();
+            return l;
+        },
+        fresh: function () { this.cache = null; return this.list(); },
+        get: function (kind, id) {
+            var k = this.key(kind, id), l = this.list();
+            for (var i = 0; i < l.length; i++) if (l[i].id === k) return l[i];
+            return null;
+        },
+        done: function () { return this.list().filter(function (d) { return d.status === 'done'; }); },
+        /** Adresse der fertigen Datei auf dem Gerät (oder '') */
+        localUrl: function (kind, id) {
+            if (!this.available() || (kind !== 'movie' && kind !== 'episode')) return '';
+            var d = this.get(kind, id);
+            if (!d || d.status !== 'done') return '';
+            try { return AB.dlFileUrl(d.id) || ''; } catch (e) { return ''; }
+        },
+        /** Film oder Folge laden. Rückgabe: true oder Fehlertext */
+        start: function (kind, it) {
+            if (!this.available()) return 'Downloads gibt es nur in der App fürs iPhone und für Android.';
+            if (!Api.acc) return 'Keine Wiedergabeliste geladen.';
+            var ser = it.series || {};
+            var url = kind === 'episode' ? Api.episodeUrl(it.id, it.ext) : Api.movieUrl(it.id, it.ext);
+            if (Api.acc.demo) url = this.demoUrl(kind, it.id);
+            if (/\.m3u8($|\?)/i.test(url)) return 'Dieser Titel kommt beim Anbieter nur als Live-Stream (HLS) und lässt sich nicht herunterladen.';
+            var ext = (url.split('?')[0].match(/\.([a-z0-9]{2,4})$/i) || [0, it.ext || 'mp4'])[1].toLowerCase();
+            var title = kind === 'episode' ? (ser.name || 'Serie') + ' · S' + it.season + ' F' + (it.num || '?') : it.name;
+            var res;
+            try {
+                res = AB.dlStart(JSON.stringify({
+                    id: this.key(kind, it.id), kind: kind, streamId: String(it.id), title: title,
+                    name: it.name || '', ext: ext, url: url, poster: it.img || it.logo || ser.logo || '',
+                    seriesId: ser.id ? String(ser.id) : '', seriesName: ser.name || '', season: it.season || 0, num: it.num || 0,
+                    min: it.min || 0, at: Date.now()
+                }));
+            } catch (e) { res = '!' + (e.message || 'Fehler'); }
+            this.cache = null;
+            if (res && String(res).charAt(0) === '!') return String(res).slice(1) || 'Download konnte nicht gestartet werden.';
+            return true;
+        },
+        /** Demo-Liste: eine ladbare MP4-Datei (die Demo spielt sonst teils HLS-Streams) */
+        demoUrl: function (kind, id) {
+            var m = kind === 'episode' ? Demo.movies[(Number(id) - 301) % Demo.movies.length] : Demo.movie(id);
+            var c = m ? [Demo.ALT[m.id], Demo.BACKUP[m.id]] : [];
+            for (var i = 0; i < c.length; i++) if (c[i] && /\.mp4$/i.test(c[i])) return c[i];
+            return 'https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4';
+        },
+        remove: function (id) { try { AB.dlDelete(id); } catch (e) { /* egal */ } this.cache = null; },
+        retry: function (id) { try { AB.dlRetry(id); } catch (e) { /* egal */ } this.cache = null; },
+        storage: function () { try { return JSON.parse(AB.dlStorage()); } catch (e) { return null; } },
+        pct: function (d) { return d.total > 0 ? Math.min(100, Math.floor(d.bytes / d.total * 100)) : 0; },
+        /** Kurzer Stand für Knöpfe und Listen */
+        stateText: function (d) {
+            if (!d) return '';
+            if (d.status === 'done') return 'Heruntergeladen · ' + Rec.sizeText(d.total || d.bytes);
+            if (d.status === 'failed') return 'Fehlgeschlagen' + (d.error ? ': ' + d.error : '');
+            if (d.status === 'queued') return 'Wartet …';
+            return 'Lädt ' + (d.total > 0 ? this.pct(d) + ' % · ' + Rec.sizeText(d.bytes) + ' von ' + Rec.sizeText(d.total) : Rec.sizeText(d.bytes));
+        },
+        /** Eintrag aus der Download-Liste als Film/Folge für den Player */
+        item: function (d) {
+            var it = { id: d.streamId, name: d.name || d.title, ext: d.ext, logo: d.poster, img: d.poster };
+            if (d.kind === 'episode') {
+                it.season = d.season; it.num = d.num;
+                it.series = { id: d.seriesId, name: d.seriesName, logo: d.poster };
+            }
+            return it;
+        },
+        /** Knopf auf der Film-Seite bzw. Auswahl bei einer Folge */
+        ask: function (kind, it, after) {
+            var self = this, d = this.get(kind, it.id), name = kind === 'episode' ? 'Folge ' + (it.num || '') : it.name;
+            function again() { if (after) after(); }
+            if (!d) {
+                var r = this.start(kind, it);
+                toast(r === true ? '⬇  Download gestartet: ' + name + ' – zu finden unter DOWNLOADS' : r, r === true ? 3500 : 6000);
+                again();
+                return;
+            }
+            if (d.status === 'done') {
+                Modal.open(d.title, 'Liegt auf diesem Gerät (' + Rec.sizeText(d.total || d.bytes) + ') – läuft auch ohne Internet.', [
+                    { label: '▶  Offline abspielen', primary: true, action: function () { self.play(d); } },
+                    { label: '🗑  Download löschen', action: function () { self.remove(d.id); toast('Download gelöscht'); again(); } },
+                    { label: 'Abbrechen' }
+                ]);
+            } else if (d.status === 'failed') {
+                Modal.open(d.title, this.stateText(d), [
+                    { label: '↻  Nochmal versuchen', primary: true, action: function () { self.retry(d.id); toast('Download startet neu'); again(); } },
+                    { label: 'Entfernen', action: function () { self.remove(d.id); again(); } },
+                    { label: 'Abbrechen' }
+                ]);
+            } else {
+                Modal.open(d.title, this.stateText(d), [
+                    { label: 'Weiterladen', primary: true },
+                    { label: '✕  Download abbrechen', action: function () { self.remove(d.id); toast('Download abgebrochen'); again(); } },
+                    { label: '⬇  Alle Downloads', action: function () { Nav.push(new DownloadsScreen()); } }
+                ]);
+            }
+        },
+        play: function (d) {
+            var kind = d.kind === 'episode' ? 'episode' : 'movie', it = this.item(d);
+            // Folgen derselben Serie, die auch heruntergeladen sind: nacheinander abspielen
+            var items = [it], index = 0;
+            if (kind === 'episode') {
+                items = this.done().filter(function (x) { return x.kind === 'episode' && x.seriesId === d.seriesId; })
+                    .sort(function (a, b) { return (a.season - b.season) || (a.num - b.num); }).map(this.item);
+                for (var i = 0; i < items.length; i++) if (String(items[i].id) === String(d.streamId)) index = i;
+                if (!items.length) items = [it];
+            }
+            // Immer im eingebauten Player (ein externer Player bekäme die Adresse aus dem Internet)
+            var cur = items[index], e = Resume.forItem(kind, cur);
+            function go(at) { Nav.push(new PlayerScreen(items, index, kind, at)); }
+            if (!e || e.next || e.pos < 30) { go(0); return; }
+            Modal.open(cur.name, 'Du hast bei ' + fmtTime(e.pos) + (e.dur ? ' von ' + fmtTime(e.dur) : '') + ' aufgehört.', [
+                { label: '▶  Fortsetzen ab ' + fmtTime(e.pos), primary: true, action: function () { go(e.pos); } },
+                { label: '↺  Von vorne', action: function () { go(0); } },
+                { label: 'Abbrechen' }
+            ]);
+        }
+    };
+
     function dateText(ms) {
         var d = new Date(ms), days = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
         var today = new Date(); today.setHours(0, 0, 0, 0);
@@ -5601,6 +5740,7 @@
             ['search', 'search', 'SUCHE', function () { Nav.push(new SearchScreen()); }]
         );
         if (Rec.available()) tileList.push(['recs', 'rec', 'AUFNAHMEN', function () { Nav.push(new RecordingsScreen()); }]);
+        if (Dl.available()) tileList.push(['downloads', 'download', 'DOWNLOADS', function () { Nav.push(new DownloadsScreen()); }]);
         if (!Profiles.isKids()) tileList.push(           // Kinder-Profil: keine Einstellungen, keine Listen
             ['football', 'ball', 'FUSSBALL', function () { Nav.push(new FootballScreen()); }],
             ['settings', 'gear', 'EINSTELLUNGEN', function () { Nav.push(new SettingsScreen()); }]
@@ -7748,6 +7888,22 @@
         }, 'buttons');
         body.appendChild(fav);
         body.appendChild(seenBtn);
+        if (Dl.available()) {
+            var dlm = Dl.get('movie', m.id);
+            var dlBtn = h('div', 'button', !dlm ? '⬇  Herunterladen' : dlm.status === 'done' ? '✓  Heruntergeladen' :
+                dlm.status === 'failed' ? '⚠  Download fehlgeschlagen' : '⬇  Lädt … ' + Dl.pct(dlm) + ' %');
+            focusable(dlBtn, 'dl', function () { Dl.ask('movie', m, function () { self.focusKey = 'dl'; if (Nav.top() === self) Nav.show(self); }); }, 'buttons');
+            body.appendChild(dlBtn);
+            clearInterval(this.dlTimer);
+            if (dlm && (dlm.status === 'loading' || dlm.status === 'queued')) {
+                this.dlTimer = setInterval(function () {
+                    var x = Dl.fresh() && Dl.get('movie', m.id);
+                    if (!x || !dlBtn.parentNode) { clearInterval(self.dlTimer); return; }
+                    dlBtn.textContent = x.status === 'done' ? '✓  Heruntergeladen' : x.status === 'failed' ? '⚠  Download fehlgeschlagen' : '⬇  Lädt … ' + Dl.pct(x) + ' %';
+                    if (x.status === 'done' || x.status === 'failed') clearInterval(self.dlTimer);
+                }, 2000);
+            }
+        }
         // Player-Wahl nur noch unter Einstellungen (Knopf hier ausgeblendet)
 
         var plot = h('div', 'plot', 'Infos werden geladen …');
@@ -7802,6 +7958,8 @@
         }
         if (!this.focusKey) this.focusKey = 'play';
     };
+
+    MovieDetailScreen.prototype.hide = function () { clearInterval(this.dlTimer); };
 
     // =====================================================================
     // Serien-Detailseite mit Staffeln und Folgen
@@ -7909,6 +8067,26 @@
         }, 'buttons');
         body.appendChild(fav);
         if (info.trailer) body.appendChild(Trailer.button(info.trailer, s.name));
+        if (Dl.available()) {
+            var seasonEps = this.episodes.filter(function (e) { return e.season === self.season; });
+            var missing = seasonEps.filter(function (e) { return !Dl.get('episode', e.id); });
+            var dlS = h('div', 'button', missing.length ? '⬇  Staffel ' + this.season + ' herunterladen' + (missing.length < seasonEps.length ? ' (' + missing.length + ' fehlen)' : '') :
+                '✓  Staffel ' + this.season + ' geladen');
+            focusable(dlS, 'sdl', function () {
+                if (!missing.length) { Nav.push(new DownloadsScreen()); return; }
+                Modal.open('Staffel ' + self.season + ' herunterladen?', missing.length + (missing.length === 1 ? ' Folge wird' : ' Folgen werden') +
+                    ' nacheinander aufs Gerät geladen. Danach kannst du sie ohne Internet schauen.', [
+                    { label: '⬇  Herunterladen', primary: true, action: function () {
+                        var bad = '';
+                        missing.forEach(function (e) { var r = Dl.start('episode', e); if (r !== true) bad = r; });
+                        toast(bad || '⬇  ' + missing.length + ' Folgen werden geladen – zu finden unter DOWNLOADS', bad ? 6000 : 4000);
+                        self.focusKey = 'sdl'; Nav.show(self);
+                    } },
+                    { label: 'Abbrechen' }
+                ]);
+            }, 'buttons');
+            body.appendChild(dlS);
+        }
         // Player-Wahl nur noch unter Einstellungen (Knopf hier ausgeblendet)
 
         // Staffeln
@@ -7944,7 +8122,7 @@
             spi.style.width = Math.round(cur.seen / cur.total * 100) + '%';
             spb.appendChild(spi);
             sp.appendChild(spb);
-            sp.appendChild(h('div', 's-prog-hint', document.body.classList.contains('touch') ?'Folge lange drücken: gesehen / ungesehen' : 'Folge lange OK drücken: gesehen / ungesehen'));
+            sp.appendChild(h('div', 's-prog-hint', (document.body.classList.contains('touch') ? 'Folge lange drücken: ' : 'Folge lange OK drücken: ') + (Dl.available() ? 'gesehen / herunterladen' : 'gesehen / ungesehen')));
             d.appendChild(sp);
             row.classList.add('with-prog');
         }
@@ -7993,16 +8171,29 @@
             } else if (e && e.next) {
                 img.appendChild(h('span', 'epc-tag next', '▶ Als Nächstes'));
             }
+            var dle = Dl.available() ? Dl.get('episode', ep.id) : null;
+            if (dle) img.appendChild(h('span', 'epc-dl' + (dle.status === 'done' ? ' ok' : ''), dle.status === 'done' ? '⬇ Offline' : dle.status === 'failed' ? '⚠' : '⬇ ' + Dl.pct(dle) + ' %'));
             n.appendChild(h('div', 'epc-t', num + '. ' + ep.name));
             n.appendChild(h('div', 'epc-s', sub || ' '));
             focusable(n, 'ep-' + ep.id, function () { playWithResume(all, all.indexOf(ep), 'episode'); }, 'episodes');
             // Lange OK: von Hand als gesehen / ungesehen markieren (z. B. woanders geschaut)
             n._onLong = function () {
                 var was = SeriesProg.seen(ep.id);
-                Seen.setEpisode(ep.id, !was);
-                toast('Folge ' + num + (was ? ' als ungesehen markiert' : ' als gesehen markiert'), 2500);
-                self.focusKey = 'ep-' + ep.id;
-                Nav.show(self);
+                function mark() {
+                    Seen.setEpisode(ep.id, !was);
+                    toast('Folge ' + num + (was ? ' als ungesehen markiert' : ' als gesehen markiert'), 2500);
+                    self.focusKey = 'ep-' + ep.id;
+                    Nav.show(self);
+                }
+                if (!Dl.available()) { mark(); return; }
+                var d0 = Dl.get('episode', ep.id);
+                Modal.open('Folge ' + num + '. ' + ep.name, d0 ? Dl.stateText(d0) : '', [
+                    { label: was ? '✕  Als ungesehen markieren' : '✓  Als gesehen markieren', primary: true, action: mark },
+                    { label: !d0 ? '⬇  Herunterladen' : d0.status === 'done' ? '⬇  Download: abspielen / löschen' : '⬇  Download …', action: function () {
+                        setTimeout(function () { Dl.ask('episode', ep, function () { self.focusKey = 'ep-' + ep.id; if (Nav.top() === self) Nav.show(self); }); }, 0);
+                    } },
+                    { label: 'Abbrechen' }
+                ]);
             };
             eps.appendChild(n);
         });
@@ -9104,6 +9295,78 @@
     };
 
     // =====================================================================
+    // Downloads
+    // =====================================================================
+
+    function DownloadsScreen() { this.timer = null; }
+    DownloadsScreen.prototype.render = function (root) {
+        var self = this;
+        root.appendChild(topbar('Downloads', Dl.available() ? 'Läuft auch ohne Internet · Filme und Folgen lädst du auf ihrer Seite herunter' : ''));
+        var box = h('div', 'recs scroll');
+        root.appendChild(box);
+        if (!Dl.available()) {
+            box.appendChild(h('div', 'empty-note', 'Downloads gibt es in der App fürs iPhone und für Android.'));
+            return;
+        }
+        var st = Dl.storage();
+        if (st) box.appendChild(h('div', 'rec-storage', 'Freier Speicher: ' + Rec.sizeText(st.free) + ' von ' + Rec.sizeText(st.total)));
+        var list = Dl.fresh().slice().sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
+        if (!list.length) {
+            box.appendChild(h('div', 'empty-note', 'Noch keine Downloads. Öffne einen Film und wähle „⬇ Herunterladen“. ' +
+                'Bei Serien lädst du eine ganze Staffel oder hältst eine Folge gedrückt.'));
+        }
+        var loading = list.filter(function (d) { return d.status === 'loading' || d.status === 'queued'; });
+        var groups = [
+            ['Wird geladen', loading],
+            ['Filme', list.filter(function (d) { return d.status === 'done' && d.kind !== 'episode'; })],
+            ['Serien', list.filter(function (d) { return d.status === 'done' && d.kind === 'episode'; })
+                .sort(function (a, b) { return String(a.seriesName).localeCompare(String(b.seriesName)) || (a.season - b.season) || (a.num - b.num); })],
+            ['Nicht geklappt', list.filter(function (d) { return d.status === 'failed'; })]
+        ];
+        groups.forEach(function (g) {
+            if (!g[1].length) return;
+            box.appendChild(h('div', 'search-section', g[0] + ' (' + g[1].length + ')'));
+            g[1].forEach(function (d) {
+                var row = h('div', 'rec-row dl-row ' + d.status);
+                if (d.poster) { var img = h('div', 'dl-img'); setBgImg(img, d.poster, 200); row.appendChild(img); }
+                var txt = h('div', 'dl-txt');
+                txt.appendChild(h('div', 'rec-title', d.title + (d.kind === 'episode' && d.name ? ' – ' + d.name : '')));
+                txt.appendChild(h('div', 'rec-info', Dl.stateText(d)));
+                if (d.status === 'loading' || d.status === 'queued') {
+                    var bar = h('div', 'dl-bar'), fill = h('i');
+                    fill.style.width = Dl.pct(d) + '%';
+                    bar.appendChild(fill); txt.appendChild(bar);
+                }
+                row.appendChild(txt);
+                focusable(row, 'dl-' + d.id, function () {
+                    if (d.status === 'done') {
+                        Modal.open(d.title, Dl.stateText(d), [
+                            { label: '▶  Abspielen', primary: true, action: function () { Dl.play(d); } },
+                            { label: '🗑  Löschen', action: function () { Dl.remove(d.id); toast('Download gelöscht'); self.focusKey = null; Nav.show(self); } },
+                            { label: 'Abbrechen' }
+                        ]);
+                    } else Dl.ask(d.kind, { id: d.streamId, name: d.name || d.title, num: d.num }, function () { self.focusKey = null; Nav.show(self); });
+                }, 'dllist');
+                box.appendChild(row);
+            });
+        });
+        // Fortschritt laufender Downloads aktualisieren
+        clearInterval(this.timer);
+        if (loading.length) {
+            this.timer = setInterval(function () {
+                if (Nav.top() !== self || Modal.node) return;
+                var sc = box.scrollTop;
+                self.focusKey = Focus.cur ? Focus.cur.getAttribute('data-key') : self.focusKey;
+                Nav.show(self);
+                var nb = $('.recs');
+                if (nb) nb.scrollTop = sc;
+            }, 2000);
+        }
+        if (!this.focusKey) { var f = $('.dl-row'); if (f) this.focusKey = f.getAttribute('data-key'); }
+    };
+    DownloadsScreen.prototype.hide = function () { clearInterval(this.timer); };
+
+    // =====================================================================
     // Suche: Sender, Filme und Serien
     // =====================================================================
 
@@ -10179,6 +10442,8 @@
     PlayerScreen.prototype.url = function () {
         var it = this.item();
         if (it.url) return it.url;          // z. B. eigene Aufnahme
+        var local = Dl.localUrl(this.kind, it.id);   // heruntergeladen: von der Datei auf dem Gerät (geht auch offline)
+        if (local) return local;
         if (this.altUrl && this.altFor === this.index) return this.altUrl;   // zweiter Versuch mit anderer Quelle/Format
         if (this.kind === 'live') return Api.liveUrl(it.id);
         if (this.kind === 'movie') return Api.movieUrl(it.id, it.ext);

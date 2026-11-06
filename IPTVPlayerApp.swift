@@ -8,7 +8,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         CrashReport.install()          // Abstürze an den Admin melden
+        Downloads.shared.start()       // Downloads aus dem Hintergrund weiterführen
         return true
+    }
+
+    /// Hintergrund-Downloads fertig, während die App nicht lief
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
+                     completionHandler: @escaping () -> Void) {
+        Downloads.shared.backgroundCompletion = completionHandler
+        Downloads.shared.start()
     }
 
     func application(
