@@ -35,7 +35,18 @@ class Vpn extends EventEmitter {
     return { state: this.state, error: this.error, has: !!conf.trim(), user: s.user || '', server: m ? m[1] : '', auto: !!s.auto, installed: this.installed() };
   }
 
+  /** Letzte Zeilen aus dem eigenen Protokoll von OpenVPN (bei Fehlern, für die Admin-Seite) */
+  addOvpnTail() {
+    try {
+      if (!this.ovpnLogFile || !fs.existsSync(this.ovpnLogFile)) { this.log('(kein OpenVPN-Protokoll)'); return; }
+      const t = fs.readFileSync(this.ovpnLogFile, 'utf8').split(/\r?\n/).filter((l) => l.trim() && !/password|passwort/i.test(l));
+      this.log('--- OpenVPN-Protokoll (Ende) ---');
+      t.slice(-35).forEach((l) => this.log('  ' + l.replace(/^\w{3} \w{3}\s+\d+ [\d:]+ \d{4}\s*/, '').slice(0, 200)));
+    } catch (e) { this.log('(OpenVPN-Protokoll nicht lesbar: ' + e.message + ')'); }
+  }
+
   set(state, err) {
+    if (state === 'fehler' && this.state !== 'fehler') this.addOvpnTail();
     // Wächter: steht die Verbindung nach 40 s nicht, Fehler melden (mit Protokoll an die Admin-Seite) statt ewig „verbindet“
     clearTimeout(this.guard);
     if (state === 'verbindet' && !this.settingUp) {
@@ -120,13 +131,21 @@ class Vpn extends EventEmitter {
     // Bereinigte Konfiguration speichern
     const lines = s.conf.replace(/\r/g, '').split('\n').filter((l) => !BLOCK.test(l));
     if (!lines.some((l) => /^\s*auth-user-pass\s*$/i.test(l)) && s.user) lines.push('auth-user-pass');
+    // Ältere Anbieter-Dateien (z. B. Surfshark) nutzen „cipher AES-256-CBC“: OpenVPN 2.6 braucht dafür eine Zusatzangabe
+    const cipher = lines.map((l) => /^\s*cipher\s+(\S+)/i.exec(l)).filter(Boolean).map((m) => m[1].toUpperCase())[0];
+    if (!lines.some((l) => /^\s*data-ciphers\s/i.test(l))) {
+      lines.push('data-ciphers AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305' + (cipher && !/GCM|CHACHA/.test(cipher) ? ':' + cipher : ':AES-256-CBC'));
+      if (cipher && !/GCM|CHACHA/.test(cipher)) lines.push('data-ciphers-fallback ' + cipher);
+    }
     const cfg = path.join(this.dir, 'imperumtv.ovpn');
     fs.writeFileSync(cfg, lines.join('\r\n') + '\r\n', 'utf8');
     this.port = 25340 + Math.floor(Math.random() * 400);
     this.mpass = require('crypto').randomBytes(12).toString('hex');
     this.svcAnswer = ''; this.mgmtSeen = false;
     this.log('Starte OpenVPN über den Dienst (Konfiguration ' + lines.length + ' Zeilen, Server ' + (this.info().server || '?') + ')');
-    const options = '--config "' + cfg + '" --management 127.0.0.1 ' + this.port + ' stdin --management-query-passwords --management-hold --auth-retry interact --verb 3';
+    this.ovpnLogFile = path.join(this.dir, 'openvpn.log');
+    try { fs.unlinkSync(this.ovpnLogFile); } catch (e) { /* gab es nicht */ }
+    const options = '--config "' + cfg + '" --log "' + this.ovpnLogFile + '" --management 127.0.0.1 ' + this.port + ' stdin --management-query-passwords --management-hold --auth-retry interact --verb 3';
     this.startViaService(options);
   }
 
@@ -155,6 +174,7 @@ class Vpn extends EventEmitter {
     p.on('error', (e) => {
       if (this.svc !== p) return;
       this.svc = null;
+      if (this.state !== 'verbindet') return;          // schon getrennt/Fehler gemeldet (z. B. EPIPE nach dem Beenden)
       this.set('fehler', 'OpenVPN-Dienst nicht erreichbar (' + e.code + ') – Windows einmal neu starten');
     });
     p.on('close', () => { if (this.svc === p) this.svc = null; });

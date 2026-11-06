@@ -9549,7 +9549,7 @@
         var status = i.state === 'an' ? 'Verbunden' + (place ? ' · ' + place : '') : i.state === 'verbindet' ? 'Verbindet …' :
             i.state === 'fehler' ? 'Fehler: ' + (i.error || 'unbekannt') : 'Getrennt';
         var on = i.state === 'an' || i.state === 'verbindet';
-        Modal.open('VPN', status + (i.server ? '\nServer: ' + i.server : '') + '\nÜber das VPN läuft nur ImperumTV.', [
+        Modal.open('VPN', status + (i.server ? '\nServer: ' + i.server : '') + (window.__imptvWindows ? '\nSolange das VPN verbunden ist, läuft der ganze PC darüber.' : '\nÜber das VPN läuft nur ImperumTV.'), [
             { label: on ? 'Trennen' : 'Verbinden', primary: true, action: function () { OVpn.toggle(); toast(on ? 'VPN wird getrennt …' : 'VPN verbindet …'); } },
             { label: 'Beim Start verbinden: ' + (i.auto ? 'An' : 'Aus'), action: function () {
                 try { AB.ovpnSetAutoStart(!i.auto); } catch (e) { /* egal */ }
