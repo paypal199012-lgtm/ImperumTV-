@@ -9297,6 +9297,14 @@
         });
 
         col('clock', 'ANZEIGE & FAMILIE');
+        // Windows-PC: im Fenster oder im Vollbild (F11 schaltet auch um)
+        if (AB && AB.getFullscreen && AB.setFullscreen) {
+            row('fullscreen', 'tv', 'Vollbild', AB.getFullscreen() ? 'An' : 'Fenster · F11', function (v) {
+                var on = !AB.getFullscreen();
+                AB.setFullscreen(on);
+                v.textContent = on ? 'An' : 'Fenster · F11';
+            });
+        }
         row('genrescan', 'list', 'Genres sammeln', GenreScan.status(), function (v) {
             var on = !GenreScan.on();
             Storage.set('genreScan', on);

@@ -21,6 +21,7 @@
     "copyright": "ImperumTV",
     "files": [
       "main.js",
+      "vpn.js",
       "preload.js",
       "mpv.js",
       "icon.ico",
@@ -33,6 +34,13 @@
         "to": "mpv",
         "filter": [
           "**/*"
+        ]
+      },
+      {
+        "from": "openvpn",
+        "to": "openvpn",
+        "filter": [
+          "OpenVPN.msi"
         ]
       }
     ],

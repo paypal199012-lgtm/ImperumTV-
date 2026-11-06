@@ -8,6 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const { execSync, spawn } = require('child_process');
 const Mpv = require('./mpv');
+const Vpn = require('./vpn');
 
 const UPDATE_REPO = 'paypal199012-lgtm/ImperumTV-';
 const UPDATE_TAG = 'windows';
@@ -66,41 +67,75 @@ function hwndOf(win) {
 
 function toUi(fn, ...args) { if (uiWin && !uiWin.isDestroyed()) uiWin.webContents.send('js', fn, args); }
 
+// ---------- Fenster ----------
+// Fenster-Modus: normales Windows-Fenster (verschieben, Größe ändern, minimieren). Vollbild: F11 oder in den Einstellungen.
+
+function windowBounds() {
+  const wa = screen.getPrimaryDisplay().workArea;
+  const b = settings.bounds;
+  if (b && b.width >= 640 && b.height >= 360 && screen.getAllDisplays().some((d) => {
+    const r = d.workArea; return b.x < r.x + r.width - 50 && b.x + b.width > r.x + 50 && b.y >= r.y - 10 && b.y < r.y + r.height - 50;
+  })) return b;
+  const w = Math.min(1280, Math.round(wa.width * 0.8)), h = Math.round(w * 9 / 16);
+  return { x: wa.x + Math.round((wa.width - w) / 2), y: wa.y + Math.round((wa.height - h) / 2), width: w, height: h };
+}
+
+function setFullscreen(full) {
+  if (!videoWin) return;
+  settings.fullscreen = !!full; saveSettings(settings);
+  videoWin.setFullScreen(!!full);
+  if (uiWin && !uiWin.isDestroyed()) uiWin.webContents.send('fullscreen', !!full);
+}
+
 function createWindows() {
-  const d = screen.getPrimaryDisplay();
   const icon = path.join(__dirname, 'icon.ico');
+  const b = windowBounds();
   videoWin = new BrowserWindow({
-    x: d.bounds.x, y: d.bounds.y, width: d.bounds.width, height: d.bounds.height,
-    frame: false, backgroundColor: '#000000', show: false, fullscreen: settings.windowed !== true, title: 'ImperumTV',
+    x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 640, minHeight: 360,
+    backgroundColor: '#000000', show: false, title: 'ImperumTV', autoHideMenuBar: true,
     icon: fs.existsSync(icon) ? icon : undefined, webPreferences: { sandbox: true }
   });
   videoWin.setMenu(null);
+  if (settings.maximized) videoWin.maximize();
   videoWin.loadURL('data:text/html,<body style="background:#000;margin:0"></body>');
 
   uiWin = new BrowserWindow({
     parent: videoWin, frame: false, transparent: true, backgroundColor: '#00000000', show: false, skipTaskbar: true,
-    resizable: false, movable: false, minimizable: false, maximizable: false, hasShadow: false, title: 'ImperumTV',
+    resizable: false, movable: false, minimizable: false, maximizable: false, fullscreenable: false, hasShadow: false, title: 'ImperumTV',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'), contextIsolation: false, nodeIntegration: false, sandbox: false,
       webSecurity: false, backgroundThrottling: false, spellcheck: false
     }
   });
   uiWin.setMenu(null);
-  const sync = () => { if (uiWin && !uiWin.isDestroyed() && videoWin && !videoWin.isDestroyed()) uiWin.setBounds(videoWin.getContentBounds()); };
-  ['resize', 'move', 'enter-full-screen', 'leave-full-screen', 'maximize', 'unmaximize', 'restore'].forEach((e) => videoWin.on(e, () => { sync(); setTimeout(sync, 200); }));
-  videoWin.on('focus', () => { if (uiWin && !uiWin.isDestroyed()) uiWin.focus(); });
+  // Oberfläche liegt genau über der Bildfläche des Fensters (ohne Titelleiste)
+  const sync = () => { if (uiWin && !uiWin.isDestroyed() && videoWin && !videoWin.isDestroyed() && !videoWin.isMinimized()) uiWin.setBounds(videoWin.getContentBounds()); };
+  videoWin.on('enter-full-screen', () => uiWin && !uiWin.isDestroyed() && uiWin.webContents.send('fullscreen', true));
+  videoWin.on('leave-full-screen', () => uiWin && !uiWin.isDestroyed() && uiWin.webContents.send('fullscreen', false));
+  ['resize', 'move', 'moved', 'resized', 'enter-full-screen', 'leave-full-screen', 'maximize', 'unmaximize', 'restore'].forEach((e) => videoWin.on(e, () => { sync(); setTimeout(sync, 150); }));
+  // Klick auf die Titelleiste: danach die Tastatur wieder an die Oberfläche geben (nicht mitten im Verschieben)
+  let moving = false;
+  videoWin.on('will-move', () => { moving = true; });
+  videoWin.on('will-resize', () => { moving = true; });
+  const refocus = () => { moving = false; if (uiWin && !uiWin.isDestroyed()) uiWin.focus(); };
+  videoWin.on('moved', refocus); videoWin.on('resized', refocus);
+  videoWin.on('focus', () => setTimeout(() => { if (!moving && uiWin && !uiWin.isDestroyed() && videoWin && videoWin.isFocused()) uiWin.focus(); }, 300));
+  // Größe/Ort merken
+  const remember = () => {
+    if (!videoWin || videoWin.isFullScreen() || videoWin.isMinimized()) return;
+    settings.maximized = videoWin.isMaximized();
+    if (!settings.maximized) settings.bounds = videoWin.getBounds();
+    saveSettings(settings);
+  };
+  videoWin.on('moved', remember); videoWin.on('resized', remember); videoWin.on('maximize', remember); videoWin.on('unmaximize', remember);
+  videoWin.on('close', remember);
   videoWin.on('closed', () => { videoWin = null; if (!quitting) app.quit(); });
   uiWin.on('closed', () => { uiWin = null; if (!quitting) app.quit(); });
 
-  // F11: Vollbild an/aus · Alt+F4 beendet
+  // F11 / Alt+Enter: Vollbild an/aus · Esc im Vollbild bleibt „Zurück“ der App · Alt+F4 beendet
   uiWin.webContents.on('before-input-event', (ev, input) => {
-    if (input.type === 'keyDown' && input.key === 'F11') {
-      ev.preventDefault();
-      const full = !videoWin.isFullScreen();
-      settings.windowed = !full; saveSettings(settings);
-      videoWin.setFullScreen(full);
-      if (!full) { const wa = screen.getDisplayMatching(videoWin.getBounds()).workArea; videoWin.setBounds(wa); }
-    }
+    if (input.type !== 'keyDown') return;
+    if (input.key === 'F11' || (input.key === 'Enter' && input.alt)) { ev.preventDefault(); setFullscreen(!videoWin.isFullScreen()); }
   });
   // Links aus der Oberfläche (z. B. Website) im normalen Browser öffnen
   uiWin.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/i.test(url)) shell.openExternal(url); return { action: 'deny' }; });
@@ -112,16 +147,43 @@ function createWindows() {
   } else uiWin.loadFile(path.join(__dirname, 'www', 'index.html'));
   videoWin.once('ready-to-show', () => {
     videoWin.show();
-    if (settings.windowed) videoWin.setBounds(screen.getPrimaryDisplay().workArea);
+    if (settings.fullscreen || SELFTEST) videoWin.setFullScreen(true);
     sync(); uiWin.show(); uiWin.focus();
+    setTimeout(sync, 300);
     mpv = new Mpv(mpvPath(), hwndOf(videoWin), { buffer: settings.buffer || 'normal', userAgent: 'ImperumTV/1.0 (Windows)' });
     mpv.on('ev', (name, a) => {
       if (SELFTEST && name !== 'time') testLog('mpv: ' + name + (a !== undefined && a !== null ? ' ' + a : ''));
       if (uiWin && !uiWin.isDestroyed()) uiWin.webContents.send('ev', name, a);
     });
     mpv.on('state', (s) => { if (uiWin && !uiWin.isDestroyed()) uiWin.webContents.send('state', s); });
+    // VPN: „beim Start verbinden“
+    setTimeout(() => { if (vpn.store.get().auto && vpn.info().has && vpn.installed()) vpn.connect(); }, 1500);
   });
 }
+
+// ---------- VPN ----------
+
+const { safeStorage } = require('electron');
+const vpnStore = {
+  get() {
+    const v = Object.assign({}, settings.vpn || {});
+    if (v.passEnc) { try { v.pass = safeStorage.decryptString(Buffer.from(v.passEnc, 'base64')); } catch (e) { v.pass = ''; } }
+    delete v.passEnc;
+    return v;
+  },
+  set(o) {
+    const v = Object.assign({}, o);
+    try { if (v.pass && safeStorage.isEncryptionAvailable()) { v.passEnc = safeStorage.encryptString(v.pass).toString('base64'); delete v.pass; } } catch (e) { /* bleibt so */ }
+    settings.vpn = v; saveSettings(settings);
+  }
+};
+let vpn = null;
+app.whenReady().then(() => {
+  vpn = new Vpn(path.join(app.getPath('userData'), 'vpn'), path.join(process.resourcesPath || __dirname, 'openvpn'), vpnStore);
+  vpn.on('change', (state, err) => {
+    if (uiWin && !uiWin.isDestroyed()) { uiWin.webContents.send('vpn', vpn.info()); toUi('__androidOvpn', state, err); }
+  });
+});
 
 // ---------- Befehle der Oberfläche ----------
 
@@ -130,7 +192,8 @@ ipcMain.on('info', (e) => {
   e.returnValue = {
     version: versionNumber(), versionText: app.getVersion(), device: 'Windows-PC · ' + windowsName(), id: machineId(),
     maxH: Math.round(Math.max(d.size.height, d.size.width * 9 / 16) * (d.scaleFactor || 1)),
-    memMb: Math.round(os.totalmem() / 1048576), buffer: settings.buffer || 'normal'
+    memMb: Math.round(os.totalmem() / 1048576), buffer: settings.buffer || 'normal',
+    vpn: vpn ? vpn.info() : {}, fullscreen: !!settings.fullscreen
   };
 });
 
@@ -154,9 +217,15 @@ ipcMain.on('ab', (e, m, a) => {
     case 'openUrl': if (/^https?:/i.test(a[0] || '')) shell.openExternal(a[0]); break;
     case 'exit': app.quit(); break;
     case 'checkLatest': checkLatest(); break;
+    case 'setFullscreen': setFullscreen(!!a[0]); break;
+    case 'ovpnSetProfile': if (vpn) { vpn.setProfile(a[0], a[1], a[2]); e.sender.send('vpn', vpn.info()); } break;
+    case 'ovpnConnect': if (vpn) { if (a[0]) vpn.connect(); else vpn.disconnect(); } break;
+    case 'ovpnSetAutoStart': if (vpn) { vpn.setAuto(a[0]); e.sender.send('vpn', vpn.info()); } break;
     case 'downloadUpdate': downloadUpdate(); break;
   }
 });
+
+ipcMain.on('vpnlog', (e) => { e.returnValue = vpn ? vpn.logLines.join('\n') : ''; });
 
 /** Stick-Zustand für die Admin-Seite (Speicher, Arbeitsspeicher, Tempo, Laufzeit) */
 ipcMain.on('health', (e) => {
@@ -215,5 +284,5 @@ async function downloadUpdate() {
 
 app.on('second-instance', () => { if (videoWin) { if (videoWin.isMinimized()) videoWin.restore(); videoWin.focus(); } });
 app.whenReady().then(createWindows);
-app.on('before-quit', () => { quitting = true; if (mpv) mpv.quit(); });
+app.on('before-quit', () => { quitting = true; if (mpv) mpv.quit(); if (vpn && vpn.state !== 'aus') vpn.disconnect(); });
 app.on('window-all-closed', () => app.quit());

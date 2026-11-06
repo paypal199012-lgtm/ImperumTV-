@@ -11,12 +11,21 @@ function P(m) { return function () { post(m, Array.prototype.slice.call(argument
 function list(kind) { try { return JSON.parse(kind === 'text' ? S.text : S.audio) || []; } catch (e) { return []; } }
 
 ipcRenderer.on('state', (e, s) => { Object.assign(S, s); });
+ipcRenderer.on('vpn', (e, v) => { S.vpn = v || {}; });
+ipcRenderer.on('fullscreen', (e, on) => { S.full = !!on; });
+S.vpn = info.vpn || {};
+S.full = !!info.fullscreen;
 ipcRenderer.on('ev', (e, name, a) => {
   if (name === 'ready' || name === 'buffer') S.playing = true;
   if (name === 'end' || name === 'error') S.playing = false;
   if (window.__androidPlayerEvent) window.__androidPlayerEvent(name, a);
 });
-ipcRenderer.on('js', (e, fn, args) => { if (typeof window[fn] === 'function') window[fn].apply(window, args || []); });
+
+ipcRenderer.on('js', (e, fn, args) => {
+  // VPN-Stand sofort mitziehen (die Oberfläche fragt danach ovpnInfo() ab)
+  if (fn === '__androidOvpn' && S.vpn) { S.vpn.state = args[0]; S.vpn.error = args[1] || ''; }
+  if (typeof window[fn] === 'function') window[fn].apply(window, args || []);
+});
 
 window.AndroidBridge = {
   // Player
@@ -65,6 +74,18 @@ window.AndroidBridge = {
   openUrl: P('openUrl'),
   openYoutube: function (id) { post('openUrl', ['https://www.youtube.com/watch?v=' + encodeURIComponent(id)]); return true; },
   exit: P('exit'),
+
+  // Fenster / Vollbild (F11)
+  getFullscreen: function () { return !!S.full; },
+  setFullscreen: function (on) { S.full = !!on; post('setFullscreen', [!!on]); },
+
+  // VPN mit der eigenen .ovpn-Datei (wie auf dem Stick)
+  ovpnAvailable: function () { return true; },
+  ovpnInfo: function () { return JSON.stringify(S.vpn || {}); },
+  ovpnSetProfile: function (conf, user, pass) { post('ovpnSetProfile', [conf, user, pass]); },
+  ovpnConnect: function (on) { if (on && S.vpn) S.vpn.state = 'verbindet'; post('ovpnConnect', [!!on]); },
+  ovpnSetAutoStart: function (on) { if (S.vpn) S.vpn.auto = !!on; post('ovpnSetAutoStart', [!!on]); },
+  ovpnLog: function () { try { return ipcRenderer.sendSync('vpnlog') || ''; } catch (e) { return ''; } },
 
   // Updates (Release „windows“ bei GitHub)
   checkLatest: function () { post('checkLatest'); },

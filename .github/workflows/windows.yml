@@ -45,6 +45,22 @@ jobs:
           if (!(Test-Path mpv/mpv.exe)) { Get-ChildItem -Recurse mpv | Select-Object -First 30; throw "mpv.exe fehlt" }
           Get-ChildItem mpv | Select-Object Name, Length
 
+      - name: OpenVPN für den VPN holen
+        shell: pwsh
+        run: |
+          cd windows
+          New-Item -ItemType Directory -Force openvpn | Out-Null
+          gh release download --repo OpenVPN/openvpn-build --pattern "OpenVPN-*-amd64.msi" --dir openvpn 2>$null
+          if (!(Get-ChildItem openvpn -Filter *.msi -ErrorAction SilentlyContinue)) {
+            foreach ($v in '2.6.17-I001', '2.6.16-I001', '2.6.15-I001', '2.6.14-I001', '2.6.13-I001') {
+              try { Invoke-WebRequest "https://swupdate.openvpn.org/community/releases/OpenVPN-$v-amd64.msi" -OutFile "openvpn/OpenVPN-$v-amd64.msi" -ErrorAction Stop; break } catch { Write-Host "nicht da: $v" }
+            }
+          }
+          $m = Get-ChildItem openvpn -Filter *.msi | Select-Object -First 1
+          if (!$m) { throw "OpenVPN.msi nicht gefunden" }
+          Write-Host "OpenVPN: $($m.Name) ($($m.Length) Bytes)"
+          Move-Item $m.FullName openvpn/OpenVPN.msi -Force
+
       - name: Bauen
         shell: pwsh
         run: |
