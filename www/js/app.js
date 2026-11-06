@@ -10408,9 +10408,11 @@
         onReady: function (scr) {
             if (!this.active() || scr.kind !== 'live') return;
             if (this.lv && !this.lv.ready && this.lv.key === this.curKey) { this.lv.ready = Date.now(); return; }
-            // Neuer Sender oder eigener Neustart (z. B. Ersatzsender): alle neu abgleichen (höchstens alle 30 s)
-            var self = this, first = !this.lv || this.lv.key !== this.curKey;
-            setTimeout(function () { self.liveSync(null, first ? 3000 : 30000); }, 1500);
+            // Nur bei einem neuen Sender automatisch abgleichen. Nach einem eigenen Neustart (Ersatzsender, Hänger) nicht:
+            // sonst verbinden sich alle Geräte immer wieder gleichzeitig neu, und manche Anbieter lehnen dann ab
+            if (this.lv && this.lv.key === this.curKey) return;
+            var self = this;
+            setTimeout(function () { self.liveSync(null, 3000); }, 1500);
         },
         /** Android meldet das erste wirklich gezeichnete Bild: genauer als „bereit“ */
         onFrame: function () {
