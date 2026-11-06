@@ -161,21 +161,15 @@ final class AppStore: ObservableObject {
 
     var websiteURL: URL? { URL(string: RemoteConfig.website) }
 
-    /// Noch nie geprüft (z. B. neues Gerät ohne Internet) zählt als aktiv
-    var isLicenseActive: Bool { license?.isActive ?? true }
-
-    var isTrial: Bool { license?.isTrial ?? false }
-
+    /// ImperumTV ist kostenlos: keine Testphase, keine Aktivierung
     var licenseText: String {
-        if let license = license { return license.text }
         if registered { return "Dein Gerät ist angemeldet." }
         return remoteError == nil ? "Gerät wird angemeldet …" : "Gerät noch nicht verbunden."
     }
 
-    /// Lädt Testphase und Wiedergabelisten von der Website
+    /// Lädt Gerätestatus und Wiedergabelisten von der Website
     @discardableResult
     func loadRemote() async -> Bool {
-        let wasActive = isLicenseActive
         do {
             if !registered {
                 do {
@@ -197,10 +191,6 @@ final class AppStore: ObservableObject {
             let lists = try await listsReq
             if lists != remoteLists { remoteLists = lists }
             remoteError = nil
-            if !wasActive && isLicenseActive {
-                // Gerade bezahlt oder freigeschaltet: mit der letzten Liste weitermachen
-                Task { await self.resumeAfterActivation() }
-            }
             return true
         } catch {
             remoteError = error.localizedDescription
@@ -255,7 +245,7 @@ final class AppStore: ObservableObject {
         }
         started = true
 
-        // Läuft die Testphase während der Nutzung ab: alle 10 Minuten nachsehen
+        // Alle 10 Minuten Wiedergabelisten mit der Website abgleichen
         watcher?.cancel()
         watcher = Task { [weak self] in
             while !Task.isCancelled {
@@ -264,14 +254,6 @@ final class AppStore: ObservableObject {
                 await self.loadRemote()
             }
         }
-    }
-
-    private func resumeAfterActivation() async {
-        guard let id = playlistId, let playlist = (remoteLists ?? []).first(where: { $0.id == id }) else {
-            showSetup = true
-            return
-        }
-        if channels.isEmpty { await connect(playlist) }
     }
 
     // MARK: - Favoriten

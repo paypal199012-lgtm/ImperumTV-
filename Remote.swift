@@ -6,10 +6,8 @@ import Foundation
 enum RemoteConfig {
     static let supabaseURL = "https://dprwastkfqhisvsjrvrv.supabase.co"
     static let supabaseKey = "sb_publishable_LZau0nT_CfDUYqrzlQfM2Q_61r7g-K3"
-    /// Website, auf der man Wiedergabelisten einträgt und das Gerät aktiviert
+    /// Website, auf der man Wiedergabelisten einträgt
     static let website = "https://holy-mode-e130.imperumtv.workers.dev/"
-    /// Nur zur Anzeige, der echte Preis steht in der Stripe-Funktion
-    static let price = "9,99 €"
 
     static var websiteHost: String {
         var s = website

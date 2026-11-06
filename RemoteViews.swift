@@ -60,14 +60,8 @@ struct DevicePanel: View {
             if showLicense {
                 Text(store.licenseText)
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(store.isTrial ? Theme.goldLight : .white)
+                    .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
-                if store.isTrial {
-                    Text("Danach \(RemoteConfig.price) einmalig auf der Website aktivieren.")
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.8))
-                        .multilineTextAlignment(.center)
-                }
             }
             Text(RemoteConfig.websiteHost)
                 .font(.caption.weight(.semibold))
@@ -291,115 +285,6 @@ struct PlaylistsView: View {
             }
             .buttonStyle(.bordered)
             .disabled(refreshing)
-        }
-    }
-}
-
-// MARK: - Testphase abgelaufen
-
-struct LockView: View {
-    @EnvironmentObject private var store: AppStore
-    @State private var checking = false
-    @State private var note: String?
-
-    var body: some View {
-        GeometryReader { geo in
-            HStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Image(systemName: "crown.fill")
-                            .font(.system(size: 34))
-                            .foregroundStyle(Theme.gold)
-                        Text("Deine Testphase ist abgelaufen")
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(.white)
-                        Text("Aktiviere ImperumTV für \(RemoteConfig.price) einmalig. Danach kannst du die App auf diesem Gerät unbegrenzt nutzen, ohne Abo.")
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.9))
-                        VStack(alignment: .leading, spacing: 6) {
-                            step(1, "Tippe auf „Jetzt aktivieren“. Die Website öffnet sich mit deinen Gerätedaten.")
-                            step(2, "Bezahle \(RemoteConfig.price) per PayPal und tippe auf der Website auf „Ich habe bezahlt“.")
-                            step(3, "Sobald die Zahlung bestätigt ist, geht es hier von selbst weiter (meist innerhalb von 24 Stunden).")
-                        }
-                        Text("Deine Wiedergabelisten bleiben gespeichert.")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.75))
-                        if let note = note {
-                            Text(note)
-                                .font(.footnote)
-                                .foregroundStyle(Theme.goldLight)
-                        }
-                    }
-                    .padding(24)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(width: geo.size.width * 0.6)
-
-                Rectangle()
-                    .fill(Color.white.opacity(0.35))
-                    .frame(width: 1)
-
-                ScrollView {
-                    VStack(spacing: 10) {
-                        DevicePanel(headline: "Oder scanne den QR-Code mit einem anderen Handy.", showLicense: false)
-                        if let link = store.deviceLink {
-                            Link(destination: link) {
-                                Text("Jetzt aktivieren – \(RemoteConfig.price)")
-                                    .font(.subheadline.weight(.semibold))
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                        Button {
-                            Task { await check(manual: true) }
-                        } label: {
-                            HStack(spacing: 6) {
-                                if checking { ProgressView().controlSize(.small) }
-                                Text("Ich habe bezahlt").font(.subheadline)
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(checking)
-                    }
-                    .padding(.vertical, 14)
-                    .padding(.horizontal, 12)
-                    .frame(maxWidth: .infinity)
-                }
-                .background(Color.black.opacity(0.45))
-            }
-        }
-        .background(GoldBackground(dim: 0.35))
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 10_000_000_000)
-                if Task.isCancelled { break }
-                await check(manual: false)
-            }
-        }
-    }
-
-    private func step(_ number: Int, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text("\(number).")
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(Theme.gold)
-            Text(text)
-                .font(.subheadline)
-                .foregroundStyle(Theme.goldLight)
-        }
-    }
-
-    private func check(manual: Bool) async {
-        if manual { checking = true }
-        let online = await store.loadRemote()
-        if manual {
-            checking = false
-            if !online {
-                note = store.remoteError
-            } else if !store.isLicenseActive {
-                note = "Noch nicht freigeschaltet. PayPal-Zahlungen werden von Hand geprüft, meist innerhalb von 24 Stunden."
-            }
         }
     }
 }

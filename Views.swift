@@ -396,7 +396,6 @@ struct AccountView: View {
             }
 
             Section("Gerät") {
-                LabeledContent("Lizenz", value: store.license?.activated == true ? "Aktiviert (unbegrenzt)" : store.licenseText)
                 LabeledContent("MAC-Adresse", value: store.macText)
                 LabeledContent("Geräte-Schlüssel", value: store.deviceKey)
                 if let link = store.deviceLink {
@@ -457,7 +456,7 @@ struct SettingsView: View {
                 .frame(width: 92, height: 46)
             VStack(alignment: .leading, spacing: 3) {
                 Text("ImperumTV").font(.title3.weight(.bold)).foregroundStyle(.white)
-                Text((store.license?.activated == true ? "Konto aktiviert" : store.licenseText) + (version.isEmpty ? "" : " · Version \(version)"))
+                Text(store.licenseText + (version.isEmpty ? "" : " · Version \(version)"))
                     .font(.caption)
                     .foregroundStyle(Color.white.opacity(0.8))
                     .lineLimit(2)
@@ -630,7 +629,6 @@ struct SettingsView: View {
                     HStack {
                         Label("Konto", systemImage: "person.crop.circle")
                         Spacer()
-                        Text(store.license?.activated == true ? "Aktiviert" : "").foregroundStyle(.secondary)
                     }
                 }
             } header: {

@@ -8,9 +8,7 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            if !store.isLicenseActive {
-                LockView()
-            } else if profiles.needsChoice {
+            if profiles.needsChoice {
                 WhoView()
             } else if !store.started && store.channels.isEmpty {
                 StartingView()
@@ -182,7 +180,7 @@ struct HomeView: View {
         let spacing: CGFloat = 18
         let smallHeight: CGFloat = 50
         // Kreise so groß wie möglich, aber alles muss ohne Scrollen passen
-        let byHeight = size.height - 36 - 14 - smallHeight - 10 - 20 - 20 - (store.isTrial ? 18 : 0)
+        let byHeight = size.height - 36 - 14 - smallHeight - 10 - 20 - 20
         let byWidth = (size.width * 0.86 - spacing * 3) / 4
         let diameter = max(80, min(byHeight, byWidth))
 
@@ -233,14 +231,6 @@ struct HomeView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.6), radius: 4)
-            }
-            if store.isTrial, let link = store.deviceLink {
-                Link(destination: link) {
-                    Text("\(store.licenseText) · danach \(RemoteConfig.price) einmalig aktivieren")
-                        .font(.caption)
-                        .foregroundStyle(Theme.goldLight)
-                        .shadow(color: .black.opacity(0.6), radius: 4)
-                }
             }
         }
     }
