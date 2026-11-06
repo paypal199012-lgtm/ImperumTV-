@@ -10314,7 +10314,7 @@
             this.timers = [
                 setInterval(function () { if (self.joined) try { ws.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: String(++self.ref) })); } catch (e) { /* egal */ } }, 25000),
                 setInterval(function () { self.send('here', {}); self.badge(); }, 10000),
-                setInterval(function () { self.tick(); }, 3000)
+                setInterval(function () { self.tick(); }, 1000)
             ];
         },
         send: function (cmd, data) {
@@ -10376,14 +10376,69 @@
         /** Alle 3 s: wer zuletzt bedient hat, schickt seine Stelle; die anderen gleichen größere Abweichungen aus */
         tick: function () {
             var s = this.screen();
-            // Live TV: jedes Gerät bleibt dicht am Live-Bild seines Senders, dann laufen alle (fast) gleich.
-            // Nur sanft aufholen (ohne neu zu verbinden – das gäbe schwarzes Bild)
-            if (s && s.kind === 'live' && Date.now() - (this.liveCatchAt || 0) > 20000 && s.behindMs() > 2000) {
-                this.liveCatchAt = Date.now();
-                try { if (AB && AB.liveCatchUp) AB.liveCatchUp(); } catch (e) { /* egal */ }
-            }
-            if (!s || s.kind === 'live' || this.lastActor !== this.me || !Player.isPlaying()) return;
+            if (s && s.kind === 'live') { this.liveTick(s); return; }
+            if (!s || this.lastActor !== this.me || !Player.isPlaying()) return;
+            if ((this.tickN = (this.tickN || 0) + 1) % 3) return;          // Filme: alle 3 s
             this.send('tick', { pos: Player.current(), key: this.curKey });
+        },
+
+        // ---------- Live TV zeitgleich ----------
+        // Alle Geräte verbinden sich im selben Moment neu (der Anbieter liefert dann allen dieselbe Stelle).
+        // Jedes misst seinen Rückstand: Zeit bis zum ersten Bild + Hänger seitdem. Wer weniger Rückstand hat,
+        // hält kurz an – bis alle gleich weit hinten sind. So sieht jeder das Tor im selben Moment.
+        lv: null, lastLsync: 0, adjusting: false,
+        /** Gemeinsam neu verbinden. msg = Aufforderung eines anderen Geräts (sonst selbst gestartet). wait = Mindestabstand */
+        liveSync: function (msg, wait) {
+            var scr = this.screen(), now = Date.now();
+            if (!scr || scr.kind !== 'live') return;
+            if (msg) {
+                // Haben zwei Geräte gleichzeitig angefangen: es gilt das mit der kleineren Kennung (alle entscheiden gleich)
+                if (this.lv && now - this.lv.R < 4000 && this.lv.by <= msg.from) return;
+            } else if (now - this.lastLsync < (wait === undefined ? 30000 : wait)) return;
+            this.lastLsync = now;
+            var sid = msg ? msg.sid : this.me + ':' + now;
+            if (!msg) this.send('lsync', { sid: sid });
+            this.lv = { R: now, ready: 0, sid: sid, by: msg ? msg.from : this.me, key: this.curKey };
+            this.apply(function () {
+                scr.retries = 0; scr.altUrl = ''; scr.handoff = false;
+                scr.start();
+            });
+            toast('👥 Live-Bild wird mit allen abgeglichen …', 2500);
+        },
+        onReady: function (scr) {
+            if (!this.active() || scr.kind !== 'live') return;
+            if (this.lv && !this.lv.ready && this.lv.key === this.curKey) { this.lv.ready = Date.now(); return; }
+            // Neuer Sender oder eigener Neustart (z. B. Ersatzsender): alle neu abgleichen (höchstens alle 30 s)
+            var self = this, first = !this.lv || this.lv.key !== this.curKey;
+            setTimeout(function () { self.liveSync(null, first ? 3000 : 30000); }, 1500);
+        },
+        delay: function (scr) {
+            if (!this.lv || !this.lv.ready || this.lv.key !== this.curKey) return -1;
+            // Android misst Hänger und Pausen selbst (behindMs); sonst zählen wir die eigenen Pausen
+            var nativeBehind = !!(AB && AB.liveBehindMs);
+            return (this.lv.ready - this.lv.R) + (nativeBehind ? scr.behindMs() : (this.lv.extra || 0));
+        },
+        liveTick: function (scr) {
+            var d = this.delay(scr);
+            if (d < 0) return;
+            this.send('ldelay', { d: d, sid: this.lv.sid });
+            var max = d, now = Date.now(), k;
+            for (k in this.peers) {
+                var p = this.peers[k];
+                if (p.d !== undefined && p.sid === this.lv.sid && now - p.dAt < 8000 && p.d > max) max = p.d;
+            }
+            var need = max - d;
+            if (need > 250 && !this.adjusting && Player.isPlaying()) {
+                // Kurz anhalten: der Rückstand wächst um genau diese Zeit
+                var self = this, lv = this.lv;
+                this.adjusting = true;
+                lv.extra = (lv.extra || 0) + Math.min(need, 15000);
+                this.apply(function () { Player.toggle(); });
+                setTimeout(function () {
+                    self.apply(function () { if (!Player.isPlaying()) Player.toggle(); });
+                    setTimeout(function () { self.adjusting = false; }, 2500);
+                }, Math.min(need, 15000));
+            }
         },
 
         // ---------- Nachrichten der anderen ----------
@@ -10403,7 +10458,7 @@
                     'Die meisten Anbieter erlauben pro Zugang nur 1 Verbindung gleichzeitig – dann bricht das Bild immer wieder ab. ' +
                     'Für „Gemeinsam schauen“ braucht jedes Gerät einen eigenen Zugang (oder einen Zugang mit mehreren Verbindungen).', [{ label: 'OK', primary: true }]);
             }
-            if (m.cmd !== 'bye') this.peers[m.from] = { at: Date.now(), nm: m.nm };
+            if (m.cmd !== 'bye') { var pe = this.peers[m.from] || (this.peers[m.from] = {}); pe.at = Date.now(); pe.nm = m.nm; }
             switch (m.cmd) {
                 case 'hello':
                     toast('👥 ' + (m.nm || 'Ein Gerät') + ' schaut jetzt mit', 3000);
@@ -10443,6 +10498,12 @@
                         else if (m.cmd === 'play') toast('▶  Weiter (' + (m.nm || 'anderes Gerät') + ')', 2000);
                         if (scr.overlay) scr.renderOverlay();
                     });
+                    break;
+                case 'lsync':
+                    this.liveSync(m);
+                    break;
+                case 'ldelay':
+                    if (this.peers[m.from]) { this.peers[m.from].d = m.d; this.peers[m.from].dAt = Date.now(); this.peers[m.from].sid = m.sid; }
                     break;
                 case 'tick':
                     if (!scr || scr.kind === 'live' || m.key !== this.curKey || !Player.isPlaying()) break;
@@ -10689,6 +10750,7 @@
             },
             ready: function () {
                 Player.applyPreferences();
+                try { Party.onReady(self); } catch (eP) { /* egal */ }
                 self.r407 = 0;
                 self.started = true;
                 clearTimeout(self.startT);
@@ -11117,6 +11179,7 @@
         if (show) { var tip = this.ui.querySelector('[data-key="pl-live"] .pb-tip'); if (tip) tip.textContent = 'Zum Live-Bild (' + Math.round(ms / 1000) + ' s aufholen)'; }
     };
     PlayerScreen.prototype.catchUpLive = function () {
+        if (Party.active() && Party.joined) { Party.liveSync(null, 0); return; }   // gemeinsam: alle zusammen zum Live-Bild
         var s = Math.round(this.behindMs() / 1000);
         try { if (AB && AB.liveCatchUp && AB.liveCatchUp()) { toast('Live-Bild – ' + s + ' s aufgeholt', 2500); return; } } catch (e) { /* weiter unten */ }
         // normaler Stream: neu verbinden – der Anbieter liefert dann das aktuelle Bild
