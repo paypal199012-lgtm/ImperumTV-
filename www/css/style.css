@@ -1752,8 +1752,3 @@ body.preview-mode #app::before, body.video-mode #app::before { display: none; }
 .fb-lg.lg-DEL { background: #00539b; } .fb-lg.lg-NFL { background: #013369; } .fb-lg.lg-ATP { background: #0a7a3b; } .fb-lg.lg-WTA { background: #6b2c91; }
 .fb-lg.lg-UFC { background: #c8102e; }
 .fb-lg.lg-WWE { background: #2b2b2b; border: 1px solid #c9a227; } .fb-time.fb-open { font-size: 20px; color: #a7a39a; }
-
-/* ---------- Gemeinsam schauen ---------- */
-.party-badge { position: absolute; left: 40px; top: 26px; z-index: 60; padding: 8px 18px; border-radius: 22px; font-size: 22px; font-weight: 700;
-  background: rgba(0,0,0,.65); color: #f4dc9e; border: 1px solid rgba(217,176,102,.6); pointer-events: none; }
-body.video-mode:not(.osd) .party-badge { opacity: .55; }

@@ -3884,7 +3884,7 @@
             if (name === 'buffer') NetQ.onBuffer(!!a);
             if (name === 'ready') this.gotReady = true;
             if (name === 'buffer') this.isBuf = !!a;
-            if (name === 'frame') { this.gotFrame = true; try { Party.onFrame(); } catch (eP) { /* egal */ } }
+            if (name === 'frame') this.gotFrame = true;
             var f = this.handlers[name]; if (f) f(a, b);
         },
 
@@ -5391,20 +5391,19 @@
      * PIN-Eingabe mit Ziffernblock (Pfeiltasten + OK) oder den Zifferntasten der Fernbedienung.
      * onPin(pin, fail) gibt true zurück, wenn das Fenster schließen soll.
      */
-    function pinDialog(title, text, onPin, showForgot, len) {
-        len = len || 4;
+    function pinDialog(title, text, onPin, showForgot) {
         var box = h('div', 'modal-box pin-box');
         box.appendChild(h('div', 'modal-title', title));
         var info = h('div', 'modal-text', text || '');
         box.appendChild(info);
         var dots = h('div', 'pin-dots');
         var dotNodes = [];
-        for (var i = 0; i < len; i++) { var dn = h('span', 'pin-dot'); dots.appendChild(dn); dotNodes.push(dn); }
+        for (var i = 0; i < 4; i++) { var dn = h('span', 'pin-dot'); dots.appendChild(dn); dotNodes.push(dn); }
         box.appendChild(dots);
         var err = h('div', 'pin-error', '');
         box.appendChild(err);
         var pin = '';
-        function draw() { for (var k = 0; k < len; k++) dotNodes[k].className = 'pin-dot' + (k < pin.length ? ' on' : ''); }
+        function draw() { for (var k = 0; k < 4; k++) dotNodes[k].className = 'pin-dot' + (k < pin.length ? ' on' : ''); }
         function fail(msg) {
             err.textContent = msg;
             pin = '';
@@ -5414,11 +5413,11 @@
             dots.classList.add('shake');
         }
         function add(d) {
-            if (pin.length >= len) return;
+            if (pin.length >= 4) return;
             pin += d;
             err.textContent = '';
             draw();
-            if (pin.length === len) {
+            if (pin.length === 4) {
                 var entered = pin;
                 setTimeout(function () { if (onPin(entered, fail)) closePin(); }, 120);
             }
@@ -5599,8 +5598,7 @@
         if (Resume.all().length) tileList.push(['continue', 'resume', 'WEITERSCHAUEN', function () { Nav.push(new ContinueScreen()); }]);
         tileList.push(
             ['favs', 'star', 'FAVORITEN', function () { Nav.push(new FavoritesScreen()); }],
-            ['search', 'search', 'SUCHE', function () { Nav.push(new SearchScreen()); }],
-            ['party', 'users', 'GEMEINSAM', function () { Party.menu(); }]
+            ['search', 'search', 'SUCHE', function () { Nav.push(new SearchScreen()); }]
         );
         if (Rec.available()) tileList.push(['recs', 'rec', 'AUFNAHMEN', function () { Nav.push(new RecordingsScreen()); }]);
         if (!Profiles.isKids()) tileList.push(           // Kinder-Profil: keine Einstellungen, keine Listen
@@ -10249,490 +10247,6 @@
     // Vollbild-Player
     // =====================================================================
 
-    // =====================================================================
-    // Gemeinsam schauen: mehrere Geräte mit einem Code verbinden.
-    // Jeder schaut über seine eigene Liste; Pause, Spulen und Sender-/Filmwechsel gehen sofort an alle
-    // (Supabase Realtime, Broadcast über WebSocket – ohne Datenbank, Laufzeit meist unter 0,1 s).
-    // =====================================================================
-
-    var Party = {
-        code: '', ws: null, ref: 0, joined: false, applying: false, curKey: '', me: '', peers: {},
-        lastActor: '', lastSeekAt: 0, wantState: false, timers: [], closing: false,
-        active: function () { return !!this.code; },
-        topic: function () { return 'realtime:imptv-party-' + this.code; },
-        name: function () { try { return (AB && AB.deviceName && AB.deviceName()) || 'Gerät'; } catch (e) { return 'Gerät'; } },
-        count: function () {
-            var now = Date.now(), n = 1, k;
-            for (k in this.peers) if (now - this.peers[k].at < 25000) n++;
-            return n;
-        },
-        /** Neuen Code erstellen und gleich beitreten */
-        create: function () {
-            var c = '';
-            for (var i = 0; i < 6; i++) c += Math.floor(Math.random() * 10);
-            if (c.charAt(0) === '0') c = '7' + c.slice(1);
-            this.connect(c, false);
-            return c;
-        },
-        join: function (code) { this.connect(code, true); },
-        leave: function () {
-            if (!this.code) return;
-            this.send('bye', {});
-            this.closing = true;
-            try { this.ws.close(); } catch (e) { /* egal */ }
-            this.ws = null; this.code = ''; this.joined = false; this.peers = {}; this.curKey = '';
-            this.setSpeed(1);
-            this.timers.forEach(clearInterval); this.timers = [];
-            this.badge();
-        },
-        connect: function (code, ask) {
-            var self = this;
-            if (this.code && this.code !== code) this.leave();
-            this.code = code; this.closing = false; this.wantState = !!ask;
-            this.me = this.me || (Device.mac || '') + '-' + Math.floor(Math.random() * 1e6);
-            var url = REMOTE.url.replace(/^http/, 'ws').replace(/\/+$/, '') + '/realtime/v1/websocket?apikey=' + encodeURIComponent(REMOTE.key) + '&vsn=1.0.0';
-            var ws;
-            try { ws = new WebSocket(url); } catch (e) { toast('Gemeinsam schauen: keine Verbindung möglich.', 5000); this.code = ''; return; }
-            this.ws = ws; this.joined = false;
-            ws.onopen = function () {
-                ws.send(JSON.stringify({ topic: self.topic(), event: 'phx_join', ref: String(++self.ref), join_ref: '1',
-                    payload: { config: { broadcast: { self: false, ack: false }, presence: { key: '' }, private: false } } }));
-            };
-            ws.onmessage = function (m) {
-                var d; try { d = JSON.parse(m.data); } catch (e) { return; }
-                if (d.event === 'phx_reply' && d.topic === self.topic() && !self.joined) {
-                    self.joined = true;
-                    self.send('hello', {});
-                    self.badge();
-                } else if (d.event === 'broadcast' && d.payload && d.payload.payload) self.receive(d.payload.payload);
-            };
-            ws.onclose = function () {
-                if (self.ws !== ws) return;
-                self.joined = false;
-                if (!self.closing && self.code) setTimeout(function () { if (self.ws === ws && self.code) self.connect(self.code, false); }, 1500);   // neu verbinden
-            };
-            this.timers.forEach(clearInterval);
-            this.timers = [
-                setInterval(function () { if (self.joined) try { ws.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: String(++self.ref) })); } catch (e) { /* egal */ } }, 25000),
-                setInterval(function () { self.send('here', {}); self.badge(); }, 10000),
-                setInterval(function () { self.tick(); }, 1000)
-            ];
-        },
-        send: function (cmd, data) {
-            if (!this.ws || !this.joined) return;
-            data.cmd = cmd; data.from = this.me; data.nm = this.name(); data.sent = Date.now(); data.acc = this.accId();
-            try {
-                this.ws.send(JSON.stringify({ topic: this.topic(), event: 'broadcast', ref: String(++this.ref), join_ref: '1',
-                    payload: { type: 'broadcast', event: 'sync', payload: data } }));
-            } catch (e) { /* egal */ }
-        },
-        /** Was gerade läuft (für neue Mitglieder und Wechsel) */
-        screen: function () { var t = Nav.top(); return t instanceof PlayerScreen ? t : null; },
-        itemOf: function (scr) {
-            var it = scr.item() || {}, o = { kind: scr.kind, id: String(it.id), name: it.name || '' };
-            if (scr.kind === 'episode') {
-                o.season = it.season; o.num = it.num;
-                o.sid = it.series ? String(it.series.id) : ''; o.sname = it.series ? it.series.name : '';
-            }
-            return o;
-        },
-        keyOf: function (o) { return o.kind + ':' + o.id; },
-        state: function () {
-            var scr = this.screen();
-            if (!scr) return null;
-            return { item: this.itemOf(scr), paused: !Player.isPlaying(), pos: scr.kind === 'live' ? 0 : Player.current() };
-        },
-
-        // ---------- Eigene Bedienung → an alle ----------
-        /** Pause/Weiter gedrückt: umschalten und allen sofort den gewollten Zustand schicken */
-        toggle: function () {
-            var was = Player.isPlaying();
-            Player.toggle();
-            if (!this.active() || this.applying) return;
-            var s = this.screen();
-            if (!s || s.kind === 'live') return;
-            this.lastActor = this.me;
-            this.send(was ? 'pause' : 'play', { pos: Player.current() });
-        },
-        localSeek: function () {
-            if (!this.active() || this.applying) return;
-            var s = this.screen();
-            if (!s || s.kind === 'live') return;
-            var self = this;
-            this.lastActor = this.me;
-            clearTimeout(this.seekT);
-            // Mehrmals schnell gespult: erst die Endstelle schicken
-            this.seekT = setTimeout(function () { self.send('seek', { pos: Player.current(), playing: Player.isPlaying() }); }, 350);
-        },
-        /** Neuer Film / neue Folge / anderer Sender gestartet */
-        localStart: function (scr) {
-            if (!this.active()) return;
-            var o = this.itemOf(scr), key = this.keyOf(o);
-            if (key === this.curKey) return;
-            this.curKey = key;
-            if (this.applying || Date.now() - (this.openedAt || 0) < 3000) return;   // gerade vom anderen Gerät geöffnet: nicht zurückschicken
-            this.lastActor = this.me;
-            this.send('item', { item: o, pos: scr.startAt || 0 });
-        },
-        /** Alle 3 s: wer zuletzt bedient hat, schickt seine Stelle; die anderen gleichen größere Abweichungen aus */
-        tick: function () {
-            var s = this.screen();
-            if (s && s.kind === 'live') { this.liveTick(s); return; }
-            if (!s || this.lastActor !== this.me || !Player.isPlaying()) return;
-            if ((this.tickN = (this.tickN || 0) + 1) % 3) return;          // Filme: alle 3 s
-            this.send('tick', { pos: Player.current(), key: this.curKey });
-        },
-
-        // ---------- Live TV zeitgleich ----------
-        // Der Anbieter liefert beim Verbinden das aktuelle Live-Bild. Jedes Gerät misst deshalb selbst, wie weit es
-        // hinter live ist: Zeit vom Verbinden bis zum ersten Bild + Hänger/Pausen seitdem. Das ist eine reine Dauer –
-        // die Geräte müssen dafür weder gleichzeitig verbinden noch gleich gestellte Uhren haben.
-        // Wer weniger Rückstand hat, hält kurz an, bis alle gleich weit hinten sind.
-        lv: null, adjusting: false,
-        /** Sender (neu) geöffnet: Messung beginnt */
-        liveStart: function (scr) {
-            if (!this.active() || scr.kind !== 'live') return;
-            this.lv = { R: Date.now(), ready: 0, key: this.curKey, extra: 0 };
-            this.aheadHist = []; this.speed = 1;             // der Player startet jeden Sender mit normaler Geschwindigkeit
-            if (Player.gotReady && scr.handoff) this.lv.ready = this.lv.R;     // lief schon in der Vorschau
-        },
-        onReady: function (scr) {
-            if (!this.active() || scr.kind !== 'live') return;
-            if (this.lv && !this.lv.ready) this.lv.ready = Date.now();
-        },
-        /** Android meldet das erste wirklich gezeichnete Bild: genauer als „bereit“ */
-        onFrame: function () {
-            var lv = this.lv;
-            if (lv && !lv.frame && Date.now() - lv.R < 30000) { lv.frame = true; lv.ready = Date.now(); }
-        },
-        delay: function (scr) {
-            // Android: Bild im Puffer vor der Abspielstelle = wie weit hinter dem neuesten Bild vom Anbieter.
-            // Das misst den echten Rückstand, egal wie viel der Anbieter beim Verbinden vorab schickt.
-            if (AB && AB.bufferAheadMs) {
-                var a = -1;
-                try { a = Number(AB.bufferAheadMs()); } catch (e) { a = -1; }
-                if (a >= 0) {
-                    var h = this.aheadHist = (this.aheadHist || []).concat([a]).slice(-4);
-                    var sorted = h.slice().sort(function (x, y) { return x - y; });
-                    return sorted[Math.floor(sorted.length / 2)];      // Mittelwert-artig, Ausreißer zählen nicht
-                }
-            }
-            if (!this.lv || !this.lv.ready) return -1;
-            // Android misst Hänger und Pausen selbst (behindMs); sonst zählen wir die eigenen Pausen
-            var nativeBehind = !!(AB && AB.liveBehindMs);
-            return (this.lv.ready - this.lv.R) + (nativeBehind ? scr.behindMs() : (this.lv.extra || 0));
-        },
-        /** Zeitstempel des gezeigten Bildes aus dem Sender-Signal (Android, TS). -1 = unbekannt */
-        pts: function () {
-            if (!AB || !AB.streamPtsMs) return -1;
-            try { var v = Number(AB.streamPtsMs()); return isFinite(v) ? v : -1; } catch (e) { return -1; }
-        },
-        PTS_WRAP: 8589934592 / 90,                              // 2^33 Takte bei 90 kHz, in ms
-        ptsDiff: function (a, b) {                              // a − b, auch über den Überlauf (alle ~26,5 h) hinweg
-            var m = this.PTS_WRAP, d = (a - b) % m;
-            if (d > m / 2) d -= m; if (d < -m / 2) d += m;
-            return d;
-        },
-        /**
-         * Genau gleich: jedes Gerät kennt den Zeitstempel seines gezeigten Bildes. Wer weiter ist, wartet (einmal kurz)
-         * bzw. spielt minimal langsamer, bis er beim Langsamsten ist. Ergebnis: Abweichung meist unter 0,1 s.
-         */
-        ptsTick: function (scr) {
-            var mine = this.pts();
-            if (mine < 0) return false;
-            this.send('lpts', { p: mine, run: Player.isPlaying() });
-            var now = Date.now(), k, minDiff = 0, n = 0;
-            for (k in this.peers) {
-                var pe = this.peers[k];
-                if (pe.p === undefined || now - pe.pAt > 4000) continue;
-                var theirs = pe.p + (pe.run ? (now - pe.pAt) + 40 : 0);      // weitergerechnet bis jetzt (+ Laufzeit der Nachricht)
-                var d = this.ptsDiff(mine, theirs);                          // > 0: ich bin weiter
-                if (Math.abs(d) > 120000) continue;                         // anderes Signal (anderer Anbieter): nicht vergleichbar
-                n++;
-                if (n === 1 || d > minDiff) minDiff = d;                    // größter Vorsprung gegenüber dem Langsamsten
-            }
-            if (!n) { this.setSpeed(1); return true; }
-            var err = minDiff;
-            if (err <= 80 || this.adjusting) { if (!this.adjusting) this.setSpeed(1); return true; }
-            if (err > 400 && Date.now() - (this.adjAt || 0) > 3000 && Player.isPlaying()) {
-                // Großer Vorsprung: einmal kurz anhalten (sonst dauert das Angleichen zu lange)
-                var self = this, ms = Math.min(err - 60, 20000);
-                this.adjusting = true; this.adjAt = Date.now();
-                this.setSpeed(1);
-                if (ms > 1500) toast('👥 Gleiche mit den anderen ab …', Math.min(ms, 3000));
-                this.apply(function () { Player.toggle(); });
-                setTimeout(function () {
-                    self.apply(function () { if (!Player.isPlaying()) Player.toggle(); });
-                    setTimeout(function () { self.adjusting = false; }, 800);
-                }, ms);
-                return true;
-            }
-            // Kleiner Vorsprung (unter 0,4 s): kurz langsamer, bis 10 % – nach 1–4 s gleich
-            this.setSpeed(1 - Math.min(0.1, Math.max(0.03, err / 4000)));
-            return true;
-        },
-        liveTick: function (scr) {
-            if (this.ptsTick(scr)) return;
-            var d = this.delay(scr);
-            if (d < 0) return;
-            this.send('ldelay', { d: d });
-            var all = [d], now = Date.now(), k;
-            for (k in this.peers) {
-                var p = this.peers[k];
-                if (p.d !== undefined && now - p.dAt < 4000 && Math.abs(p.d - d) < 20000) all.push(p.d);   // unplausible Werte weglassen
-            }
-            if (all.length < 2) { this.setSpeed(1); return; }
-            all.sort(function (x, y) { return x - y; });
-            var canSpeed = !!(AB && AB.setSpeed && AB.bufferAheadMs);
-            if (canSpeed) {
-                // Sanft angleichen: wer vorne ist, spielt minimal langsamer, wer hinten ist, minimal schneller – kein Standbild.
-                // Ziel ist die Mitte aller Geräte; bei 1 s Unterschied dauert das Angleichen etwa 10–20 s.
-                var target = all[Math.floor((all.length - 1) / 2)], err = d - target;
-                if (all.length === 2) target = (all[0] + all[1]) / 2, err = d - target;
-                if (Math.abs(err) < 120) { this.setSpeed(1); return; }
-                if (err > 0 && d < 1200) { this.setSpeed(1); return; }         // kaum Puffer: nicht schneller (sonst Hänger)
-                this.setSpeed(1 + Math.max(-0.1, Math.min(0.1, err / 5000)));
-                return;
-            }
-            // Ohne Geschwindigkeit (VLC, iPhone): kurz anhalten – nur bei deutlichem, stabilem Unterschied
-            var need = all[all.length - 1] - d;
-            this.needN = need > 350 ? (this.needN || 0) + 1 : 0;
-            if (this.needN >= 3 && !this.adjusting && Player.isPlaying() && Date.now() - (this.adjAt || 0) > 8000) {
-                var self = this, lv = this.lv;
-                this.adjusting = true; this.needN = 0; this.adjAt = Date.now();
-                var ms = Math.min(need - 100, 15000);
-                if (lv) lv.extra = (lv.extra || 0) + ms;
-                this.apply(function () { Player.toggle(); });
-                setTimeout(function () {
-                    self.apply(function () { if (!Player.isPlaying()) Player.toggle(); });
-                    setTimeout(function () { self.adjusting = false; self.aheadHist = []; }, 1500);
-                }, ms);
-            }
-        },
-        speed: 1,
-        setSpeed: function (v) {
-            v = Math.round(v * 100) / 100;
-            if (v === this.speed || !AB || !AB.setSpeed) return;
-            try { if (AB.setSpeed(v)) this.speed = v; } catch (e) { /* egal */ }
-        },
-
-        // ---------- Nachrichten der anderen ----------
-        /** Kennung des Zugangs (ohne Passwort, nur als Prüfsumme): gleicher Zugang auf zwei Geräten? */
-        accId: function () {
-            var a = Api.acc;
-            return a && !a.demo ? String(hash32(String(a.server).toLowerCase() + '|' + String(a.username).toLowerCase(), 7)) : '';
-        },
-        receive: function (m) {
-            if (!m || m.from === this.me) return;
-            var self = this, scr = this.screen();
-            // Beide Geräte mit demselben Zugang: viele Anbieter erlauben nur eine Verbindung gleichzeitig –
-            // dann wirft der Anbieter immer ein Gerät raus und das Bild springt zwischen Bild und Schwarz
-            if (m.acc && m.acc === this.accId() && !this.warned) {
-                this.warned = true;
-                Modal.open('Gleicher Zugang auf beiden Geräten', (m.nm || 'Das andere Gerät') + ' benutzt dieselbe Wiedergabeliste (denselben Zugang) wie dieses Gerät. ' +
-                    'Die meisten Anbieter erlauben pro Zugang nur 1 Verbindung gleichzeitig – dann bricht das Bild immer wieder ab. ' +
-                    'Für „Gemeinsam schauen“ braucht jedes Gerät einen eigenen Zugang (oder einen Zugang mit mehreren Verbindungen).', [{ label: 'OK', primary: true }]);
-            }
-            if (m.cmd !== 'bye') { var pe = this.peers[m.from] || (this.peers[m.from] = {}); pe.at = Date.now(); pe.nm = m.nm; }
-            switch (m.cmd) {
-                case 'hello':
-                    toast('👥 ' + (m.nm || 'Ein Gerät') + ' schaut jetzt mit', 3000);
-                    var st = this.state();
-                    if (st) this.send('state', st);
-                    this.send('here', {});
-                    break;
-                case 'bye':
-                    delete this.peers[m.from];
-                    toast('👥 ' + (m.nm || 'Ein Gerät') + ' schaut nicht mehr mit', 3000);
-                    break;
-                case 'state':
-                    if (!this.wantState) break;
-                    this.wantState = false;
-                    this.lastActor = m.from;
-                    this.openLater(m.item, m.pos, m.paused);
-                    break;
-                case 'item':
-                    this.lastActor = m.from;
-                    if (this.keyOf(m.item) === this.curKey || this.keyOf(m.item) === this.remoteKey) break;
-                    this.remoteKey = this.keyOf(m.item);
-                    toast('👥 ' + (m.nm || 'Anderes Gerät') + ': ' + (m.item.name || 'neuer Titel'), 3000);
-                    this.openLater(m.item, m.pos || 0, false);
-                    break;
-                case 'pause': case 'play': case 'seek':
-                    this.lastActor = m.from;
-                    if (!scr || scr.kind === 'live') break;
-                    this.apply(function () {
-                        var lag = Math.max(0, Math.min(1, (Date.now() - m.sent) / 1000));   // Uhren der Geräte gehen nicht genau gleich: höchstens 1 s rechnen
-                        var wantPlay = m.cmd === 'play' || (m.cmd === 'seek' && m.playing);
-                        var target = m.pos + (wantPlay ? Math.min(lag, 0.3) : 0);
-                        if (Math.abs(Player.current() - target) > 0.4) { Player.seekTo(target); self.lastSeekAt = Date.now(); }
-                        if (m.cmd !== 'seek' || m.playing !== undefined) {
-                            if (wantPlay !== Player.isPlaying()) Player.toggle();
-                        }
-                        if (m.cmd === 'pause') toast('⏸  Pausiert von ' + (m.nm || 'anderem Gerät'), 2500);
-                        else if (m.cmd === 'play') toast('▶  Weiter (' + (m.nm || 'anderes Gerät') + ')', 2000);
-                        if (scr.overlay) scr.renderOverlay();
-                    });
-                    break;
-                case 'lcatch':
-                    // Alle zum Live-Bild: neu verbinden – leicht versetzt, damit der Anbieter nicht alle im selben Moment bekommt
-                    if (scr && scr.kind === 'live') {
-                        toast('👥 ' + (m.nm || 'Anderes Gerät') + ': alle zum Live-Bild', 2500);
-                        setTimeout(function () { var s2 = self.screen(); if (s2 && s2.kind === 'live') self.apply(function () { s2.start(); }); }, 300 + Math.random() * 1700);
-                    }
-                    break;
-                case 'lpts':
-                    if (this.peers[m.from]) { this.peers[m.from].p = m.p; this.peers[m.from].pAt = Date.now(); this.peers[m.from].run = !!m.run; }
-                    break;
-                case 'ldelay':
-                    if (this.peers[m.from]) { this.peers[m.from].d = m.d; this.peers[m.from].dAt = Date.now(); }
-                    break;
-                case 'tick':
-                    if (!scr || scr.kind === 'live' || m.key !== this.curKey || !Player.isPlaying()) break;
-                    if (Date.now() - this.lastSeekAt < 6000) break;
-                    var want = m.pos + 0.1;
-                    if (Math.abs(Player.current() - want) > 1.0) this.apply(function () { Player.seekTo(want); self.lastSeekAt = Date.now(); });
-                    break;
-            }
-            this.badge();
-        },
-        apply: function (fn) {
-            this.applying = true;
-            try { fn(); } catch (e) { /* egal */ }
-            var self = this;
-            setTimeout(function () { self.applying = false; }, 50);
-        },
-        /**
-         * Nicht alle Geräte im selben Moment verbinden: viele Anbieter lehnen mehrere neue Verbindungen aus einem
-         * Anschluss in derselben Sekunde ab („Sender startet nicht“ auf allen Geräten). Jedes Gerät wartet je nach
-         * Reihenfolge 0,3 / 1,8 / 3,3 … s. Live gleicht sich danach über die Geschwindigkeit an, Filme springen an die Stelle.
-         */
-        openLater: function (item, pos, paused) {
-            var self = this, rank = 0, now = Date.now(), k, sent = now;
-            for (k in this.peers) if (now - this.peers[k].at < 25000 && k < this.me) rank++;
-            var wait = 300 + rank * 1500 + Math.random() * 400, key = this.keyOf(item), seq = this.openSeq = (this.openSeq || 0) + 1;
-            setTimeout(function () {
-                if (!self.active() || self.openSeq !== seq) return;           // inzwischen etwas anderes gewählt
-                var lag = item.kind === 'live' || paused ? 0 : (Date.now() - sent) / 1000;   // Film lief beim anderen weiter
-                self.openItem(item, (pos || 0) + lag, paused);
-            }, wait);
-            void key;
-        },
-        /** Denselben Titel in der eigenen Liste suchen und starten */
-        fold: function (t) { return Football.fold(t).replace(/[^a-z0-9]+/g, ' ').trim(); },
-        find: function (list, o) {
-            if (!list) return null;
-            var i, n = this.fold(o.name);
-            for (i = 0; i < list.length; i++) if (String(list[i].id) === String(o.id)) return list[i];
-            for (i = 0; i < list.length; i++) if (this.fold(list[i].name) === n) return list[i];
-            return null;
-        },
-        openItem: function (o, pos, paused) {
-            var self = this;
-            function go(items, index, kind) {
-                // Eigene Nummer merken (kann in der eigenen Liste anders sein) – sonst schicken sich die Geräte den Titel endlos hin und her
-                var localKey = kind + ':' + String(items[index].id);
-                self.remoteKey = self.keyOf(o);
-                if (localKey === self.curKey && self.screen()) return;          // läuft hier schon
-                self.curKey = localKey;
-                self.openedAt = Date.now();
-                self.apply(function () {
-                    var top = Nav.top();
-                    // Live-Sender im laufenden Player: nur umschalten (wie Kanal ▲▼), alles darunter bleibt
-                    if (top instanceof PlayerScreen && kind === 'live' && top.kind === 'live' && top.items === items) {
-                        top.index = index;
-                        top.retries = 0; top.altUrl = ''; top.altName = ''; top.r407 = 0; top.stallLog = []; top.shortLog = []; clearTimeout(top.t407);
-                        top.start();
-                        top.showOverlay(2000);
-                        return;
-                    }
-                    var scr = new PlayerScreen(items, index, kind, kind === 'live' ? undefined : pos);
-                    // Anderer Player läuft: nur ihn ersetzen (nicht den ganzen Verlauf – sonst führt Zurück nicht mehr in die Listen)
-                    Nav.push(scr);
-                    if (top instanceof PlayerScreen) { var oi = Nav.stack.indexOf(top); if (oi >= 0) Nav.stack.splice(oi, 1); top._dom = null; }
-                    // Zurück aus einem Live-Sender: in die Senderliste (auch wenn man über den Code eingestiegen ist)
-                    if (kind === 'live' && !Nav.stack.some(function (x) { return x instanceof LiveScreen || x instanceof EpgGridScreen; })) {
-                        Nav.stack.splice(Nav.stack.length - 1, 0, new LiveScreen(0));
-                    }
-                });
-                if (paused && kind !== 'live') {
-                    // Pausiert beitreten: anhalten, sobald das Bild läuft
-                    var n = 0, t = setInterval(function () {
-                        if (++n > 30) { clearInterval(t); return; }
-                        if (Player.isPlaying()) { clearInterval(t); self.apply(function () { Player.toggle(); Player.seekTo(pos); }); }
-                    }, 300);
-                }
-            }
-            function missing() { toast('👥 „' + o.name + '“ gibt es in deiner Liste nicht.', 5000); }
-            if (o.kind === 'live') {
-                var ch = this.find(Data.channels, o);
-                if (!ch) { missing(); return; }
-                go(Data.channels, Data.channels.indexOf(ch), 'live');
-            } else if (o.kind === 'movie') {
-                var mv = this.find(Data.movies, o);
-                if (!mv) { missing(); return; }
-                go([mv], 0, 'movie');
-            } else {
-                var se = this.find(Data.series, { id: o.sid, name: o.sname });
-                if (!se) { missing(); return; }
-                Data.seriesDetails(se.id).then(function (res) {
-                    var eps = res.episodes || [], ser = { id: se.id, name: se.name, logo: se.logo || '' };
-                    eps.forEach(function (e) { e.series = ser; });
-                    var idx = -1;
-                    for (var i = 0; i < eps.length; i++) if (String(eps[i].id) === String(o.id)) idx = i;
-                    if (idx < 0) for (var j = 0; j < eps.length; j++) if (eps[j].season === o.season && eps[j].num === o.num) idx = j;
-                    if (idx < 0) { missing(); return; }
-                    go(eps, idx, 'episode');
-                }, missing);
-            }
-        },
-
-        // ---------- Anzeige ----------
-        badge: function () {
-            var b = $('#party-badge');
-            if (!this.active()) { if (b && b.parentNode) b.parentNode.removeChild(b); return; }
-            if (!b) { b = h('div', 'party-badge'); b.id = 'party-badge'; ($('#stage') || document.body).appendChild(b); }
-            b.textContent = '👥 ' + this.code + ' · ' + this.count() + (this.joined ? '' : ' · verbindet …');
-        },
-        menu: function () {
-            var self = this;
-            if (this.active()) {
-                var names = [], k;
-                for (k in this.peers) if (Date.now() - this.peers[k].at < 25000) names.push(this.peers[k].nm || 'Gerät');
-                Modal.open('Gemeinsam schauen · Code ' + this.code.slice(0, 3) + ' ' + this.code.slice(3),
-                    (names.length ? 'Verbunden: ' + names.join(', ') + '. ' : 'Noch niemand verbunden – gib den anderen den Code. ') +
-                    'Jeder kann pausieren und spulen, alle sehen sofort dasselbe.', [
-                        { label: 'Schließen', primary: true },
-                        { label: '✕  Gemeinsam schauen beenden', action: function () { self.leave(); toast('Gemeinsam schauen beendet'); } }
-                    ]);
-                return;
-            }
-            Modal.open('Gemeinsam schauen', 'Mehrere Geräte schauen dasselbe – pausiert oder spult einer, passiert es bei allen sofort. ' +
-                'Jeder schaut über seine eigene Wiedergabeliste.', [
-                { label: '➕  Neuen Code erstellen', primary: true, action: function () {
-                    var c = self.create();
-                    var st = self.screen();
-                    if (st) self.curKey = self.keyOf(self.itemOf(st));
-                    Modal.open('Dein Code: ' + c.slice(0, 3) + ' ' + c.slice(3), 'Die anderen öffnen ImperumTV → „Gemeinsam schauen“ → „Code eingeben“. ' +
-                        (st ? 'Sie steigen dann genau hier ein.' : 'Starte danach einen Film, eine Folge oder einen Sender – alle schauen mit.'), [{ label: 'OK', primary: true }]);
-                } },
-                { label: '🔢  Code eingeben', action: function () {
-                    setTimeout(function () {
-                        pinDialog('Code eingeben', 'Den 6-stelligen Code bekommst du von dem Gerät, das ihn erstellt hat.', function (code) {
-                            self.join(code);
-                            toast('👥 Verbinde mit ' + code + ' …', 3000);
-                            setTimeout(function () {
-                                if (self.code === code && self.wantState) toast('👥 Verbunden – sobald dort etwas läuft, startet es hier auch.', 5000);
-                            }, 4000);
-                            return true;
-                        }, false, 6);
-                    }, 0);
-                } },
-                { label: 'Abbrechen' }
-            ]);
-        }
-    };
-
     function PlayerScreen(items, index, kind, startAt) {
         this.items = items;
         this.index = index;
@@ -10796,7 +10310,6 @@
     };
     PlayerScreen.prototype.start = function () {
         var self = this;
-        try { Party.localStart(this); Party.liveStart(this); } catch (eP) { /* egal */ }
         this.rdy = false;                  // erst nach dem Start zählen kurze Hänger (nicht das Laden beim Umschalten)
         this.started = false;              // erstes Bild da?
         this.bufAt = 0;
@@ -10848,7 +10361,6 @@
             },
             ready: function () {
                 Player.applyPreferences();
-                try { Party.onReady(self); } catch (eP) { /* egal */ }
                 self.r407 = 0;
                 self.started = true;
                 clearTimeout(self.startT);
@@ -11014,7 +10526,6 @@
         this.introDone = true;
         this.showPop(null);
         Player.seekBy(Settings.introSec);
-        Party.localSeek();
         toast('Intro übersprungen (+' + Settings.introSec + ' s)');
     };
     PlayerScreen.prototype.cancelNext = function () {
@@ -11277,7 +10788,6 @@
         if (show) { var tip = this.ui.querySelector('[data-key="pl-live"] .pb-tip'); if (tip) tip.textContent = 'Zum Live-Bild (' + Math.round(ms / 1000) + ' s aufholen)'; }
     };
     PlayerScreen.prototype.catchUpLive = function () {
-        if (Party.active() && Party.joined) { Party.send('lcatch', {}); toast('👥 Alle springen zum Live-Bild …', 2500); this.start(); return; }
         var s = Math.round(this.behindMs() / 1000);
         try { if (AB && AB.liveCatchUp && AB.liveCatchUp()) { toast('Live-Bild – ' + s + ' s aufgeholt', 2500); return; } } catch (e) { /* weiter unten */ }
         // normaler Stream: neu verbinden – der Anbieter liefert dann das aktuelle Bild
@@ -11369,9 +10879,9 @@
                 this.behindPill.textContent = '⏱ ' + Math.round(this.behindMs() / 1000) + ' s hinter live';
             }
         } else {
-            btn('pl-rw', '«', '10 s zurück', function () { Player.seekBy(-10); Party.localSeek(); });
-            btn('pl-play', playing ? '❚❚' : '▶', playing ? 'Pause' : 'Weiter', function () { Party.toggle(); self.renderOverlay(); });
-            btn('pl-ff', '»', '10 s vor', function () { Player.seekBy(10); Party.localSeek(); });
+            btn('pl-rw', '«', '10 s zurück', function () { Player.seekBy(-10); });
+            btn('pl-play', playing ? '❚❚' : '▶', playing ? 'Pause' : 'Weiter', function () { Player.toggle(); self.renderOverlay(); });
+            btn('pl-ff', '»', '10 s vor', function () { Player.seekBy(10); });
             if (this.kind === 'episode' && this.index < this.items.length - 1) {
                 btn('pl-nextep', '»|', 'Nächste Folge', function () { self.goNext(); });
             }
@@ -11379,7 +10889,6 @@
         if (this.kind === 'live' && Rec.available()) {
             btn('pl-rec', '●', 'Aufnehmen', function () { self.recordNow(); });
         }
-        btn('pl-party', '👥', Party.active() ? 'Gemeinsam · ' + Party.code : 'Gemeinsam schauen', function () { clearTimeout(self.hideTimer); Party.menu(); });
         if (this.kind !== 'live' && this.resumable() && (VodPlayer.available() || (AB && AB.usingVlc))) {
             btn('pl-switch', '⇄', 'Anderer Player', function () { self.switchPlayer(); });
         }
@@ -11746,9 +11255,9 @@
         if (k === KEY.CH_UP || (live && k === KEY.UP && !this.overlay)) { this.step(-1); return true; }
         if (k === KEY.CH_DOWN || (live && k === KEY.DOWN && !this.overlay)) { this.step(1); return true; }
         if (live && this.overlay && (k === KEY.UP || k === KEY.DOWN)) { this.step(k === KEY.UP ? -1 : 1); return true; }
-        if (k === KEY.PLAY || k === KEY.PAUSE || k === KEY.PLAYPAUSE) { Party.toggle(); this.showOverlay(); return true; }
-        if (k === KEY.FF) { Player.seekBy(30); Party.localSeek(); this.showOverlay(); return true; }
-        if (k === KEY.RW) { Player.seekBy(-30); Party.localSeek(); this.showOverlay(); return true; }
+        if (k === KEY.PLAY || k === KEY.PAUSE || k === KEY.PLAYPAUSE) { Player.toggle(); this.showOverlay(); return true; }
+        if (k === KEY.FF) { Player.seekBy(30); this.showOverlay(); return true; }
+        if (k === KEY.RW) { Player.seekBy(-30); this.showOverlay(); return true; }
         if (k === KEY.STOP) { this.close(); return true; }
         if (k === KEY.GREEN) { this.trackMenu('audio'); return true; }
         if (k === KEY.BLUE) { this.trackMenu('text'); return true; }
@@ -11759,7 +11268,7 @@
         }
         if (!this.overlay) {
             if (k === KEY.ENTER) { if (live && this.items.length > 1) this.openZap(); else this.showOverlay(); return true; }
-            if (!live && (k === KEY.LEFT || k === KEY.RIGHT)) { Player.seekBy(k === KEY.RIGHT ? 10 : -10); Party.localSeek(); this.showOverlay(); return true; }
+            if (!live && (k === KEY.LEFT || k === KEY.RIGHT)) { Player.seekBy(k === KEY.RIGHT ? 10 : -10); this.showOverlay(); return true; }
             if (k === KEY.LEFT || k === KEY.RIGHT || k === KEY.UP || k === KEY.DOWN) { this.showOverlay(); return true; }
             return false;   // Zurück-Taste → Nav.back()
         }
