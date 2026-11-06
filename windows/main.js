@@ -2,7 +2,7 @@
 // Zwei Fenster übereinander: unten das Video (mpv zeichnet hinein), darüber durchsichtig die Oberfläche –
 // genau wie auf dem Fire TV Stick (Video unter der durchsichtigen Oberfläche). Die Oberfläche ist dieselbe wie auf Android.
 'use strict';
-const { app, BrowserWindow, ipcMain, powerSaveBlocker, shell, screen, net } = require('electron');
+const { app, BrowserWindow, BaseWindow, ipcMain, powerSaveBlocker, shell, screen, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -94,14 +94,14 @@ function setFullscreen(full) {
 function createWindows() {
   const icon = path.join(__dirname, 'icon.ico');
   const b = windowBounds();
-  videoWin = new BrowserWindow({
+  // Unteres Fenster OHNE Webseite: darin zeichnet nur mpv das Video. (Vorher lag dort eine leere schwarze Seite,
+  // die Windows bei manchen PCs über das Video schob → Ton, aber schwarzes Bild.)
+  videoWin = new BaseWindow({
     x: b.x, y: b.y, width: b.width, height: b.height, minWidth: 640, minHeight: 360,
     backgroundColor: '#000000', show: false, title: 'ImperumTV', autoHideMenuBar: true,
-    icon: fs.existsSync(icon) ? icon : undefined, webPreferences: { sandbox: true }
+    icon: fs.existsSync(icon) ? icon : undefined
   });
-  videoWin.setMenu(null);
-  if (settings.maximized) videoWin.maximize();
-  videoWin.loadURL('data:text/html,<body style="background:#000;margin:0"></body>');
+  try { videoWin.setMenu(null); } catch (e) { /* egal */ }
 
   uiWin = new BrowserWindow({
     parent: videoWin, frame: false, transparent: true, backgroundColor: '#00000000', show: false, skipTaskbar: true,
@@ -149,8 +149,9 @@ function createWindows() {
     uiWin.webContents.on('console-message', (e, level, msg) => testLog('UI: ' + msg));
     uiWin.loadFile(path.join(__dirname, 'selftest.html'));
   } else uiWin.loadFile(path.join(__dirname, 'www', 'index.html'));
-  videoWin.once('ready-to-show', () => {
+  setImmediate(() => {
     videoWin.show();
+    if (settings.maximized) videoWin.maximize();
     if (settings.fullscreen || SELFTEST) videoWin.setFullScreen(true);
     sync(); uiWin.show(); uiWin.focus();
     setTimeout(sync, 300);
