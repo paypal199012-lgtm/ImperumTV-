@@ -36,6 +36,16 @@ class Vpn extends EventEmitter {
   }
 
   set(state, err) {
+    // Wächter: steht die Verbindung nach 40 s nicht, Fehler melden (mit Protokoll an die Admin-Seite) statt ewig „verbindet“
+    clearTimeout(this.guard);
+    if (state === 'verbindet' && !this.settingUp) {
+      this.guard = setTimeout(() => {
+        if (this.state !== 'verbindet') return;
+        this.log('Zeitüberschreitung: nach 40 s keine Verbindung (Dienst: ' + (this.svcAnswer || 'keine Antwort') + ', Management: ' + (this.mgmtSeen ? 'verbunden' : 'nicht erreicht') + ')');
+        this.set('fehler', 'Keine Verbindung nach 40 Sekunden');
+        if (this.mgmt) this.send('signal SIGTERM');
+      }, 40000);
+    }
     if (state === this.state && (err || '') === this.error) return;
     this.state = state; this.error = err || '';
     this.log('Status: ' + state + (err ? ' – ' + err : ''));
@@ -79,6 +89,7 @@ class Vpn extends EventEmitter {
         'foreach ($n in @("OPENVPN-GUI", "OpenVPN-GUI")) { Remove-ItemProperty -Path "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" -Name $n -ErrorAction SilentlyContinue }',
         'exit $p.ExitCode'
       ].join('\r\n'), 'utf8');
+      this.settingUp = true;
       this.set('verbindet', 'VPN wird eingerichtet – bitte bei Windows auf „Ja“ klicken');
       // Start-Process -Verb RunAs zeigt die Windows-Abfrage (UAC). Abgelehnt → Fehler.
       const outer = 'try { $p = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList @(' +
@@ -86,10 +97,12 @@ class Vpn extends EventEmitter {
         '); exit $p.ExitCode } catch { exit 1223 }';
       const ch = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', outer], { windowsHide: true });
       ch.on('exit', (code) => {
+        this.settingUp = false;
+        this.log('Einrichtung beendet, Code ' + code + ', OpenVPN da: ' + this.installed());
         if (this.installed() && (code === 0 || code === 3010)) { this.log('OpenVPN eingerichtet'); resolve(); return; }
         reject(new Error(code === 1223 ? 'Einrichtung abgebrochen (Windows-Abfrage nicht bestätigt)' : 'Einrichtung fehlgeschlagen (Fehler ' + code + ')'));
       });
-      ch.on('error', (e) => reject(e));
+      ch.on('error', (e) => { this.settingUp = false; reject(e); });
     });
   }
 
@@ -111,6 +124,8 @@ class Vpn extends EventEmitter {
     fs.writeFileSync(cfg, lines.join('\r\n') + '\r\n', 'utf8');
     this.port = 25340 + Math.floor(Math.random() * 400);
     this.mpass = require('crypto').randomBytes(12).toString('hex');
+    this.svcAnswer = ''; this.mgmtSeen = false;
+    this.log('Starte OpenVPN über den Dienst (Konfiguration ' + lines.length + ' Zeilen, Server ' + (this.info().server || '?') + ')');
     const options = '--config "' + cfg + '" --management 127.0.0.1 ' + this.port + ' stdin --management-query-passwords --management-hold --auth-retry interact --verb 3';
     this.startViaService(options);
   }
@@ -121,12 +136,14 @@ class Vpn extends EventEmitter {
     const p = net.connect(SERVICE_PIPE);
     this.svc = p;
     let buf = '';
-    p.on('connect', () => { p.write(msg); });
+    p.on('connect', () => { this.log('Dienst erreicht'); p.write(msg); });
     p.on('data', (d) => {
       buf += d.toString('utf16le');
       const parts = buf.split('\n');
       if (parts.length < 3) return;
       const code = parseInt(parts[0], 16);
+      this.svcAnswer = parts.slice(0, 3).join(' | ').replace(/\0/g, '').slice(0, 200);
+      this.log('Dienst antwortet: ' + this.svcAnswer);
       buf = '';
       if (code === 0) { this.log('OpenVPN gestartet (' + parts[2].replace(/\0/g, '') + ' ' + parseInt(parts[1], 16) + ')'); this.connectMgmt(0); }
       else {
@@ -146,7 +163,7 @@ class Vpn extends EventEmitter {
   connectMgmt(tries) {
     const m = net.connect(this.port, '127.0.0.1');
     let buf = '';
-    m.on('connect', () => { this.mgmt = m; });
+    m.on('connect', () => { this.mgmt = m; this.mgmtSeen = true; this.log('Management verbunden (Port ' + this.port + ')'); });
     m.on('data', (d) => {
       buf += d.toString('utf8');
       let i;
@@ -158,7 +175,8 @@ class Vpn extends EventEmitter {
     });
     m.on('error', () => {
       if (this.mgmt === m) this.mgmt = null;
-      if (this.state === 'verbindet' && tries < 40 && !this.mgmt) setTimeout(() => this.connectMgmt(tries + 1), 250);
+      if (this.state === 'verbindet' && tries < 120 && !this.mgmt) setTimeout(() => this.connectMgmt(tries + 1), 250);
+      else if (!this.mgmt && this.state === 'verbindet') this.log('Management nicht erreichbar (Port ' + this.port + ')');
     });
     m.on('close', () => {
       if (this.mgmt !== m) return;
@@ -181,6 +199,7 @@ class Vpn extends EventEmitter {
     }
     if (/^>PASSWORD:Verification Failed/.test(line)) { this.set('fehler', 'Benutzername oder Passwort für das VPN falsch'); this.send('signal SIGTERM'); return; }
     if (/^>FATAL:/.test(line)) { this.set('fehler', line.slice(7)); return; }
+    if (/^(SUCCESS|ERROR):/.test(line)) this.log('Management: ' + line);
     if (/^>STATE:/.test(line)) {
       const st = (line.split(',')[1] || '').toUpperCase();
       if (st === 'CONNECTED') this.set('an', '');

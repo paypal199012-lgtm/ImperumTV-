@@ -126,7 +126,7 @@ class Mpv extends EventEmitter {
         break;
       case 'end-file':
         if (m.reason === 'eof') { this.loaded = false; this.emit('ev', 'end', null); }
-        else if (m.reason === 'error') { this.loaded = false; this.emit('ev', 'error', 'mpv: ' + (m.file_error || 'Wiedergabe fehlgeschlagen')); }
+        else if (m.reason === 'error') { this.loaded = false; this.emit('ev', 'error', 'mpv: ' + (m.file_error || 'Wiedergabe fehlgeschlagen') + this.why()); }
         break;
     }
   }
@@ -151,6 +151,23 @@ class Mpv extends EventEmitter {
         break;
       }
     }
+  }
+
+  /** Genauer Grund aus dem Protokoll (z. B. „HTTP 403“), für Fehlerberichte und die Ersatzsender-Logik */
+  why() {
+    try {
+      if (!this.opts.logFile) return '';
+      const fs = require('fs');
+      const size = fs.statSync(this.opts.logFile).size;
+      const fd = fs.openSync(this.opts.logFile, 'r');
+      const len = Math.min(size, 6000), b = Buffer.alloc(len);
+      fs.readSync(fd, b, 0, len, size - len); fs.closeSync(fd);
+      const lines = b.toString('utf8').split(/\r?\n/).filter((l) => /HTTP error|Server returned|40[0-9]|Connection (refused|reset|timed out)|timed out|Failed to open|failed to recognize|Name or service/i.test(l));
+      const last = lines.pop();
+      if (!last) return '';
+      const http = /HTTP error (\d+)|Server returned (\d+)|\b(40[0-9])\b/.exec(last);
+      return ' (' + (http ? 'HTTP ' + (http[1] || http[2] || http[3]) : last.replace(/^\[[^\]]*\]\s*/, '').slice(0, 120)) + ')';
+    } catch (e) { return ''; }
   }
 
   /** Erstes Bild da (Sender-Ampel „gut“ erst mit Bild) */
