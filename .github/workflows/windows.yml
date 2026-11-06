@@ -60,6 +60,7 @@ jobs:
           if (!$m) { throw "OpenVPN.msi nicht gefunden" }
           Write-Host "OpenVPN: $($m.Name) ($($m.Length) Bytes)"
           Move-Item $m.FullName openvpn/OpenVPN.msi -Force
+          exit 0
 
       - name: Bauen
         shell: pwsh
