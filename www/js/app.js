@@ -8029,8 +8029,8 @@
      */
     var Sport = {
         LIST: [['fb', 'Fußball'], ['f1', 'Formel 1'], ['nba', 'Basketball · NBA'], ['del', 'Eishockey · DEL'], ['nhl', 'Eishockey · NHL'],
-            ['nfl', 'Football · NFL'], ['tennis', 'Tennis'], ['ufc', 'Kampfsport · UFC']],
-        TITLE: { fb: 'Fußball', f1: 'Formel 1', nba: 'NBA', del: 'DEL', nhl: 'NHL', nfl: 'NFL', tennis: 'Tennis', ufc: 'UFC' },
+            ['nfl', 'Football · NFL'], ['tennis', 'Tennis'], ['ufc', 'Kampfsport · UFC'], ['wwe', 'Wrestling · WWE']],
+        TITLE: { fb: 'Fußball', f1: 'Formel 1', nba: 'NBA', del: 'DEL', nhl: 'NHL', nfl: 'NFL', tennis: 'Tennis', ufc: 'UFC', wwe: 'WWE' },
         /** Sender deiner Liste, die zur Sportart passen (nach Namen) */
         CHANS: {
             f1: /(^|[^a-z0-9])(f1|formel ?1|formula ?1)([^a-z0-9]|$)/i,
@@ -8039,7 +8039,8 @@
             nhl: /(^|[^a-z])(nhl|eishockey|hockey)([^a-z]|$)/i,
             nfl: /(^|[^a-z])(nfl|redzone|ran|prosieben ?maxx)([^a-z]|$)/i,
             tennis: /tennis|eurosport/i,
-            ufc: /(^|[^a-z])(ufc|mma|fight)([^a-z]|$)/i
+            ufc: /(^|[^a-z])(ufc|mma|fight)([^a-z]|$)/i,
+            wwe: /(^|[^a-z])(wwe|raw|smackdown|nxt|wrestling)([^a-z]|$)/i
         },
         data: {}, at: {}, pending: {},
         load: function (key, force) {
@@ -8187,7 +8188,7 @@
             if (label !== lastDay) { list.appendChild(h('div', 'fb-day', label)); lastDay = label; }
             var row = h('div', 'fb-row');
             row.setAttribute('data-match', String(m.id));
-            row.appendChild(h('div', 'fb-time', fmtClock(dt)));
+            row.appendChild(h('div', 'fb-time' + (m.nt ? ' fb-open' : ''), m.nt ? 'offen' : fmtClock(dt)));   // nt: Uhrzeit steht noch nicht fest
             row.appendChild(h('div', 'fb-lg lg-' + m.c, Football.SHORT[m.c] || m.c));
             var teams = h('div', 'fb-teams');
             if (m.sub) { row.classList.add('fb-x'); teams.appendChild(h('div', 'fb-sub', m.sub)); }
@@ -8223,7 +8224,7 @@
             list.appendChild(focusable(row, 'fbm-' + m.id, function () { self.open(m); }, 'fblist'));
         });
         list.appendChild(h('div', 'fb-src', self.sport === 'fb' ? 'Daten: OpenLigaDB · Football data provided by the Football-Data.org API · API-Football'
-            : self.sport === 'del' ? 'Daten: OpenLigaDB' : 'Daten: ESPN (ohne Gewähr)'));
+            : self.sport === 'del' ? 'Daten: OpenLigaDB' : self.sport === 'wwe' ? 'WWE-Termine ohne Gewähr' : 'Daten: ESPN (ohne Gewähr)'));
         // Event-Sender mit beiden Vereinen im Namen eintragen (braucht kein Programm).
         // Die Suche geht durch die ganze Senderliste: in kleinen Häppchen, damit die Fernbedienung nicht hängt
         // (beim ersten Mal sonst mehrere Sekunden auf dem Fire TV Stick). Schon gesuchte Spiele kommen sofort.
