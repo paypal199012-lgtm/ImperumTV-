@@ -10422,7 +10422,57 @@
             var nativeBehind = !!(AB && AB.liveBehindMs);
             return (this.lv.ready - this.lv.R) + (nativeBehind ? scr.behindMs() : (this.lv.extra || 0));
         },
+        /** Zeitstempel des gezeigten Bildes aus dem Sender-Signal (Android, TS). -1 = unbekannt */
+        pts: function () {
+            if (!AB || !AB.streamPtsMs) return -1;
+            try { var v = Number(AB.streamPtsMs()); return isFinite(v) ? v : -1; } catch (e) { return -1; }
+        },
+        PTS_WRAP: 8589934592 / 90,                              // 2^33 Takte bei 90 kHz, in ms
+        ptsDiff: function (a, b) {                              // a − b, auch über den Überlauf (alle ~26,5 h) hinweg
+            var m = this.PTS_WRAP, d = (a - b) % m;
+            if (d > m / 2) d -= m; if (d < -m / 2) d += m;
+            return d;
+        },
+        /**
+         * Genau gleich: jedes Gerät kennt den Zeitstempel seines gezeigten Bildes. Wer weiter ist, wartet (einmal kurz)
+         * bzw. spielt minimal langsamer, bis er beim Langsamsten ist. Ergebnis: Abweichung meist unter 0,1 s.
+         */
+        ptsTick: function (scr) {
+            var mine = this.pts();
+            if (mine < 0) return false;
+            this.send('lpts', { p: mine, run: Player.isPlaying() });
+            var now = Date.now(), k, minDiff = 0, n = 0;
+            for (k in this.peers) {
+                var pe = this.peers[k];
+                if (pe.p === undefined || now - pe.pAt > 4000) continue;
+                var theirs = pe.p + (pe.run ? (now - pe.pAt) + 40 : 0);      // weitergerechnet bis jetzt (+ Laufzeit der Nachricht)
+                var d = this.ptsDiff(mine, theirs);                          // > 0: ich bin weiter
+                if (Math.abs(d) > 120000) continue;                         // anderes Signal (anderer Anbieter): nicht vergleichbar
+                n++;
+                if (n === 1 || d > minDiff) minDiff = d;                    // größter Vorsprung gegenüber dem Langsamsten
+            }
+            if (!n) { this.setSpeed(1); return true; }
+            var err = minDiff;
+            if (err <= 80 || this.adjusting) { if (!this.adjusting) this.setSpeed(1); return true; }
+            if (err > 1500 && Date.now() - (this.adjAt || 0) > 6000 && Player.isPlaying()) {
+                // Großer Vorsprung: einmal kurz anhalten (sonst dauert das Angleichen zu lange)
+                var self = this, ms = Math.min(err - 60, 20000);
+                this.adjusting = true; this.adjAt = Date.now();
+                this.setSpeed(1);
+                toast('👥 Gleiche mit den anderen ab …', Math.min(ms, 3000));
+                this.apply(function () { Player.toggle(); });
+                setTimeout(function () {
+                    self.apply(function () { if (!Player.isPlaying()) Player.toggle(); });
+                    setTimeout(function () { self.adjusting = false; }, 1200);
+                }, ms);
+                return true;
+            }
+            // Kleiner Vorsprung: unmerklich langsamer (höchstens 6 %)
+            this.setSpeed(1 - Math.min(0.06, Math.max(0.02, err / 10000)));
+            return true;
+        },
         liveTick: function (scr) {
+            if (this.ptsTick(scr)) return;
             var d = this.delay(scr);
             if (d < 0) return;
             this.send('ldelay', { d: d });
@@ -10530,6 +10580,9 @@
                         toast('👥 ' + (m.nm || 'Anderes Gerät') + ': alle zum Live-Bild', 2500);
                         setTimeout(function () { var s2 = self.screen(); if (s2 && s2.kind === 'live') self.apply(function () { s2.start(); }); }, 300 + Math.random() * 1700);
                     }
+                    break;
+                case 'lpts':
+                    if (this.peers[m.from]) { this.peers[m.from].p = m.p; this.peers[m.from].pAt = Date.now(); this.peers[m.from].run = !!m.run; }
                     break;
                 case 'ldelay':
                     if (this.peers[m.from]) { this.peers[m.from].d = m.d; this.peers[m.from].dAt = Date.now(); }
