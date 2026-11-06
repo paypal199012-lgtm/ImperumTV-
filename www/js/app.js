@@ -3884,7 +3884,7 @@
             if (name === 'buffer') NetQ.onBuffer(!!a);
             if (name === 'ready') this.gotReady = true;
             if (name === 'buffer') this.isBuf = !!a;
-            if (name === 'frame') this.gotFrame = true;
+            if (name === 'frame') { this.gotFrame = true; try { Party.onFrame(); } catch (eP) { /* egal */ } }
             var f = this.handlers[name]; if (f) f(a, b);
         },
 
@@ -10412,6 +10412,11 @@
             var self = this, first = !this.lv || this.lv.key !== this.curKey;
             setTimeout(function () { self.liveSync(null, first ? 3000 : 30000); }, 1500);
         },
+        /** Android meldet das erste wirklich gezeichnete Bild: genauer als „bereit“ */
+        onFrame: function () {
+            var lv = this.lv;
+            if (lv && lv.key === this.curKey && !lv.frame && Date.now() - lv.R < 30000) { lv.frame = true; lv.ready = Date.now(); }
+        },
         delay: function (scr) {
             if (!this.lv || !this.lv.ready || this.lv.key !== this.curKey) return -1;
             // Android misst Hänger und Pausen selbst (behindMs); sonst zählen wir die eigenen Pausen
@@ -10428,7 +10433,7 @@
                 if (p.d !== undefined && p.sid === this.lv.sid && now - p.dAt < 8000 && p.d > max) max = p.d;
             }
             var need = max - d;
-            if (need > 250 && !this.adjusting && Player.isPlaying()) {
+            if (need > 120 && !this.adjusting && Player.isPlaying()) {
                 // Kurz anhalten: der Rückstand wächst um genau diese Zeit
                 var self = this, lv = this.lv;
                 this.adjusting = true;
@@ -10436,7 +10441,7 @@
                 this.apply(function () { Player.toggle(); });
                 setTimeout(function () {
                     self.apply(function () { if (!Player.isPlaying()) Player.toggle(); });
-                    setTimeout(function () { self.adjusting = false; }, 2500);
+                    setTimeout(function () { self.adjusting = false; }, 1500);
                 }, Math.min(need, 15000));
             }
         },
