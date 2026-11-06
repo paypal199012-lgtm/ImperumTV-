@@ -2279,6 +2279,105 @@
         }
     };
 
+    /**
+     * Zufriedenheits-Umfrage: einmal nach 14 Tagen „Wie gefällt dir ImperumTV?“ (1–5 Sterne, Text freiwillig).
+     * Schließen/Zurück = in 7 Tagen nochmal, „Nicht mehr fragen“ = nie wieder. Ergebnisse auf der Admin-Seite.
+     */
+    var Survey = {
+        DAYS: 14,
+        WORDS: ['', 'Gar nicht', 'Eher nicht', 'Geht so', 'Gut', 'Super'],
+        ok: function () {
+            if (STORE_BUILD || !Device.validMac(Device.mac) || !Device.validKey(Device.key)) return false;
+            var acc = Storage.get('account', null);
+            return !!acc && !acc.demo;
+        },
+        due: function () {
+            if (!this.ok() || Storage.get('surveyDone', false)) return false;
+            var first = Storage.get('firstUseAt', 0), now = Date.now();
+            if (!first) { Storage.set('firstUseAt', now); return false; }
+            if (now - first < this.DAYS * 864e5) return false;
+            return now >= (Storage.get('surveyNext', 0) || 0);
+        },
+        /** Nach dem Start in Ruhe fragen (Startseite, kein Fenster, nichts im Vollbild) */
+        later: function (forced) {
+            var self = this, tries = 0;
+            if (!forced && (!this.due() || WhatsNew.pending().length)) return;
+            (function check() {
+                if (++tries > (forced ? 720 : 40)) return;
+                var top = Nav.top();
+                if (!top || Modal.node || top instanceof PlayerScreen || Date.now() - (Nav.userAt || 0) < 4000) { setTimeout(check, forced ? 5000 : 3000); return; }
+                self.show();
+            })();
+        },
+        show: function () {
+            var self = this, chosen = 0;
+            Storage.set('surveyNext', Date.now() + 7 * 864e5);       // ohne Antwort geschlossen: in 7 Tagen nochmal
+            var box = h('div', 'modal-box sv-box');
+            box.appendChild(h('div', 'modal-title', 'Wie gefällt dir ImperumTV?'));
+            box.appendChild(h('div', 'modal-text', 'Deine Meinung hilft, die App besser zu machen. Wähle 1 bis 5 Sterne.'));
+            var row = h('div', 'sv-stars'), stars = [], word = h('div', 'sv-word', '');
+            function paint(n) {
+                stars.forEach(function (s, i) { s.classList.toggle('on', i < n); });
+                word.textContent = self.WORDS[n] || '';
+            }
+            for (var i = 1; i <= 5; i++) (function (n) {
+                var s = h('div', 'sv-star', '★');
+                focusable(s, 'sv-' + n, function () { chosen = n; Modal.close(); self.askText(n); }, 'sv');
+                s._onFocus = function () { paint(n); };
+                stars.push(s); row.appendChild(s);
+            })(i);
+            box.appendChild(row);
+            box.appendChild(word);
+            var btns = h('div', 'modal-buttons');
+            var later = h('div', 'button', 'Später');
+            focusable(later, 'sv-later', function () { paint(0); Modal.close(); }, 'dialog');
+            later._onFocus = function () { paint(0); };
+            var never = h('div', 'button', 'Nicht mehr fragen');
+            focusable(never, 'sv-never', function () { Storage.set('surveyDone', true); Modal.close(); }, 'dialog');
+            never._onFocus = function () { paint(0); };
+            btns.appendChild(later); btns.appendChild(never);
+            box.appendChild(btns);
+            Modal.openBox(box, stars[3]);
+        },
+        /** Schritt 2: freiwilliger Text, dann senden */
+        askText: function (n) {
+            var self = this;
+            var box = h('div', 'modal-box kbd-box');
+            box.appendChild(h('div', 'modal-title', 'Danke! ' + new Array(n + 1).join('★') + new Array(6 - n).join('☆')));
+            box.appendChild(h('div', 'modal-text', n >= 4 ? 'Was gefällt dir besonders? (freiwillig)' : 'Was sollen wir besser machen? (freiwillig)'));
+            var input = h('input', 'input search-input');
+            input.type = 'text';
+            input.maxLength = 500;
+            input.placeholder = 'Dein Text …';
+            input.setAttribute('autocomplete', 'off');
+            focusable(input, 'sv-input', null, 'searchbox');
+            box.appendChild(input);
+            var kb = Keyboard.build(input, 'sv');
+            box.appendChild(kb);
+            var row = h('div', 'modal-buttons');
+            function btn(label, primary, withText) {
+                var b = h('div', 'button' + (primary ? ' primary' : ''), label);
+                focusable(b, 'sv-' + label, function () { Modal.close(); self.send(n, withText ? input.value : ''); }, 'dialog');
+                row.appendChild(b);
+            }
+            btn('Senden', true, true);
+            btn('Ohne Text senden', false, false);
+            box.appendChild(row);
+            Modal.openBox(box, Keyboard.first(kb));
+        },
+        send: function (n, text) {
+            text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 500);
+            Remote.rpc('device_feedback', { p_mac: Device.mac, p_key: Device.key, p_stars: n, p_text: text }).then(function (r) {
+                if (r && r.ok === false && r.error !== 'Schon bewertet') { Storage.set('surveyNext', Date.now() + 864e5); toast('Bewertung konnte nicht gesendet werden – wir fragen später nochmal.', 5000); return; }
+                Storage.set('surveyDone', true);
+                toast(n >= 4 ? 'Danke für deine Bewertung! 💛' : 'Danke! Wir kümmern uns darum.', 4000);
+            }, function () {
+                Storage.set('surveyNext', Date.now() + 864e5);
+                toast('Keine Verbindung – wir fragen morgen nochmal.', 5000);
+            });
+        }
+    };
+
     /** Stick-Zustand für die Admin-Seite (Speicher, Arbeitsspeicher, WLAN, Tempo …): alle 10 Minuten, nur Android */
     var StickState = {
         day: function () { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); },
@@ -5482,6 +5581,7 @@
         run: function (cmd) {
             var self = this;
             if (cmd === 'help') { Help.ask(true); return; }
+            if (cmd === 'survey') { Survey.later(true); return; }
             if (cmd === 'engine:vlc' || cmd === 'engine:exo') {
                 try { if (AB && AB.setLiveEngine) { AB.setLiveEngine(cmd === 'engine:vlc' ? 'vlc' : 'exo'); toast('Player Live TV: ' + (cmd === 'engine:vlc' ? 'VLC' : 'ImperumTV') + ' (vom Support eingestellt)', 5000); } } catch (e) { /* egal */ }
                 return;
@@ -11321,6 +11421,7 @@
         }
 
         setTimeout(function () { WhatsNew.later(); }, 8000);
+        setTimeout(function () { Survey.later(false); }, 60000);
 
         // Alle 10 Minuten: Listen und Status mit der Website abgleichen
         setInterval(function () {
