@@ -21,7 +21,7 @@ on:
 
 jobs:
   upload:
-    runs-on: macos-15-intel
+    runs-on: macos-15
     env:
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
     steps:
