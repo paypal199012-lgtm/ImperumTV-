@@ -19,10 +19,31 @@
     "appId": "xyz.imperumtv.windows",
     "productName": "ImperumTV",
     "copyright": "ImperumTV",
-    "files": ["main.js", "preload.js", "mpv.js", "icon.ico", "selftest.html", "www/**/*"],
-    "extraResources": [{ "from": "mpv", "to": "mpv", "filter": ["**/*"] }],
-    "directories": { "output": "dist" },
-    "win": { "target": "nsis", "icon": "icon.ico", "artifactName": "ImperumTV-Setup.exe" },
+    "files": [
+      "main.js",
+      "preload.js",
+      "mpv.js",
+      "icon.ico",
+      "selftest.html",
+      "www/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "mpv",
+        "to": "mpv",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico",
+      "artifactName": "ImperumTV-Setup.exe"
+    },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
@@ -34,6 +55,7 @@
       "language": "1031",
       "installerIcon": "icon.ico",
       "uninstallerIcon": "icon.ico"
-    }
+    },
+    "publish": null
   }
 }
