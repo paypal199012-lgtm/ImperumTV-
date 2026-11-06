@@ -191,11 +191,16 @@ class Vpn extends EventEmitter {
     const m = net.connect(this.port, '127.0.0.1');
     let buf = '';
     m.on('connect', () => { this.mgmt = m; this.mgmtSeen = true; this.log('Management verbunden (Port ' + this.port + ')'); });
+    this.pwSent = false; this.setupSent = false;
     m.on('data', (d) => {
       buf += d.toString('utf8');
+      // Passwort-Abfrage kommt ohne Zeilenende und manchmal direkt vor der nächsten Antwort in derselben Zeile
+      if (buf.indexOf('ENTER PASSWORD:') >= 0) {
+        buf = buf.replace('ENTER PASSWORD:', '');
+        if (!this.pwSent) { this.pwSent = true; this.send(this.mpass); }
+      }
       let i;
-      while ((i = buf.search(/\r?\n/)) >= 0 || /ENTER PASSWORD:$/.test(buf)) {
-        if (i < 0) { this.onLine(buf); buf = ''; break; }
+      while ((i = buf.search(/\r?\n/)) >= 0) {
         const line = buf.slice(0, i); buf = buf.slice(buf[i] === '\r' ? i + 2 : i + 1);
         this.onLine(line);
       }
@@ -216,7 +221,15 @@ class Vpn extends EventEmitter {
   send(line) { if (this.mgmt) try { this.mgmt.write(line + '\n'); } catch (e) { /* zu */ } }
 
   onLine(line) {
-    if (/^ENTER PASSWORD:/.test(line)) { this.send(this.mpass); this.send('state on'); this.send('log on'); this.send('hold release'); return; }
+    // Nach dem richtigen Passwort (oder falls keins nötig war): Status/Protokoll einschalten und loslegen – nur einmal
+    if (/^SUCCESS: password is correct/.test(line) || (/^>INFO:/.test(line) && !this.pwSent)) {
+      this.log('Management: ' + line);
+      if (!this.setupSent) { this.setupSent = true; this.send('state on'); this.send('log on'); this.send('hold release'); this.pollState(); }
+      return;
+    }
+    // Antwort auf „state“: „1730885416,CONNECTED,SUCCESS,10.8.8.18,…“
+    if (/^\d+,CONNECTED,/.test(line)) { if (this.state !== 'an') { this.log('Status: verbunden (' + line.split(',')[3] + ')'); this.set('an', ''); this.dropAuth(); } return; }
+    if (/^>LOG:.*Initialization Sequence Completed/.test(line) && this.state !== 'an') { this.log('Initialization Sequence Completed'); this.set('an', ''); this.dropAuth(); return; }
     if (/^>HOLD:/.test(line)) { this.send('hold release'); return; }
     if (/^>LOG:/.test(line)) { const p = line.split(','); this.log(p.slice(2).join(',')); return; }
     if (/^>PASSWORD:Need 'Auth'/.test(line)) {
@@ -235,6 +248,15 @@ class Vpn extends EventEmitter {
       else if (st === 'EXITING') { if (this.state !== 'fehler' && !this.stopping) this.set('aus', ''); }
       else if (this.state !== 'fehler') this.set('verbindet', '');
     }
+  }
+
+  /** Zusätzlich alle 3 s nach dem Stand fragen, bis verbunden (falls eine Echtzeit-Meldung untergeht) */
+  pollState() {
+    clearInterval(this.poller);
+    this.poller = setInterval(() => {
+      if (!this.mgmt || this.state !== 'verbindet') { clearInterval(this.poller); return; }
+      this.send('state');
+    }, 3000);
   }
 
   dropAuth() { if (this.authFile) { try { fs.unlinkSync(this.authFile); } catch (e) { /* schon weg */ } } }
