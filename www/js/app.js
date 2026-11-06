@@ -10392,6 +10392,7 @@
         liveStart: function (scr) {
             if (!this.active() || scr.kind !== 'live') return;
             this.lv = { R: Date.now(), ready: 0, key: this.curKey, extra: 0 };
+            this.aheadHist = [];
             if (Player.gotReady && scr.handoff) this.lv.ready = this.lv.R;     // lief schon in der Vorschau
         },
         onReady: function (scr) {
@@ -10404,6 +10405,17 @@
             if (lv && !lv.frame && Date.now() - lv.R < 30000) { lv.frame = true; lv.ready = Date.now(); }
         },
         delay: function (scr) {
+            // Android: Bild im Puffer vor der Abspielstelle = wie weit hinter dem neuesten Bild vom Anbieter.
+            // Das misst den echten Rückstand, egal wie viel der Anbieter beim Verbinden vorab schickt.
+            if (AB && AB.bufferAheadMs) {
+                var a = -1;
+                try { a = Number(AB.bufferAheadMs()); } catch (e) { a = -1; }
+                if (a >= 0) {
+                    var h = this.aheadHist = (this.aheadHist || []).concat([a]).slice(-4);
+                    var sorted = h.slice().sort(function (x, y) { return x - y; });
+                    return sorted[Math.floor(sorted.length / 2)];      // Mittelwert-artig, Ausreißer zählen nicht
+                }
+            }
             if (!this.lv || !this.lv.ready) return -1;
             // Android misst Hänger und Pausen selbst (behindMs); sonst zählen wir die eigenen Pausen
             var nativeBehind = !!(AB && AB.liveBehindMs);
@@ -10418,7 +10430,7 @@
                 var p = this.peers[k];
                 if (p.d !== undefined && now - p.dAt < 4000 && p.d > max) max = p.d;
             }
-            if (max - d > 60000) return;                      // unplausibel (z. B. anderes Gerät hängt): nichts tun
+            if (max - d > 20000) return;                      // unplausibel (z. B. anderes Gerät hängt): nichts tun
             var need = max - d;
             if (need > 120 && !this.adjusting && Player.isPlaying()) {
                 // Kurz anhalten: der Rückstand wächst um genau diese Zeit
@@ -10428,7 +10440,7 @@
                 this.apply(function () { Player.toggle(); });
                 setTimeout(function () {
                     self.apply(function () { if (!Player.isPlaying()) Player.toggle(); });
-                    setTimeout(function () { self.adjusting = false; }, 1500);
+                    setTimeout(function () { self.adjusting = false; self.aheadHist = []; }, 1500);
                 }, Math.min(need, 15000));
             }
         },
