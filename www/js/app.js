@@ -10281,6 +10281,7 @@
             this.closing = true;
             try { this.ws.close(); } catch (e) { /* egal */ }
             this.ws = null; this.code = ''; this.joined = false; this.peers = {}; this.curKey = '';
+            this.setSpeed(1);
             this.timers.forEach(clearInterval); this.timers = [];
             this.badge();
         },
@@ -10392,7 +10393,7 @@
         liveStart: function (scr) {
             if (!this.active() || scr.kind !== 'live') return;
             this.lv = { R: Date.now(), ready: 0, key: this.curKey, extra: 0 };
-            this.aheadHist = [];
+            this.aheadHist = []; this.speed = 1;             // der Player startet jeden Sender mit normaler Geschwindigkeit
             if (Player.gotReady && scr.handoff) this.lv.ready = this.lv.R;     // lief schon in der Vorschau
         },
         onReady: function (scr) {
@@ -10425,24 +10426,44 @@
             var d = this.delay(scr);
             if (d < 0) return;
             this.send('ldelay', { d: d });
-            var max = d, now = Date.now(), k;
+            var all = [d], now = Date.now(), k;
             for (k in this.peers) {
                 var p = this.peers[k];
-                if (p.d !== undefined && now - p.dAt < 4000 && p.d > max) max = p.d;
+                if (p.d !== undefined && now - p.dAt < 4000 && Math.abs(p.d - d) < 20000) all.push(p.d);   // unplausible Werte weglassen
             }
-            if (max - d > 20000) return;                      // unplausibel (z. B. anderes Gerät hängt): nichts tun
-            var need = max - d;
-            if (need > 120 && !this.adjusting && Player.isPlaying()) {
-                // Kurz anhalten: der Rückstand wächst um genau diese Zeit
+            if (all.length < 2) { this.setSpeed(1); return; }
+            all.sort(function (x, y) { return x - y; });
+            var canSpeed = !!(AB && AB.setSpeed && AB.bufferAheadMs);
+            if (canSpeed) {
+                // Sanft angleichen: wer vorne ist, spielt minimal langsamer, wer hinten ist, minimal schneller – kein Standbild.
+                // Ziel ist die Mitte aller Geräte; bei 1 s Unterschied dauert das Angleichen etwa 10–20 s.
+                var target = all[Math.floor((all.length - 1) / 2)], err = d - target;
+                if (all.length === 2) target = (all[0] + all[1]) / 2, err = d - target;
+                if (Math.abs(err) < 120) { this.setSpeed(1); return; }
+                if (err > 0 && d < 1200) { this.setSpeed(1); return; }         // kaum Puffer: nicht schneller (sonst Hänger)
+                this.setSpeed(1 + Math.max(-0.06, Math.min(0.06, err / 12000)));
+                return;
+            }
+            // Ohne Geschwindigkeit (VLC, iPhone): kurz anhalten – nur bei deutlichem, stabilem Unterschied
+            var need = all[all.length - 1] - d;
+            this.needN = need > 350 ? (this.needN || 0) + 1 : 0;
+            if (this.needN >= 3 && !this.adjusting && Player.isPlaying() && Date.now() - (this.adjAt || 0) > 8000) {
                 var self = this, lv = this.lv;
-                this.adjusting = true;
-                lv.extra = (lv.extra || 0) + Math.min(need, 15000);
+                this.adjusting = true; this.needN = 0; this.adjAt = Date.now();
+                var ms = Math.min(need - 100, 15000);
+                if (lv) lv.extra = (lv.extra || 0) + ms;
                 this.apply(function () { Player.toggle(); });
                 setTimeout(function () {
                     self.apply(function () { if (!Player.isPlaying()) Player.toggle(); });
                     setTimeout(function () { self.adjusting = false; self.aheadHist = []; }, 1500);
-                }, Math.min(need, 15000));
+                }, ms);
             }
+        },
+        speed: 1,
+        setSpeed: function (v) {
+            v = Math.round(v * 100) / 100;
+            if (v === this.speed || !AB || !AB.setSpeed) return;
+            try { if (AB.setSpeed(v)) this.speed = v; } catch (e) { /* egal */ }
         },
 
         // ---------- Nachrichten der anderen ----------
