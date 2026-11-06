@@ -429,7 +429,7 @@
         SW = sw;
         if (!wideStyle) { wideStyle = document.createElement('style'); (document.head || document.documentElement).appendChild(wideStyle); }
         wideStyle.textContent = sw === 1920 ? '' :
-            '#stage,#app,.detail-bg,.detail-shade,#player-ui,#loader,.pl,.eg,#modal,.trailer{width:' + sw + 'px !important}';
+            '#stage,#app,#app::before,.detail-bg,.detail-shade,#player-ui,#loader,.pl,.eg,#modal,.trailer{width:' + sw + 'px !important}';
         if (document.body) document.body.classList.toggle('wide', sw > 1920);
     }
     function viewportSize() {
