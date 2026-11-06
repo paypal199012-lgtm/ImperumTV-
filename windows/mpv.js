@@ -47,6 +47,8 @@ class Mpv extends EventEmitter {
       '--user-agent=' + (this.opts.userAgent || 'ImperumTV/1.0 (Windows)'),
       '--alang=de,ger,deu,en,eng', '--slang=de,ger,deu', '--sid=no', '--msg-level=all=warn', '--terminal=no'
     ];
+    // Protokoll für die Fehlersuche (wird bei jedem Start neu geschrieben)
+    if (this.opts.logFile) args.push('--log-file=' + this.opts.logFile);
     this.proc = spawn(this.bin, args, { stdio: 'ignore', windowsHide: true });
     this.proc.on('error', (e) => { this.emit('ev', 'error', 'Player (mpv) fehlt: ' + e.message); });
     this.proc.on('exit', () => {
@@ -127,7 +129,7 @@ class Mpv extends EventEmitter {
         if (!this.readySent) break;
         if (!!v !== this.buffering) { this.buffering = !!v; this.emit('ev', 'buffer', !!v); }
         break;
-      case 'track-list': st.tracks = Array.isArray(v) ? v : []; this.pickAudio(); break;
+      case 'track-list': st.tracks = Array.isArray(v) ? v : []; break;
       case 'video-params': st.vparams = v || null; this.checkFrame(); break;
       case 'demuxer-cache-state': {
         const rate = v && v['raw-input-rate'];
@@ -142,9 +144,6 @@ class Mpv extends EventEmitter {
     if (this.frameSent || !this.readySent) return;
     if (this.st.vparams && this.st.vparams.w > 0) { this.frameSent = true; this.emit('ev', 'frame', null); }
   }
-
-  /** Bevorzugte Tonsprachen (Filme: Deutsch, sonst Englisch) – mpv wählt beim Laden selbst mit alang */
-  pickAudio() { /* alang erledigt das */ }
 
   tick() {
     const st = this.st;

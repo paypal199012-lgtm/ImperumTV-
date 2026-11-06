@@ -446,7 +446,8 @@
         var ins = { l: 0, r: 0 };
         try { if (window.AndroidBridge && AndroidBridge.safeInsets) ins = JSON.parse(AndroidBridge.safeInsets()) || ins; } catch (e) { /* egal */ }
         var il = Math.max(0, ins.l || 0), ir = Math.max(0, ins.r || 0), uw = Math.max(100, w - il - ir);
-        var sw = uw / hh > 16 / 9 + 0.03 ? Math.min(2560, Math.round(1080 * uw / hh)) : 1920;
+        // breiter als 16:9 (Handy 20:9, PC-Monitor 21:9 oder 32:9): Oberfläche wird breiter statt grauer Ränder
+        var sw = uw / hh > 16 / 9 + 0.03 ? Math.min(3840, Math.round(1080 * uw / hh)) : 1920;
         if (sw !== SW) setStageWidth(sw);
         scale = Math.min(uw / SW, hh / 1080);
         offX = il + Math.round((uw - SW * scale) / 2);

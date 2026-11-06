@@ -14,6 +14,10 @@ const UPDATE_REPO = 'paypal199012-lgtm/ImperumTV-';
 const UPDATE_TAG = 'windows';
 const SETUP_NAME = 'ImperumTV-Setup.exe';
 
+// Oberfläche ohne Grafikkarte zeichnen: durchsichtige Fenster klappen damit auf allen PCs
+// (mit manchen Grafikkarten deckte die Oberfläche sonst das Video ab: Ton, aber schwarzes Bild).
+// Das Video selbst läuft weiter über die Grafikkarte (mpv).
+app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling');
 if (!app.requestSingleInstanceLock()) { app.quit(); }
@@ -150,7 +154,8 @@ function createWindows() {
     if (settings.fullscreen || SELFTEST) videoWin.setFullScreen(true);
     sync(); uiWin.show(); uiWin.focus();
     setTimeout(sync, 300);
-    mpv = new Mpv(mpvPath(), hwndOf(videoWin), { buffer: settings.buffer || 'normal', userAgent: 'ImperumTV/1.0 (Windows)' });
+    mpv = new Mpv(mpvPath(), hwndOf(videoWin), { buffer: settings.buffer || 'normal', userAgent: 'ImperumTV/1.0 (Windows)',
+      logFile: path.join(app.getPath('userData'), 'player.log') });
     mpv.on('ev', (name, a) => {
       if (SELFTEST && name !== 'time') testLog('mpv: ' + name + (a !== undefined && a !== null ? ' ' + a : ''));
       if (uiWin && !uiWin.isDestroyed()) uiWin.webContents.send('ev', name, a);
