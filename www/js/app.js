@@ -10478,8 +10478,23 @@
                 self.curKey = localKey;
                 self.openedAt = Date.now();
                 self.apply(function () {
+                    var top = Nav.top();
+                    // Live-Sender im laufenden Player: nur umschalten (wie Kanal ▲▼), alles darunter bleibt
+                    if (top instanceof PlayerScreen && kind === 'live' && top.kind === 'live' && top.items === items) {
+                        top.index = index;
+                        top.retries = 0; top.altUrl = ''; top.altName = ''; top.r407 = 0; top.stallLog = []; top.shortLog = []; clearTimeout(top.t407);
+                        top.start();
+                        top.showOverlay(2000);
+                        return;
+                    }
                     var scr = new PlayerScreen(items, index, kind, kind === 'live' ? undefined : pos);
-                    if (Nav.top() instanceof PlayerScreen) Nav.replace(scr); else Nav.push(scr);
+                    // Anderer Player läuft: nur ihn ersetzen (nicht den ganzen Verlauf – sonst führt Zurück nicht mehr in die Listen)
+                    Nav.push(scr);
+                    if (top instanceof PlayerScreen) { var oi = Nav.stack.indexOf(top); if (oi >= 0) Nav.stack.splice(oi, 1); top._dom = null; }
+                    // Zurück aus einem Live-Sender: in die Senderliste (auch wenn man über den Code eingestiegen ist)
+                    if (kind === 'live' && !Nav.stack.some(function (x) { return x instanceof LiveScreen || x instanceof EpgGridScreen; })) {
+                        Nav.stack.splice(Nav.stack.length - 1, 0, new LiveScreen(0));
+                    }
                 });
                 if (paused && kind !== 'live') {
                     // Pausiert beitreten: anhalten, sobald das Bild läuft
