@@ -2228,6 +2228,9 @@
      */
     var WhatsNew = {
         LIST: [
+            { v: 248, items: [
+                ['📴', 'Fernseher aus? Die App hält an', 'Schaltest du nur den Fernseher aus, hält der Stick nach ein paar Sekunden an. Filme gehen beim Einschalten an derselben Stelle weiter.']
+            ] },
             { v: 247, items: [
                 ['📺', 'Schwarzes Bild? Wechselt jetzt von selbst', 'Zeigt ein Sender kein Bild oder hängt beim Start, schaltet die App nach wenigen Sekunden auf die nächste Qualität – auch in der Vorschau.'],
                 ['⏭', 'Zum Live-Bild aufholen', 'Hängt ein Sender hinterher, steht im Player „… s hinter live“. Der Knopf rechts neben der Senderliste springt zum aktuellen Bild.'],
@@ -11233,6 +11236,22 @@
             }
         }
         document.addEventListener('visibilitychange', function () { if (!AB) lifecycle(document.hidden); });
+        // Fernseher aus, der Stick läuft aber weiter: anhalten (Film merkt sich die Stelle, Verbindung zum Anbieter wird frei)
+        var tvPaused = false;
+        window.__androidTv = function (on) {
+            var top = Nav.top();
+            if (!on) {
+                if (!(top instanceof PlayerScreen || top instanceof LiveScreen) || !Player.isPlaying()) return;
+                tvPaused = true;
+                lifecycle(true);
+                try { Report.player(top instanceof PlayerScreen ? top.item() : top.selected, 'Fernseher aus – Wiedergabe angehalten'); } catch (e) { /* egal */ }
+                return;
+            }
+            if (!tvPaused) return;
+            tvPaused = false;
+            lifecycle(false);
+            if (Nav.top() instanceof PlayerScreen) toast('Fernseher wieder an – weiter geht\'s', 3000);
+        };
         window.__androidLifecycle = function (state) {
             lifecycle(state === 'hidden');
             if (state !== 'hidden') { Updater.recheck(); if (Clock.node && Clock.mode() !== 'off') Clock.tick(); }
