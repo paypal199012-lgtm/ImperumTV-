@@ -93,6 +93,19 @@ jobs:
           if (Test-Path $log) { Get-Content $log } else { Write-Host 'kein Protokoll' }
           if (Test-Path $log) { Copy-Item $log windows/test-protokoll.txt }
 
+      - name: Testfotos in Zweig „windows-test“ legen
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          if (!(Test-Path windows/test-1-vorschau.png)) { Write-Host 'keine Fotos'; exit 0 }
+          $d = Join-Path $env:RUNNER_TEMP 'bilder'; New-Item -ItemType Directory -Force $d | Out-Null
+          Copy-Item windows/test-*.png, windows/test-protokoll.txt $d -ErrorAction SilentlyContinue
+          cd $d
+          git init -q -b windows-test
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          git add -A; git commit -qm "Windows-Selbsttest ${{ github.run_number }}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" windows-test
+
       - name: Testfotos hochladen
         uses: actions/upload-artifact@v4
         with:
