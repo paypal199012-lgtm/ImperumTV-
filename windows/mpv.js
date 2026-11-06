@@ -41,12 +41,14 @@ class Mpv extends EventEmitter {
       '--idle=yes', '--force-window=yes', '--wid=' + this.wid, '--input-ipc-server=' + this.pipe,
       '--config=no', '--load-scripts=no', '--ytdl=no', '--osc=no', '--osd-level=0', '--no-osd-bar',
       '--input-default-bindings=no', '--input-vo-keyboard=no', '--input-cursor=no', '--cursor-autohide=always',
-      '--keep-open=no', '--hwdec=auto-safe', '--vo=gpu', '--background-color=#000000',
+      '--keep-open=no', '--background-color=#000000',
       '--cache=yes', '--cache-pause-initial=no', '--demuxer-max-bytes=200MiB', '--demuxer-max-back-bytes=50MiB',
       '--network-timeout=20', '--stream-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=5',
       '--user-agent=' + (this.opts.userAgent || 'ImperumTV/1.0 (Windows)'),
       '--alang=de,ger,deu,en,eng', '--slang=de,ger,deu', '--sid=no', '--msg-level=all=warn', '--terminal=no'
     ];
+    // Bildausgabe (Einstellungen → Bildausgabe): nicht jede Grafikkarte zeigt mit jedem Verfahren ein Bild unter der Oberfläche
+    args.push.apply(args, Mpv.VIDEO_OUT[this.opts.videoOut] || Mpv.VIDEO_OUT.auto);
     // Protokoll für die Fehlersuche (wird bei jedem Start neu geschrieben)
     if (this.opts.logFile) args.push('--log-file=' + this.opts.logFile);
     this.proc = spawn(this.bin, args, { stdio: 'ignore', windowsHide: true });
@@ -54,12 +56,24 @@ class Mpv extends EventEmitter {
     this.proc.on('exit', () => {
       this.sock = null;
       if (this.quitting) return;
+      if (this.restarting) { this.restarting = false; this.reset(); setTimeout(() => this.start(), 200); return; }
       // Player abgestürzt: neu starten (die Oberfläche bekommt einen Fehler und schaltet ggf. um)
       if (this.loaded) this.emit('ev', 'error', 'Player wurde neu gestartet');
       this.reset();
       setTimeout(() => { if (!this.quitting) this.start(); }, 800);
     });
     this.connect(0);
+  }
+
+  /** Mit anderen Einstellungen neu starten (z. B. andere Bildausgabe); der laufende Sender wird neu geladen */
+  restart(opts) {
+    Object.assign(this.opts, opts || {});
+    const url = this.loaded || this.pending ? (this.lastUrl || this.pending) : null;
+    this.pending = url;
+    this.restarting = true;
+    try { this.send(['quit']); } catch (e) { /* egal */ }
+    const p = this.proc;
+    setTimeout(() => { try { p.kill(); } catch (e) { /* egal */ } }, 600);
   }
 
   connect(tries) {
@@ -193,6 +207,7 @@ class Mpv extends EventEmitter {
   }
 
   load(url) {
+    this.lastUrl = url;
     if (!this.sock) { this.pending = url; return; }
     this.reset();
     this.st.pos = 0; this.st.dur = 0; this.st.tracks = []; this.st.vparams = null; this.st.pause = false;
@@ -254,5 +269,14 @@ class Mpv extends EventEmitter {
     setTimeout(() => { try { this.proc.kill(); } catch (e) { /* egal */ } }, 500);
   }
 }
+
+// Verfahren für die Bildausgabe: auto = D3D11 ohne „Flip“ (verträgt sich am besten mit der Oberfläche darüber)
+Mpv.VIDEO_OUT = {
+  auto: ['--vo=gpu', '--gpu-api=d3d11', '--d3d11-flip=no', '--hwdec=auto-safe'],
+  d3d11: ['--vo=gpu', '--gpu-api=d3d11', '--d3d11-flip=yes', '--hwdec=auto-safe'],
+  opengl: ['--vo=gpu', '--gpu-api=opengl', '--hwdec=auto-safe'],
+  soft: ['--vo=gpu', '--gpu-api=d3d11', '--d3d11-flip=no', '--hwdec=no'],
+  direct3d: ['--vo=direct3d', '--hwdec=no']
+};
 
 module.exports = Mpv;

@@ -15,6 +15,7 @@ ipcRenderer.on('vpn', (e, v) => { S.vpn = v || {}; });
 ipcRenderer.on('fullscreen', (e, on) => { S.full = !!on; });
 S.vpn = info.vpn || {};
 S.full = !!info.fullscreen;
+S.videoOut = info.videoOut || 'auto';
 ipcRenderer.on('ev', (e, name, a) => {
   if (name === 'ready' || name === 'buffer') S.playing = true;
   if (name === 'end' || name === 'error') S.playing = false;
@@ -74,6 +75,10 @@ window.AndroidBridge = {
   openUrl: P('openUrl'),
   openYoutube: function (id) { post('openUrl', ['https://www.youtube.com/watch?v=' + encodeURIComponent(id)]); return true; },
   exit: P('exit'),
+
+  // Bildausgabe des Players (falls eine Grafikkarte kein Bild zeigt)
+  getVideoOut: function () { return S.videoOut || 'auto'; },
+  setVideoOut: function (m) { S.videoOut = m; post('setVideoOut', [m]); },
 
   // Fenster / Vollbild (F11)
   getFullscreen: function () { return !!S.full; },

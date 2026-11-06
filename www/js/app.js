@@ -9272,6 +9272,23 @@
                 { label: 'Aus', primary: cur === 0, action: function () { pick(0); } }
             ]);
         });
+        // Windows-PC: Bildausgabe des Players – zeigt eine Grafikkarte nur Schwarz (Ton läuft), hier ein anderes Verfahren wählen
+        if (AB && AB.getVideoOut && AB.setVideoOut) {
+            var VO = { auto: 'Automatisch', soft: 'Ohne Grafikkarten-Decoder', opengl: 'OpenGL', d3d11: 'Direct3D 11 (Flip)', direct3d: 'Direct3D 9 (alt)' };
+            row('videoout', 'tv', 'Bildausgabe', VO[AB.getVideoOut()] || 'Automatisch', function (v) {
+                var cur = AB.getVideoOut();
+                var pick = function (m) { AB.setVideoOut(m); v.textContent = VO[m]; toast('Bildausgabe: ' + VO[m] + ' – Player startet neu', 4000); };
+                Modal.open('Bildausgabe', 'Bleibt das Bild schwarz, obwohl der Ton läuft? Dann hier nacheinander ein anderes Verfahren wählen und einen Sender starten.', [
+                    { label: 'Automatisch (empfohlen)', primary: cur === 'auto', action: function () { pick('auto'); } },
+                    { label: 'Ohne Grafikkarten-Decoder', primary: cur === 'soft', action: function () { pick('soft'); } },
+                    { label: 'OpenGL', primary: cur === 'opengl', action: function () { pick('opengl'); } },
+                    { label: 'Direct3D 11 (Flip)', primary: cur === 'd3d11', action: function () { pick('d3d11'); } },
+                    { label: 'Direct3D 9 (alt)', primary: cur === 'direct3d', action: function () { pick('direct3d'); } },
+                    { label: 'Abbrechen' }
+                ]);
+                if (Modal.node) Modal.node.classList.add('modal-list');
+            });
+        }
         if (Buffer.available()) {
             row('buffer', 'up', 'Puffer', Buffer.label(Buffer.get()), function (v) {
                 Modal.open('Puffer', 'Wie viel Vorrat die App lädt, bevor das Bild startet.\nKlein: Sender starten schneller, bei schwachem WLAN eher Ruckler.\n' +

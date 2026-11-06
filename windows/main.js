@@ -155,7 +155,7 @@ function createWindows() {
     sync(); uiWin.show(); uiWin.focus();
     setTimeout(sync, 300);
     mpv = new Mpv(mpvPath(), hwndOf(videoWin), { buffer: settings.buffer || 'normal', userAgent: 'ImperumTV/1.0 (Windows)',
-      logFile: path.join(app.getPath('userData'), 'player.log') });
+      logFile: path.join(app.getPath('userData'), 'player.log'), videoOut: settings.videoOut || 'auto' });
     mpv.on('ev', (name, a) => {
       if (SELFTEST && name !== 'time') testLog('mpv: ' + name + (a !== undefined && a !== null ? ' ' + a : ''));
       if (uiWin && !uiWin.isDestroyed()) uiWin.webContents.send('ev', name, a);
@@ -198,7 +198,7 @@ ipcMain.on('info', (e) => {
     version: versionNumber(), versionText: app.getVersion(), device: 'Windows-PC · ' + windowsName(), id: machineId(),
     maxH: Math.round(Math.max(d.size.height, d.size.width * 9 / 16) * (d.scaleFactor || 1)),
     memMb: Math.round(os.totalmem() / 1048576), buffer: settings.buffer || 'normal',
-    vpn: vpn ? vpn.info() : {}, fullscreen: !!settings.fullscreen
+    vpn: vpn ? vpn.info() : {}, fullscreen: !!settings.fullscreen, videoOut: settings.videoOut || 'auto'
   };
 });
 
@@ -223,6 +223,7 @@ ipcMain.on('ab', (e, m, a) => {
     case 'exit': app.quit(); break;
     case 'checkLatest': checkLatest(); break;
     case 'setFullscreen': setFullscreen(!!a[0]); break;
+    case 'setVideoOut': settings.videoOut = a[0] || 'auto'; saveSettings(settings); if (mpv) mpv.restart({ videoOut: settings.videoOut }); break;
     case 'ovpnSetProfile': if (vpn) { vpn.setProfile(a[0], a[1], a[2]); e.sender.send('vpn', vpn.info()); } break;
     case 'ovpnConnect': if (vpn) { if (a[0]) vpn.connect(); else vpn.disconnect(); } break;
     case 'ovpnSetAutoStart': if (vpn) { vpn.setAuto(a[0]); e.sender.send('vpn', vpn.info()); } break;
