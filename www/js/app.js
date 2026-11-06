@@ -10454,21 +10454,21 @@
             if (!n) { this.setSpeed(1); return true; }
             var err = minDiff;
             if (err <= 80 || this.adjusting) { if (!this.adjusting) this.setSpeed(1); return true; }
-            if (err > 1500 && Date.now() - (this.adjAt || 0) > 6000 && Player.isPlaying()) {
+            if (err > 400 && Date.now() - (this.adjAt || 0) > 3000 && Player.isPlaying()) {
                 // Großer Vorsprung: einmal kurz anhalten (sonst dauert das Angleichen zu lange)
                 var self = this, ms = Math.min(err - 60, 20000);
                 this.adjusting = true; this.adjAt = Date.now();
                 this.setSpeed(1);
-                toast('👥 Gleiche mit den anderen ab …', Math.min(ms, 3000));
+                if (ms > 1500) toast('👥 Gleiche mit den anderen ab …', Math.min(ms, 3000));
                 this.apply(function () { Player.toggle(); });
                 setTimeout(function () {
                     self.apply(function () { if (!Player.isPlaying()) Player.toggle(); });
-                    setTimeout(function () { self.adjusting = false; }, 1200);
+                    setTimeout(function () { self.adjusting = false; }, 800);
                 }, ms);
                 return true;
             }
-            // Kleiner Vorsprung: unmerklich langsamer (höchstens 6 %)
-            this.setSpeed(1 - Math.min(0.06, Math.max(0.02, err / 10000)));
+            // Kleiner Vorsprung (unter 0,4 s): kurz langsamer, bis 10 % – nach 1–4 s gleich
+            this.setSpeed(1 - Math.min(0.1, Math.max(0.03, err / 4000)));
             return true;
         },
         liveTick: function (scr) {
@@ -10491,7 +10491,7 @@
                 if (all.length === 2) target = (all[0] + all[1]) / 2, err = d - target;
                 if (Math.abs(err) < 120) { this.setSpeed(1); return; }
                 if (err > 0 && d < 1200) { this.setSpeed(1); return; }         // kaum Puffer: nicht schneller (sonst Hänger)
-                this.setSpeed(1 + Math.max(-0.06, Math.min(0.06, err / 12000)));
+                this.setSpeed(1 + Math.max(-0.1, Math.min(0.1, err / 5000)));
                 return;
             }
             // Ohne Geschwindigkeit (VLC, iPhone): kurz anhalten – nur bei deutlichem, stabilem Unterschied
