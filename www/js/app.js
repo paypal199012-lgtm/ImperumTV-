@@ -5602,7 +5602,7 @@
         );
         if (Rec.available()) tileList.push(['recs', 'rec', 'AUFNAHMEN', function () { Nav.push(new RecordingsScreen()); }]);
         if (!Profiles.isKids()) tileList.push(           // Kinder-Profil: keine Einstellungen, keine Listen
-            ['football', 'ball', 'FUSSBALL', function () { Nav.push(new FootballScreen()); }],
+            ['football', 'ball', 'SPORT', function () { Nav.push(new FootballScreen()); }],
             ['settings', 'gear', 'EINSTELLUNGEN', function () { Nav.push(new SettingsScreen()); }]
         );                                               // Listen: nur noch unter Einstellungen
         tileList.forEach(function (t) {
@@ -8023,18 +8023,69 @@
     // =====================================================================
     // Fußball-Bildschirm: wer spielt wann, auf welchem Sender
     // =====================================================================
-    function FootballScreen() { this.league = ''; this.found = {}; this.events = {}; this.timer = null; }
+    /**
+     * Weitere Sportarten (Formel 1, Basketball, Eishockey, NFL, Tennis, UFC): Spielplan von der Website (/api/sport?s=…).
+     * Gleiches Format wie beim Fußball; Formel 1 hat statt zwei Mannschaften einen Titel (ti).
+     */
+    var Sport = {
+        LIST: [['fb', 'Fußball'], ['f1', 'Formel 1'], ['nba', 'Basketball · NBA'], ['del', 'Eishockey · DEL'], ['nhl', 'Eishockey · NHL'],
+            ['nfl', 'Football · NFL'], ['tennis', 'Tennis'], ['ufc', 'Kampfsport · UFC']],
+        TITLE: { fb: 'Fußball', f1: 'Formel 1', nba: 'NBA', del: 'DEL', nhl: 'NHL', nfl: 'NFL', tennis: 'Tennis', ufc: 'UFC' },
+        /** Sender deiner Liste, die zur Sportart passen (nach Namen) */
+        CHANS: {
+            f1: /(^|[^a-z0-9])(f1|formel ?1|formula ?1)([^a-z0-9]|$)/i,
+            nba: /(^|[^a-z])(nba|basketball|bbl)([^a-z]|$)/i,
+            del: /(^|[^a-z])(del|eishockey|magenta ?sport)([^a-z]|$)/i,
+            nhl: /(^|[^a-z])(nhl|eishockey|hockey)([^a-z]|$)/i,
+            nfl: /(^|[^a-z])(nfl|redzone|ran|prosieben ?maxx)([^a-z]|$)/i,
+            tennis: /tennis|eurosport/i,
+            ufc: /(^|[^a-z])(ufc|mma|fight)([^a-z]|$)/i
+        },
+        data: {}, at: {}, pending: {},
+        load: function (key, force) {
+            var self = this;
+            if (!force && this.data[key] && Date.now() - (this.at[key] || 0) < 15000) return Promise.resolve(this.data[key]);
+            if (this.pending[key]) return this.pending[key];
+            this.pending[key] = fetch(REMOTE.website + 'api/sport?s=' + key).then(function (r) { return r.json(); }).then(function (d) {
+                self.pending[key] = null;
+                if (d && d.ok) { self.data[key] = d; self.at[key] = Date.now(); }
+                return d;
+            }, function () { self.pending[key] = null; return { ok: false, error: 'net' }; });
+            return this.pending[key];
+        },
+        channels: function (key) {
+            var re = this.CHANS[key];
+            if (!re || !Data.channels) return [];
+            Football.PATTERNS['sport_' + key] = re;
+            return Football.channelsBy(['sport_' + key]).slice(0, 40);
+        }
+    };
+
+    function FootballScreen() { this.sport = Storage.get('sport', 'fb'); if (!Sport.TITLE[this.sport]) this.sport = 'fb'; this.league = ''; this.found = {}; this.events = {}; this.timer = null; }
     FootballScreen.prototype.render = function (root) {
-        var self = this;
-        root.appendChild(topbar('Fußball', ''));
+        var self = this, fb = this.sport === 'fb';
+        root.appendChild(topbar('Sport · ' + Sport.TITLE[this.sport], ''));
         var rb = h('div', 'button fb-refresh', '⟳  Sender neu suchen');
         root.appendChild(focusable(rb, 'fb-refresh', function () { self.refreshChannels(true); }, 'fbtop'));
         var wrap = h('div', 'fb fb-f1');
-        // F1: Ligen links als Liste mit Anzahl der Spiele, oben „Jetzt live“
+        // Links: Sportarten, beim Fußball darunter die Ligen mit Anzahl der Spiele, oben „Jetzt live“
         var chips = h('div', 'fb-side scroll');
-        chips.appendChild(h('div', 'fb-head', 'LIGEN'));
+        chips.appendChild(h('div', 'fb-head', 'SPORTART'));
+        Sport.LIST.forEach(function (sp) {
+            var c = h('div', 'fb-chip fb-sp' + (self.sport === sp[0] ? ' active' : ''));
+            c.appendChild(h('span', 'fb-cn', sp[1]));
+            chips.appendChild(focusable(c, 'fbs-' + sp[0], function () {
+                if (self.sport === sp[0]) return;
+                self.sport = sp[0]; self.league = ''; self.found = {}; self.events = {};
+                Storage.set('sport', sp[0]);
+                self.focusKey = 'fbs-' + sp[0]; self._scrolls = null;
+                Nav.show(self, true);
+                if (sp[0] !== 'fb' || !Football.data) self.reload();
+            }, 'fbside'));
+        });
+        if (fb) chips.appendChild(h('div', 'fb-head', 'LIGEN'));
         var cnt = Football.counts ? Football.counts() : {};
-        var leagues = [Football.LEAGUES[0], ['__live', '● Jetzt live']].concat(Football.LEAGUES.slice(1));
+        var leagues = fb ? [Football.LEAGUES[0], ['__live', '● Jetzt live']].concat(Football.LEAGUES.slice(1)) : [];
         leagues.forEach(function (l) {
             var c = h('div', 'fb-chip' + (self.league === l[0] ? ' active' : '') + (l[0] === '__live' ? ' lv' : ''));
             c.appendChild(h('span', 'fb-cn', l[1]));
@@ -8048,15 +8099,15 @@
         var list = h('div', 'fb-list scroll');
         wrap.appendChild(list);
         root.appendChild(wrap);
-        var d = Football.data;
+        var d = fb ? Football.data : Sport.data[this.sport];
         if (!d) {
             list.appendChild(h('div', 'fb-note', 'Spielplan wird geladen …'));
             this.reload();
         } else this.fill(list, d);
-        if (!this.focusKey) this.focusKey = 'fbl-' + (this.league || 'all');
+        if (!this.focusKey) this.focusKey = 'fbs-' + this.sport;
         if (!this.timer) this.timer = setInterval(function () {
             if (Nav.top() !== self || Modal.node) return;
-            if (Date.now() - Football.lastReload >= 600000) self.refreshChannels(false); else self.reload();
+            if (self.sport === 'fb' && Date.now() - Football.lastReload >= 600000) self.refreshChannels(false); else self.reload();
         }, 20000);
     };
     /** Senderliste neu laden und Event-Sender neu suchen. manual: per Knopf (mit Meldung) */
@@ -8078,9 +8129,9 @@
     };
     FootballScreen.prototype.hide = function () { clearInterval(this.timer); this.timer = null; };
     FootballScreen.prototype.reload = function () {
-        var self = this;
-        Football.load(false).then(function (d) {
-            if (Nav.top() !== self || Modal.node) return;
+        var self = this, key = this.sport;
+        (key === 'fb' ? Football.load(false) : Sport.load(key, false)).then(function (d) {
+            if (Nav.top() !== self || Modal.node || self.sport !== key) return;
             if (!d || !d.ok) {
                 var list = document.querySelector('#app .fb-list');
                 if (!list) return;
@@ -8092,6 +8143,7 @@
             }
             self.keepPlace();
             Nav.show(self, true);
+            if (key !== 'fb') return;
             Football.findChannels(d.matches, function (found) {
                 if (Nav.top() !== self) return;
                 self.found = found;
@@ -8126,7 +8178,7 @@
             if (m.s === 'FINISHED' && m.t < now - 6 * 3600 * 1000) return false;   // alte Ergebnisse weglassen
             return m.s !== 'CANCELLED';
         });
-        if (!shown.length) { list.appendChild(h('div', 'fb-note', 'In den nächsten Tagen keine Spiele.')); return; }
+        if (!shown.length) { list.appendChild(h('div', 'fb-note', self.sport === 'f1' ? 'Gerade kein Rennwochenende.' : 'In den nächsten Tagen keine Spiele.')); return; }
         shown.forEach(function (m) {
             var dt = new Date(m.t), dd = new Date(dt); dd.setHours(0, 0, 0, 0);
             var diff = Math.round((dd - today) / 86400000);
@@ -8138,18 +8190,25 @@
             row.appendChild(h('div', 'fb-time', fmtClock(dt)));
             row.appendChild(h('div', 'fb-lg lg-' + m.c, Football.SHORT[m.c] || m.c));
             var teams = h('div', 'fb-teams');
+            if (m.sub) { row.classList.add('fb-x'); teams.appendChild(h('div', 'fb-sub', m.sub)); }
             function side(t, home) {
                 var s = h('span', 'fb-team' + (home ? ' home' : ''));
                 if (t.l) { var img = h('img', 'fb-crest'); img.src = t.l; img.alt = ''; img.onerror = function () { img.style.visibility = 'hidden'; }; s.appendChild(img); }
                 s.appendChild(h('span', 'fb-name', t.s || t.n));
                 return s;
             }
-            teams.appendChild(side(m.h, true));
             var live = /^(IN_PLAY|PAUSED|LIVE|EXTRA_TIME|PENALTY_SHOOTOUT|SUSPENDED)$/.test(m.s);
             var hasScore = m.sc && m.sc[0] !== null && m.sc[0] !== undefined && (live || m.s === 'FINISHED' || m.s === 'AWARDED' || m.t <= Date.now());
-            var mid = h('span', 'fb-mid' + (live ? ' live' : '') + (hasScore ? ' sc' : ''), hasScore ? m.sc[0] + ' : ' + m.sc[1] : '–');
-            teams.appendChild(mid);
-            teams.appendChild(side(m.a, false));
+            if (m.ti) {                                   // Formel 1: ein Titel statt zwei Mannschaften
+                teams.classList.add('solo');
+                teams.appendChild(h('span', 'fb-name fb-ti', m.ti));
+            } else {
+                teams.appendChild(side(m.h, true));
+                var midTxt = hasScore ? m.sc[0] + ' : ' + m.sc[1] : m.res ? m.res : self.sport === 'fb' ? '–' : 'vs';
+                var mid = h('span', 'fb-mid' + (live ? ' live' : '') + (hasScore || m.res ? ' sc' : '') + (m.res ? ' res' : ''), midTxt);
+                teams.appendChild(mid);
+                teams.appendChild(side(m.a, false));
+            }
             row.appendChild(teams);
             var stTxt = live ? ({ PAUSED: 'HALBZEIT', EXTRA_TIME: 'VERLÄNGERUNG' + (m.mn ? ' ' + m.mn : ''), PENALTY_SHOOTOUT: 'ELFMETER', SUSPENDED: 'UNTERBROCHEN' }[m.s] || (m.mn ? 'LIVE ' + m.mn : 'LIVE'))
                 : (m.s === 'FINISHED' || m.s === 'AWARDED') ? 'Ende' : m.s === 'POSTPONED' ? 'verlegt' : '';
@@ -8159,16 +8218,17 @@
             var tv = h('div', 'fb-tv');
             var over = m.s === 'FINISHED' || m.s === 'AWARDED';
             var r = over ? '' : Football.rights(m);
-            if (!over) tv.appendChild(h('span', 'fb-guess', r ? r : 'Sender unbekannt'));
+            if (!over) tv.appendChild(h('span', 'fb-guess', r ? r : self.sport === 'fb' ? 'Sender unbekannt' : 'Sender suchen ›'));
             row.appendChild(tv);
             list.appendChild(focusable(row, 'fbm-' + m.id, function () { self.open(m); }, 'fblist'));
         });
-        list.appendChild(h('div', 'fb-src', 'Daten: OpenLigaDB · Football data provided by the Football-Data.org API · API-Football'));
+        list.appendChild(h('div', 'fb-src', self.sport === 'fb' ? 'Daten: OpenLigaDB · Football data provided by the Football-Data.org API · API-Football'
+            : self.sport === 'del' ? 'Daten: OpenLigaDB' : 'Daten: ESPN (ohne Gewähr)'));
         // Event-Sender mit beiden Vereinen im Namen eintragen (braucht kein Programm).
         // Die Suche geht durch die ganze Senderliste: in kleinen Häppchen, damit die Fernbedienung nicht hängt
         // (beim ersten Mal sonst mehrere Sekunden auf dem Fire TV Stick). Schon gesuchte Spiele kommen sofort.
         this.events = {};
-        var todo = shown.filter(function (m) { return m.s !== 'FINISHED' && m.s !== 'AWARDED'; });
+        var todo = shown.filter(function (m) { return m.s !== 'FINISHED' && m.s !== 'AWARDED' && m.h && m.a; });
         var at = 0, seq = this.evSeq = (this.evSeq || 0) + 1;
         function step(first) {
             if (self.evSeq !== seq || (!first && Nav.top() !== self)) return;
@@ -8202,6 +8262,7 @@
         }
     };
     FootballScreen.prototype.open = function (m) {
+        if (this.sport !== 'fb') { this.openOther(m); return; }
         var title = (m.h.s || m.h.n) + ' – ' + (m.a.s || m.a.n);
         var when = fmtClock(new Date(m.t)) + ' Uhr';
         var o = Football.options(m, this.found[String(m.id)]);
@@ -8238,6 +8299,29 @@
             return;
         }
         choose();
+    };
+
+    /** Andere Sportarten: Event-Sender mit beiden Namen, sonst Sender, die zur Sportart passen */
+    FootballScreen.prototype.openOther = function (m) {
+        var title = m.ti || ((m.h.s || m.h.n) + ' – ' + (m.a.s || m.a.n));
+        var when = fmtClock(new Date(m.t)) + ' Uhr' + (m.sub ? ' · ' + m.sub : '');
+        var sure = (this.events[String(m.id)] || []).slice(0, 8);
+        var more = Sport.channels(this.sport).filter(function (c) { return sure.indexOf(c) < 0; }).slice(0, 25);
+        if (!sure.length && !more.length) { toast(title + ': kein passender Sender in deiner Liste gefunden.', 5000); return; }
+        var now = Epg.nowMap(sure.concat(more));
+        function btn(ch, primary, mark) {
+            var t = ch.epg && now[ch.epg];
+            return { label: (mark ? '✓  ' : '▶  ') + ch.name + (t ? '   ·   ' + t : ''), primary: primary, action: function () {
+                var i = Data.channels.indexOf(ch);
+                Nav.push(new PlayerScreen(Data.channels, i < 0 ? 0 : i, 'live'));
+            } };
+        }
+        var buttons = sure.map(function (ch, i) { return btn(ch, i === 0, true); })
+            .concat(more.map(function (ch, i) { return btn(ch, !sure.length && i === 0, false); }));
+        buttons.push({ label: 'Schließen' });
+        Modal.open(title, when + (sure.length ? ' · ✓ = Sender mit diesem Event im Namen' : '') +
+            (more.length ? ' · ohne Gewähr: ' + Sport.TITLE[this.sport] + '-Sender aus deiner Liste' : ''), buttons);
+        if (Modal.node) Modal.node.classList.add('modal-list');
     };
 
     function AccountScreen() { }
