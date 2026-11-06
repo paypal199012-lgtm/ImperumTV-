@@ -58,13 +58,28 @@ jobs:
         continue-on-error: true
         run: |
           Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          # Bildschirmfoto mit CAPTUREBLT (sonst fehlen durchsichtige Fenster wie die Oberfläche)
+          Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @"
+          using System; using System.Drawing; using System.Runtime.InteropServices;
+          public static class Snap {
+            [DllImport("user32.dll")] static extern IntPtr GetDC(IntPtr h);
+            [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr h, IntPtr dc);
+            [DllImport("gdi32.dll")] static extern bool BitBlt(IntPtr d, int x, int y, int w, int h, IntPtr s, int sx, int sy, int op);
+            public static void Save(string file, int w, int h) {
+              using (var bmp = new Bitmap(w, h)) {
+                using (var g = Graphics.FromImage(bmp)) {
+                  IntPtr dst = g.GetHdc(); IntPtr src = GetDC(IntPtr.Zero);
+                  BitBlt(dst, 0, 0, w, h, src, 0, 0, 0x00CC0020 | 0x40000000);
+                  g.ReleaseHdc(dst); ReleaseDC(IntPtr.Zero, src);
+                }
+                bmp.Save(file, System.Drawing.Imaging.ImageFormat.Png);
+              }
+            }
+          }
+          "@
           function Shot($name) {
             $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
-            $g = [System.Drawing.Graphics]::FromImage($bmp)
-            $op = [System.Drawing.CopyPixelOperation]::SourceCopy -bor [System.Drawing.CopyPixelOperation]::CaptureBlt
-            $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size, $op)
-            $bmp.Save("windows/test-$name.png")
+            [Snap]::Save((Join-Path (Get-Location) "windows/test-$name.png"), $b.Width, $b.Height)
             Write-Host "Foto $name ($($b.Width)x$($b.Height))"
           }
           $env:IMPTV_SELFTEST = '1'
