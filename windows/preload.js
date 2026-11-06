@@ -73,3 +73,20 @@ window.AndroidBridge = {
 
 // PC: Maus und Tastatur – Hinweis für die Oberfläche
 window.__imptvWindows = true;
+
+// PC-Bedienung: Mausrad = Pfeil hoch/runter, rechte Maustaste = Zurück (wie die Fernbedienung)
+function key(code, name) {
+  var ev = new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true });
+  Object.defineProperty(ev, 'keyCode', { get: function () { return code; } });
+  Object.defineProperty(ev, 'which', { get: function () { return code; } });
+  document.dispatchEvent(ev);
+}
+var wheelAt = 0;
+window.addEventListener('wheel', function (e) {
+  var now = Date.now();
+  if (now - wheelAt < 90 || Math.abs(e.deltaY) < 4) return;
+  wheelAt = now;
+  if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) key((e.deltaX || e.deltaY) > 0 ? 39 : 37, (e.deltaX || e.deltaY) > 0 ? 'ArrowRight' : 'ArrowLeft');
+  else key(e.deltaY > 0 ? 40 : 38, e.deltaY > 0 ? 'ArrowDown' : 'ArrowUp');
+}, { passive: true });
+window.addEventListener('contextmenu', function (e) { e.preventDefault(); key(27, 'Escape'); });
