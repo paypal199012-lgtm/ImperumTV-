@@ -1,0 +1,33 @@
+# ImperumTV (iPhone): öffentlichen TestFlight-Link einrichten.
+# Nimmt den neuesten hochgeladenen Build, legt die Gruppe „Öffentlich“ mit Link an
+# und reicht den Build bei Apple zur Beta-Prüfung ein. Der Link steht danach oben im Lauf (Hinweise).
+# Neue Version: erst „App Store (iPhone, kostenlos)“ laufen lassen, dann diesen.
+name: TestFlight öffentlich (iPhone)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [web-ui]
+    paths: ['.github/workflows/testflight.yml', 'scripts/testflight_public.py']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+jobs:
+  public:
+    runs-on: ubuntu-latest
+    env:
+      BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet "pyjwt[crypto]"
+      - name: Öffentlichen Link einrichten
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: python3 scripts/testflight_public.py
