@@ -2222,6 +2222,80 @@
         }
     };
 
+    /**
+     * „Was ist neu“: einmal nach einem Update ein kleines Fenster mit den Neuerungen (nur Android-Sticks/Handys).
+     * Neue Einträge oben anfügen (v = Versionsnummer, ab der es gilt). Kleine Korrekturen bekommen keinen Eintrag.
+     */
+    var WhatsNew = {
+        LIST: [
+            { v: 247, items: [
+                ['📺', 'Schwarzes Bild? Wechselt jetzt von selbst', 'Zeigt ein Sender kein Bild oder hängt beim Start, schaltet die App nach wenigen Sekunden auf die nächste Qualität – auch in der Vorschau.'],
+                ['⏭', 'Zum Live-Bild aufholen', 'Hängt ein Sender hinterher, steht im Player „… s hinter live“. Der Knopf rechts neben der Senderliste springt zum aktuellen Bild.'],
+                ['🗣️', 'Alexa-Sprachbefehle', '„Alexa, Pause“, „Alexa, weiter“, „Alexa, nächster“ – auf dem Fire TV Stick mit Sprachfernbedienung.'],
+                ['🚦', 'Sender-Ampel', 'Der Punkt neben dem Sender zeigt, ob er zuletzt gut lief – grün, gelb oder rot.']
+            ] }
+        ],
+        ver: function () {
+            if (STORE_BUILD || !AB || !AB.appVersion) return 0;
+            if (/iPhone|iPad|iOS/i.test(Report.platform())) return 0;           // iPhone: Neuigkeiten stehen im App Store
+            try { return parseInt(AB.appVersion(), 10) || 0; } catch (e) { return 0; }
+        },
+        /** Was noch nicht gezeigt wurde (höchstens 5 Punkte, neueste zuerst) */
+        pending: function () {
+            var cur = this.ver();
+            if (!cur || Storage.get('whatsNewOff', false)) return [];
+            var seen = Storage.get('whatsNewSeen', null);
+            if (seen === null) {
+                // Neu installiert: nichts zeigen. Schon länger dabei (gespeicherte Liste): einmal zeigen, was neu ist
+                if (!Storage.get('account', null)) { Storage.set('whatsNewSeen', cur); return []; }
+                seen = cur - 5;
+            }
+            var out = [];
+            this.LIST.forEach(function (e) { if (e.v > seen && e.v <= cur) out = out.concat(e.items); });
+            return out.slice(0, 5);
+        },
+        /** Nach dem Start warten, bis Ruhe ist (Startseite, kein Fenster, nichts läuft im Vollbild) */
+        later: function () {
+            var self = this, tries = 0;
+            if (!this.pending().length) return;
+            (function check() {
+                if (++tries > 40) return;
+                var top = Nav.top();
+                if (!top || Modal.node || top instanceof PlayerScreen || top instanceof LockScreen || Date.now() - (Nav.userAt || 0) < 2500) { setTimeout(check, 3000); return; }
+                self.show();
+            })();
+        },
+        show: function () {
+            var items = this.pending(), cur = this.ver();
+            if (!items.length) return;
+            Storage.set('whatsNewSeen', cur);
+            var box = h('div', 'modal-box wn-box');
+            var head = h('div', 'wn-head');
+            head.appendChild(h('div', 'modal-title', 'Was ist neu'));
+            head.appendChild(h('span', 'wn-badge', 'Version 1.0.' + cur));
+            box.appendChild(head);
+            var ul = h('ul', 'wn-list');
+            items.forEach(function (x) {
+                var li = h('li');
+                li.appendChild(h('div', 'wn-ic', x[0]));
+                var t = h('div');
+                t.appendChild(h('div', 'wn-t', x[1]));
+                t.appendChild(h('div', 'wn-d', x[2]));
+                li.appendChild(t);
+                ul.appendChild(li);
+            });
+            box.appendChild(ul);
+            var row = h('div', 'modal-buttons');
+            var ok = h('div', 'button primary', 'Los geht\'s');
+            focusable(ok, 'wn-ok', function () { Modal.close(); }, 'dialog');
+            var off = h('div', 'button', 'Nicht mehr anzeigen');
+            focusable(off, 'wn-off', function () { Storage.set('whatsNewOff', true); Modal.close(); }, 'dialog');
+            row.appendChild(ok); row.appendChild(off);
+            box.appendChild(row);
+            Modal.openBox(box, ok);
+        }
+    };
+
     /** Stick-Zustand für die Admin-Seite (Speicher, Arbeitsspeicher, WLAN, Tempo …): alle 10 Minuten, nur Android */
     var StickState = {
         day: function () { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); },
@@ -10067,7 +10141,7 @@
             frozen: function () { if (self.rdy) self.tryAlt('Bild stand'); },
             time: function (t) {
                 if (Math.abs(t - self.lastTime) > 0.2) { self.lastTime = t; self.lastProgress = Date.now(); }
-                if (self.overlay) self.updateBar();
+                if (self.overlay) { self.updateBar(); self.updateBehind(); }
                 if (self.seekPending && t >= self.seekPending - 15) self.seekPending = 0;   // Sprung ist angekommen
                 if (Date.now() - self.lastSave > 10000) self.saveProgress(false);
                 self.extras(t);
@@ -10483,12 +10557,37 @@
         for (var i = 0; i < list.length; i++) if (list[i].start > now) return list[i];
         return null;
     };
+    // ---------- Rückstand zum Live-Bild (Android): „35 s hinter live“ + Knopf zum Aufholen ----------
+    PlayerScreen.BEHIND_MIN = 8000;
+    PlayerScreen.prototype.behindMs = function () {
+        if (this.kind !== 'live' || !AB || !AB.liveBehindMs) return 0;
+        try { return Number(AB.liveBehindMs()) || 0; } catch (e) { return 0; }
+    };
+    /** Läuft im Takt der Wiedergabe: Anzeige aktualisieren, Knopf ein-/ausblenden */
+    PlayerScreen.prototype.updateBehind = function () {
+        if (!this.overlay || this.kind !== 'live') return;
+        var ms = this.behindMs(), show = ms >= PlayerScreen.BEHIND_MIN;
+        if (show !== !!this.behindBtn) { this.renderOverlay(); return; }
+        if (this.behindPill) {
+            this.behindPill.classList.toggle('hidden', !show);
+            if (show) this.behindPill.textContent = '⏱ ' + Math.round(ms / 1000) + ' s hinter live';
+        }
+        if (show) { var tip = this.ui.querySelector('[data-key="pl-live"] .pb-tip'); if (tip) tip.textContent = 'Zum Live-Bild (' + Math.round(ms / 1000) + ' s aufholen)'; }
+    };
+    PlayerScreen.prototype.catchUpLive = function () {
+        var s = Math.round(this.behindMs() / 1000);
+        try { if (AB && AB.liveCatchUp && AB.liveCatchUp()) { toast('Live-Bild – ' + s + ' s aufgeholt', 2500); return; } } catch (e) { /* weiter unten */ }
+        // normaler Stream: neu verbinden – der Anbieter liefert dann das aktuelle Bild
+        toast('Springe zum Live-Bild …', 2500);
+        Report.player(this.item(), 'Zum Live-Bild aufgeholt (' + s + ' s)');
+        this.start();
+    };
     /** Info-Banner unten: Logo, Sendung jetzt/danach mit Fortschritt, darunter runde Symbol-Knöpfe */
     PlayerScreen.prototype.renderOverlay = function () {
         var self = this, it = this.item(), ui = this.ui;
         var focusedKey = Focus.cur && ui.contains(Focus.cur) ? Focus.cur.getAttribute('data-key') : 'pl-play';
         ui.innerHTML = '';
-        this.barFill = null; this.timeLeft = null; this.timeRight = null;
+        this.barFill = null; this.timeLeft = null; this.timeRight = null; this.behindPill = null;
 
         var banner = h('div', 'pb');
         var head = h('div', 'pb-head');
@@ -10511,6 +10610,8 @@
         if (this.kind === 'live') {
             name.appendChild(h('span', 'live-badge', 'LIVE'));
             name.appendChild(document.createTextNode((it.num || this.index + 1) + '  ·  ' + it.name));
+            this.behindPill = h('span', 'pb-behind hidden');
+            name.appendChild(this.behindPill);
         } else {
             name.textContent = it.name;
         }
@@ -10556,6 +10657,14 @@
         if (this.kind === 'live') {
             // Live: keine Pause-Taste, Senderliste ganz vorne
             if (this.items.length > 1) btn('pl-list', '☰', 'Senderliste', function () { self.openZap(); });
+            // Rechts neben der Senderliste (nicht davor – OK öffnet sonst aus Versehen das Aufholen): nur wenn er hinterherhängt
+            this.behindBtn = false;
+            if (this.behindMs() >= PlayerScreen.BEHIND_MIN) {
+                this.behindBtn = true;
+                btn('pl-live', '⏭', 'Zum Live-Bild (' + Math.round(this.behindMs() / 1000) + ' s aufholen)', function () { self.catchUpLive(); });
+                this.behindPill.classList.remove('hidden');
+                this.behindPill.textContent = '⏱ ' + Math.round(this.behindMs() / 1000) + ' s hinter live';
+            }
         } else {
             btn('pl-rw', '«', '10 s zurück', function () { Player.seekBy(-10); });
             btn('pl-play', playing ? '❚❚' : '▶', playing ? 'Pause' : 'Weiter', function () { Player.toggle(); self.renderOverlay(); });
@@ -11269,6 +11378,8 @@
             else Nav.replace(new PlaylistsScreen(e.message || String(e)));
         });
         }
+
+        setTimeout(function () { WhatsNew.later(); }, 8000);
 
         // Läuft die Testphase während der Nutzung ab: alle 10 Minuten nachsehen
         setInterval(function () {

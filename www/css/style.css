@@ -1710,3 +1710,20 @@ body.lite .row .hdot { box-shadow: none !important; }
     -webkit-transform: translateZ(0); transform: translateZ(0); will-change: transform;
 }
 body.preview-mode #app::before, body.video-mode #app::before { display: none; }
+
+/* Player: Rückstand zum Live-Bild */
+.pb-behind { display: inline-block; margin-left: 16px; padding: 2px 14px; border-radius: 20px; font-size: 24px; font-weight: 700; vertical-align: middle;
+  color: #ffcc80; background: rgba(255,152,0,.16); border: 2px solid rgba(255,183,77,.7); }
+.pb-behind.hidden { display: none; }
+
+/* „Was ist neu“ nach einem Update */
+.wn-box { width: 1040px; max-width: 92vw; text-align: left; }
+.wn-head { display: flex; align-items: center; gap: 18px; margin-bottom: 6px; }
+.wn-head .modal-title { margin: 0; }
+.wn-badge { padding: 4px 14px; border-radius: 16px; font-size: 22px; font-weight: 700; background: rgba(244,197,66,.18); color: #f4c542; border: 2px solid rgba(244,197,66,.6); }
+.wn-list { list-style: none; margin: 18px 0 8px; padding: 0; }
+.wn-list li { display: grid; grid-template-columns: 64px 1fr; gap: 6px 18px; align-items: start; padding: 14px 4px; border-top: 1px solid rgba(255,255,255,.08); }
+.wn-list li:first-child { border-top: 0; }
+.wn-ic { width: 54px; height: 54px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 30px; background: rgba(255,255,255,.06); }
+.wn-t { font-size: 27px; font-weight: 700; color: #fff; }
+.wn-d { font-size: 22px; color: rgba(255,255,255,.65); margin-top: 4px; line-height: 1.35; }
