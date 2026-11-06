@@ -85,7 +85,6 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         view.addGestureRecognizer(edge)   // am Bildschirmrand (neben der Oberfläche)
 
         player.emit = { [weak self] name, value in self?.emit(name, value) }
-        Downloads.shared.onChange = { [weak self] in self?.dlChanged() }
         web.load(URLRequest(url: URL(string: AppScheme.name + "://app/index.html")!))
 
         stateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.pushState() }
@@ -162,23 +161,6 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         js("window.__abSet && window.__abSet({ tz: \(TimeZone.current.secondsFromGMT() / 60) }); window.__androidLifecycle && window.__androidLifecycle('visible')")
     }
 
-    // ---------- Downloads: Stand an die Oberfläche (höchstens einmal pro Sekunde) ----------
-
-    private var dlPending = false
-    private var dlLast = Date.distantPast
-    private func dlChanged() {
-        if dlPending { return }
-        let wait = max(0, 1 - Date().timeIntervalSince(dlLast))
-        dlPending = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self] in
-            guard let self = self else { return }
-            self.dlPending = false
-            self.dlLast = Date()
-            let d = Downloads.shared
-            self.js("window.__abSet && window.__abSet({ dl: \(Self.jsString(d.json())), dlStorage: \(Self.jsString(d.storageJSON())) })")
-        }
-    }
-
     // ---------- Oberfläche ↔ App ----------
 
     private func js(_ code: String) { web?.evaluateJavaScript(code, completionHandler: nil) }
@@ -229,9 +211,6 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         case "setNextEngine": player.forceVLCNext = s(0) == "vlc"; player.forceAVNext = s(0) == "apple"
         case "keepAwake": UIApplication.shared.isIdleTimerDisabled = (a.first as? Bool) ?? true
         case "openUrl": if let u = URL(string: s(0)) { UIApplication.shared.open(u) }
-        case "dlStart": Downloads.shared.add(s(0))
-        case "dlDelete": Downloads.shared.delete(s(0))
-        case "dlRetry": Downloads.shared.retry(s(0))
         case "log":
             NSLog("[ImperumTV-Web] %@", s(0))
             #if DEBUG
@@ -288,7 +267,6 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         (function () {
           var S = window.__abState = { playing: false, pos: 0, dur: 0, kbps: 0, audio: '[]', text: '[]',
             version: \(ver), device: \(Self.jsString(device)), mk: \(Self.jsString(ids.mac + "|" + ids.key)),
-            dl: \(Self.jsString(Downloads.shared.json())), dlStorage: \(Self.jsString(Downloads.shared.storageJSON())),
             buffer: \(Self.jsString(buffer)), engine: \(Self.jsString(engine)), vodEngine: \(Self.jsString(vodEngine)), tz: \(TimeZone.current.secondsFromGMT() / 60) };
           function post(m, a) { try { window.webkit.messageHandlers.ab.postMessage({ m: m, a: a || [] }); } catch (e) {} }
           // Programmfehler der Oberfläche ins Protokoll der App (zum Prüfen im Simulator)
@@ -340,30 +318,7 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
             setVodEngine: function (m) { S.vodEngine = m === 'vlc' || m === 'apple' ? m : 'exo'; post('setVodEngine', [S.vodEngine]); },
             setNextEngine: P('setNextEngine'),
             keepAwake: P('keepAwake'),
-            openUrl: P('openUrl'),
-            // Downloads (Downloads.swift): Liste kommt per __abSet({ dl, dlStorage }), Befehle gehen an die App
-            dlStart: function (j) {
-              try {
-                var o = JSON.parse(j), l = JSON.parse(S.dl || '[]'), i;
-                for (i = 0; i < l.length; i++) if (l[i].id === o.id) return '';
-                delete o.url; o.status = 'queued'; o.bytes = 0; o.total = 0; l.push(o); S.dl = JSON.stringify(l);
-              } catch (e) {}
-              post('dlStart', [j]); return '';
-            },
-            dlList: function () { return S.dl || '[]'; },
-            dlDelete: function (id) {
-              try { S.dl = JSON.stringify(JSON.parse(S.dl || '[]').filter(function (x) { return x.id !== id; })); } catch (e) {}
-              post('dlDelete', [id]);
-            },
-            dlRetry: function (id) {
-              try { S.dl = JSON.stringify(JSON.parse(S.dl || '[]').map(function (x) { if (x.id === id) { x.status = 'queued'; delete x.error; } return x; })); } catch (e) {}
-              post('dlRetry', [id]);
-            },
-            dlFileUrl: function (id) {
-              try { var l = JSON.parse(S.dl || '[]'); for (var i = 0; i < l.length; i++) if (l[i].id === id && l[i].status === 'done') return l[i].file || ''; } catch (e) {}
-              return '';
-            },
-            dlStorage: function () { return S.dlStorage || 'null'; }
+            openUrl: P('openUrl')
           };
           // Anfragen an fremde Server (Anbieter, Fußball, Bilder-Listen) über die App: dort gibt es keine CORS-Sperre
           var of = window.fetch;

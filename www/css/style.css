@@ -1739,14 +1739,3 @@ body.preview-mode #app::before, body.video-mode #app::before { display: none; }
 .sv-star.on { color: #f4c542; }
 .sv-star.focused { border-color: #f4dc9e; background: rgba(244,197,66,.14); transform: scale(1.08); }
 .sv-word { text-align: center; min-height: 40px; font-size: 28px; font-weight: 700; color: #f4dc9e; margin-bottom: 10px; }
-
-/* ---------- Downloads (offline schauen) ---------- */
-.dl-row { display: flex; align-items: center; padding: 16px 24px; }
-.dl-img { flex: 0 0 auto; width: 96px; height: 136px; border-radius: 8px; margin-right: 26px; background: #1d1a17 center / cover no-repeat; }
-.dl-txt { flex: 1; min-width: 0; }
-.dl-bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.15); margin-top: 12px; overflow: hidden; }
-.dl-bar i { display: block; height: 100%; background: #d9b066; border-radius: 4px; }
-.dl-row.failed { opacity: .7; }
-.epc-dl { position: absolute; left: 10px; bottom: 14px; padding: 3px 12px; border-radius: 14px; font-size: 20px; font-weight: 700;
-  background: rgba(0,0,0,.7); color: #f4dc9e; border: 1px solid rgba(217,176,102,.6); }
-.epc-dl.ok { background: #d9b066; color: #1a1408; }
