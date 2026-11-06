@@ -2184,8 +2184,21 @@
             var now = Date.now();
             if (!force && now - this.last < 60000 && vpn === this.lastVpn) return;
             this.last = now; this.lastVpn = vpn;
+            var self = this;
             Remote.rpc('device_hello', { p_mac: Device.mac, p_key: Device.key, p_version: Report.version(), p_device: Report.platform(), p_vpn: vpn })
-                .then(null, function () { /* ältere Datenbank ohne diese Funktion oder offline: egal */ });
+                .then(function () { self.sig(); }, function () { /* ältere Datenbank ohne diese Funktion oder offline: egal */ });
+        },
+        /** Echtheit: einmal pro Start den Fingerabdruck des App-Schlüssels melden (nachgebaute Apps fallen im Admin auf) */
+        sigSent: false,
+        sig: function () {
+            if (this.sigSent || !AB || typeof AB.signature !== 'function') return;
+            var s = '';
+            try { s = String(AB.signature() || ''); } catch (e) { s = ''; }
+            if (s.length !== 64) return;
+            this.sigSent = true;
+            var self = this;
+            Remote.rpc('device_sig', { p_mac: Device.mac, p_key: Device.key, p_sig: s })
+                .then(null, function () { self.sigSent = false; });
         }
     };
 
