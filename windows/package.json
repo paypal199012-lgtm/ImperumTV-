@@ -1,0 +1,39 @@
+{
+  "name": "imperumtv",
+  "productName": "ImperumTV",
+  "version": "1.0.1",
+  "description": "ImperumTV für Windows",
+  "author": "ImperumTV",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "xyz.imperumtv.windows",
+    "productName": "ImperumTV",
+    "copyright": "ImperumTV",
+    "files": ["main.js", "preload.js", "mpv.js", "icon.ico", "selftest.html", "www/**/*"],
+    "extraResources": [{ "from": "mpv", "to": "mpv", "filter": ["**/*"] }],
+    "directories": { "output": "dist" },
+    "win": { "target": "nsis", "icon": "icon.ico", "artifactName": "ImperumTV-Setup.exe" },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ImperumTV",
+      "runAfterFinish": true,
+      "language": "1031",
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico"
+    }
+  }
+}

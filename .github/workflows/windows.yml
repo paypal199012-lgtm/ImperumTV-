@@ -1,0 +1,99 @@
+# ImperumTV für Windows: .exe bauen (Electron + mpv), auf einem Windows-Rechner kurz testen (Bildschirmfotos)
+# und als „ImperumTV-Setup.exe“ im Release „windows“ veröffentlichen (feste Download-Adresse für die Website).
+name: Windows-App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [web-ui]
+    paths: ['windows/**', 'www/**', '.github/workflows/windows.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-app
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Oberfläche und Version
+        shell: pwsh
+        run: |
+          Copy-Item -Recurse -Force www windows/www
+          cd windows
+          npm version "1.0.${{ github.run_number }}" --no-git-tag-version --allow-same-version
+
+      - name: mpv-Player holen
+        shell: pwsh
+        run: |
+          cd windows
+          gh release download --repo shinchiro/mpv-winbuild-cmake --pattern "mpv-x86_64-2*.7z" --dir mpvdl
+          $a = Get-ChildItem mpvdl -Filter *.7z | Select-Object -First 1
+          Write-Host "mpv: $($a.Name)"
+          7z x $a.FullName -ompv -y | Out-Null
+          if (!(Test-Path mpv/mpv.exe)) { Get-ChildItem -Recurse mpv | Select-Object -First 30; throw "mpv.exe fehlt" }
+          Get-ChildItem mpv | Select-Object Name, Length
+
+      - name: Bauen
+        shell: pwsh
+        run: |
+          cd windows
+          npm install --no-audit --no-fund
+          npm run dist
+          Get-ChildItem dist | Select-Object Name, Length
+
+      - name: Selbsttest mit Bildschirmfotos
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          function Shot($name) {
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $op = [System.Drawing.CopyPixelOperation]::SourceCopy -bor [System.Drawing.CopyPixelOperation]::CaptureBlt
+            $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size, $op)
+            $bmp.Save("windows/test-$name.png")
+            Write-Host "Foto $name ($($b.Width)x$($b.Height))"
+          }
+          $env:IMPTV_SELFTEST = '1'
+          $p = Start-Process -FilePath "windows/dist/win-unpacked/ImperumTV.exe" -PassThru
+          Start-Sleep 20; Shot "1-vorschau"
+          Start-Sleep 14; Shot "2-vollbild"
+          Start-Sleep 30; Shot "3-oberflaeche"
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Get-Process mpv -ErrorAction SilentlyContinue | Stop-Process -Force
+          $log = Join-Path $env:TEMP 'imptv-selftest.log'
+          if (Test-Path $log) { Get-Content $log } else { Write-Host 'kein Protokoll' }
+          if (Test-Path $log) { Copy-Item $log windows/test-protokoll.txt }
+
+      - name: Testfotos hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-test
+          path: |
+            windows/test-*.png
+            windows/test-protokoll.txt
+          if-no-files-found: ignore
+
+      - name: Veröffentlichen (Release „windows“)
+        shell: pwsh
+        run: |
+          $ver = "1.0.${{ github.run_number }}"
+          gh release view windows --repo ${{ github.repository }} *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create windows --repo ${{ github.repository }} --target ${{ github.sha }} --latest=false --title "ImperumTV für Windows $ver" --notes "Windows-Version $ver"
+          }
+          gh release upload windows "windows/dist/ImperumTV-Setup.exe" --repo ${{ github.repository }} --clobber
+          gh release edit windows --repo ${{ github.repository }} --latest=false --title "ImperumTV für Windows $ver" --notes "Windows-Version $ver – Download: ImperumTV-Setup.exe"

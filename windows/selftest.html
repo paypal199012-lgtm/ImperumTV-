@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>ImperumTV Selbsttest</title>
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; font-family: Segoe UI, sans-serif; color: #fff; overflow: hidden; }
+  .left { position: fixed; left: 4%; top: 8%; width: 40%; padding: 28px; border-radius: 18px; background: rgba(20,20,24,.92); border: 3px solid #d9b066; }
+  h1 { margin: 0 0 12px; color: #f4c542; font-size: 34px; }
+  #log { font: 18px Consolas, monospace; white-space: pre-wrap; max-height: 60vh; overflow: hidden; }
+  .bar { position: fixed; left: 4%; right: 4%; bottom: 5%; padding: 22px 30px; border-radius: 18px; background: rgba(15,15,18,.9); border: 2px solid #d9b066; font-size: 30px; display: none; }
+  .bar b { background: #c62828; padding: 2px 10px; border-radius: 6px; margin-right: 14px; font-size: 22px; }
+</style>
+</head>
+<body>
+<div class="left"><h1>ImperumTV · Selbsttest</h1><div id="log"></div></div>
+<div class="bar" id="bar"><b>LIVE</b>Testsender · Vollbild mit Banner darüber</div>
+<script>
+  var log = document.getElementById('log'), t0 = Date.now();
+  function w(s) { log.textContent += ((Date.now() - t0) / 1000).toFixed(1) + ' s  ' + s + '\n'; try { console.log('[selftest] ' + s); } catch (e) {} }
+  var AB = window.AndroidBridge;
+  w('Brücke: ' + (AB ? 'da' : 'FEHLT') + ' · Version ' + (AB && AB.appVersion()) + ' · ' + (AB && AB.deviceName()));
+  var times = 0;
+  window.__androidPlayerEvent = function (name, a) {
+    if (name === 'time') { if (++times % 10 === 1) w('time ' + Number(a).toFixed(1)); return; }
+    w('Ereignis: ' + name + (a !== undefined && a !== null ? ' ' + a : ''));
+  };
+  var url = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
+  setTimeout(function () { w('Vorschau rechts oben …'); AB.open(url, 0.5, 0.08, 0.45, 0.45); }, 2000);
+  setTimeout(function () { w('isPlaying=' + AB.isPlaying() + ' pos=' + AB.position().toFixed(1) + ' Ton=' + AB.tracks('audio')); }, 15000);
+  setTimeout(function () { w('Vollbild …'); AB.setRect(0, 0, 1, 1); document.querySelector('.left').style.width = '30%'; document.getElementById('bar').style.display = 'block'; }, 26000);
+  setTimeout(function () { w('Pause …'); AB.toggle(); }, 38000);
+  setTimeout(function () { w('Stopp, echte Oberfläche laden'); AB.stop(); location.href = 'www/index.html'; }, 44000);
+</script>
+</body>
+</html>
