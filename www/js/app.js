@@ -10319,7 +10319,7 @@
         },
         send: function (cmd, data) {
             if (!this.ws || !this.joined) return;
-            data.cmd = cmd; data.from = this.me; data.nm = this.name(); data.sent = Date.now();
+            data.cmd = cmd; data.from = this.me; data.nm = this.name(); data.sent = Date.now(); data.acc = this.accId();
             try {
                 this.ws.send(JSON.stringify({ topic: this.topic(), event: 'broadcast', ref: String(++this.ref), join_ref: '1',
                     payload: { type: 'broadcast', event: 'sync', payload: data } }));
@@ -10369,21 +10369,40 @@
             var o = this.itemOf(scr), key = this.keyOf(o);
             if (key === this.curKey) return;
             this.curKey = key;
-            if (this.applying) return;
+            if (this.applying || Date.now() - (this.openedAt || 0) < 3000) return;   // gerade vom anderen Gerät geöffnet: nicht zurückschicken
             this.lastActor = this.me;
             this.send('item', { item: o, pos: scr.startAt || 0 });
         },
         /** Alle 3 s: wer zuletzt bedient hat, schickt seine Stelle; die anderen gleichen größere Abweichungen aus */
         tick: function () {
             var s = this.screen();
+            // Live TV: jedes Gerät bleibt dicht am Live-Bild seines Senders, dann laufen alle (fast) gleich.
+            // Nur sanft aufholen (ohne neu zu verbinden – das gäbe schwarzes Bild)
+            if (s && s.kind === 'live' && Date.now() - (this.liveCatchAt || 0) > 20000 && s.behindMs() > 2000) {
+                this.liveCatchAt = Date.now();
+                try { if (AB && AB.liveCatchUp) AB.liveCatchUp(); } catch (e) { /* egal */ }
+            }
             if (!s || s.kind === 'live' || this.lastActor !== this.me || !Player.isPlaying()) return;
             this.send('tick', { pos: Player.current(), key: this.curKey });
         },
 
         // ---------- Nachrichten der anderen ----------
+        /** Kennung des Zugangs (ohne Passwort, nur als Prüfsumme): gleicher Zugang auf zwei Geräten? */
+        accId: function () {
+            var a = Api.acc;
+            return a && !a.demo ? String(hash32(String(a.server).toLowerCase() + '|' + String(a.username).toLowerCase(), 7)) : '';
+        },
         receive: function (m) {
             if (!m || m.from === this.me) return;
             var self = this, scr = this.screen();
+            // Beide Geräte mit demselben Zugang: viele Anbieter erlauben nur eine Verbindung gleichzeitig –
+            // dann wirft der Anbieter immer ein Gerät raus und das Bild springt zwischen Bild und Schwarz
+            if (m.acc && m.acc === this.accId() && !this.warned) {
+                this.warned = true;
+                Modal.open('Gleicher Zugang auf beiden Geräten', (m.nm || 'Das andere Gerät') + ' benutzt dieselbe Wiedergabeliste (denselben Zugang) wie dieses Gerät. ' +
+                    'Die meisten Anbieter erlauben pro Zugang nur 1 Verbindung gleichzeitig – dann bricht das Bild immer wieder ab. ' +
+                    'Für „Gemeinsam schauen“ braucht jedes Gerät einen eigenen Zugang (oder einen Zugang mit mehreren Verbindungen).', [{ label: 'OK', primary: true }]);
+            }
             if (m.cmd !== 'bye') this.peers[m.from] = { at: Date.now(), nm: m.nm };
             switch (m.cmd) {
                 case 'hello':
@@ -10404,7 +10423,8 @@
                     break;
                 case 'item':
                     this.lastActor = m.from;
-                    if (this.keyOf(m.item) === this.curKey) break;
+                    if (this.keyOf(m.item) === this.curKey || this.keyOf(m.item) === this.remoteKey) break;
+                    this.remoteKey = this.keyOf(m.item);
                     toast('👥 ' + (m.nm || 'Anderes Gerät') + ': ' + (m.item.name || 'neuer Titel'), 3000);
                     this.openItem(m.item, m.pos || 0, false);
                     break;
@@ -10451,7 +10471,12 @@
         openItem: function (o, pos, paused) {
             var self = this;
             function go(items, index, kind) {
-                self.curKey = self.keyOf(o);
+                // Eigene Nummer merken (kann in der eigenen Liste anders sein) – sonst schicken sich die Geräte den Titel endlos hin und her
+                var localKey = kind + ':' + String(items[index].id);
+                self.remoteKey = self.keyOf(o);
+                if (localKey === self.curKey && self.screen()) return;          // läuft hier schon
+                self.curKey = localKey;
+                self.openedAt = Date.now();
                 self.apply(function () {
                     var scr = new PlayerScreen(items, index, kind, kind === 'live' ? undefined : pos);
                     if (Nav.top() instanceof PlayerScreen) Nav.replace(scr); else Nav.push(scr);
