@@ -11,5 +11,6 @@
     "bgColor": "#0c0d10",
     "iconColor": "#0c0d10",
     "resolution": "1920x1080",
-    "disableBackHistoryAPI": true
+    "disableBackHistoryAPI": true,
+    "requiredACG": []
 }
