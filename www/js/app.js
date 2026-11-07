@@ -1084,6 +1084,64 @@
         set: function (name) { try { localStorage.setItem('imptv.theme', JSON.stringify(name)); } catch (e) { /* egal */ } this.apply(name); }
     };
 
+    /**
+     * Monats-Design: zu jedem Monat ein passender Hintergrund (Schnee, Frühling, Sommer, Herbst, Weihnachten …).
+     * Liegt als ruhige Ebene hinter der Oberfläche (#app::after), ohne Bewegung – kostet den Stick nichts.
+     * Im Player und in der Vorschau aus. Einstellungen → „Monats-Design“ schaltet es ab.
+     */
+    var Season = {
+        on: function () { return Storage.rawGet('seasonOn', true) !== false; },
+        // Bausteine
+        dots: function (c, a, b) {      // verstreute Punkte (Schnee, Funken, Blüten) in zwei Rastern
+            return 'radial-gradient(circle, ' + c + ' 0 2px, transparent 3px) 0 0/' + a + 'px ' + a + 'px, ' +
+                   'radial-gradient(circle, ' + c + ' 0 1.5px, transparent 2.5px) ' + Math.round(a / 2) + 'px ' + Math.round(b / 3) + 'px/' + b + 'px ' + b + 'px';
+        },
+        glow: function (pos, c, size) { return 'radial-gradient(' + (size || '900px 600px') + ' at ' + pos + ', ' + c + ', transparent 70%)'; },
+        M: [
+            /* Jan */ { n: 'Januar – Winter & Neujahr', bg: ['dots:rgba(255,255,255,.55):120:190', 'glow:15% 0%:rgba(150,190,255,.22)', 'glow:90% 10%:rgba(244,220,158,.18):700px 500px'], e: '❄️ ✨' },
+            /* Feb */ { n: 'Februar – Winter & Valentinstag', bg: ['dots:rgba(255,255,255,.4):150:230', 'glow:85% 95%:rgba(255,90,140,.24)', 'glow:10% 0%:rgba(150,190,255,.16)'], e: '❤️ ❄️' },
+            /* Mär */ { n: 'März – Frühlingsanfang', bg: ['glow:0% 100%:rgba(110,200,110,.26)', 'glow:100% 0%:rgba(255,236,140,.16)', 'dots:rgba(200,240,170,.35):170:260'], e: '🌱 🌷' },
+            /* Apr */ { n: 'April – Ostern', bg: ['glow:5% 100%:rgba(170,230,140,.24)', 'glow:95% 100%:rgba(255,220,120,.22)', 'glow:50% 0%:rgba(210,170,255,.16)'], e: '🐣 🥚 🌷' },
+            /* Mai */ { n: 'Mai – Blütezeit', bg: ['glow:0% 100%:rgba(255,140,190,.22)', 'glow:100% 100%:rgba(200,150,255,.20)', 'dots:rgba(255,190,220,.40):160:250'], e: '🌸 🌼' },
+            /* Jun */ { n: 'Juni – Sommeranfang', bg: ['glow:92% 5%:rgba(255,210,90,.34):1000px 700px', 'glow:0% 100%:rgba(120,200,255,.14)'], e: '☀️ 🌻' },
+            /* Jul */ { n: 'Juli – Sommer & Strand', bg: ['glow:50% 120%:rgba(40,190,210,.30):1600px 500px', 'glow:90% 0%:rgba(255,200,80,.28)'], e: '🏖️ 🌴 ☀️' },
+            /* Aug */ { n: 'August – Sonnenuntergang', bg: ['glow:50% 115%:rgba(255,110,50,.34):1700px 650px', 'glow:20% 0%:rgba(255,190,90,.16)'], e: '🌅 🍉' },
+            /* Sep */ { n: 'September – Spätsommer', bg: ['glow:100% 100%:rgba(230,150,40,.26)', 'glow:0% 0%:rgba(255,215,120,.14)', 'dots:rgba(240,180,80,.35):180:270'], e: '🍂 🍇' },
+            /* Okt */ { n: 'Oktober – Herbst & Halloween', bg: ['glow:100% 100%:rgba(255,120,20,.32)', 'glow:0% 0%:rgba(120,60,170,.24)', 'dots:rgba(255,150,40,.30):200:300'], e: '🎃 🍁' },
+            /* Nov */ { n: 'November – Nebel & Herbstlaub', bg: ['glow:50% 100%:rgba(170,180,200,.18):1800px 500px', 'glow:0% 30%:rgba(180,120,60,.20)', 'dots:rgba(200,140,70,.30):190:280'], e: '🍁 🌫️' },
+            /* Dez */ { n: 'Dezember – Weihnachten', bg: ['dots:rgba(255,255,255,.6):110:170', 'glow:0% 100%:rgba(200,40,50,.26)', 'glow:100% 100%:rgba(40,150,80,.24)', 'glow:50% 0%:rgba(244,220,158,.20):800px 400px'], e: '🎄 ⭐ 🎁' }
+        ],
+        layer: function (spec) {
+            var q = spec.split(':'), k = q.shift();
+            if (k === 'dots') return this.dots(q[0], +q[1], +q[2]);
+            // glow:pos:color[:size] – Farbe enthält keine Doppelpunkte
+            return this.glow(q[0], q[1], q[2]);
+        },
+        cur: function () { return this.M[new Date().getMonth()]; },
+        apply: function () {
+            var old = document.getElementById('season-css');
+            if (old) old.parentNode.removeChild(old);
+            if (!this.on()) return;
+            var m = this.cur(), self = this;
+            var bg = m.bg.map(function (x) { return self.layer(x); }).join(', ');
+            var css = '#app::after { content: ' + JSON.stringify(m.e) + '; position: absolute; left: 0; top: 0; right: 0; width: 100%; height: 1080px; z-index: -1; pointer-events: none;' +
+                ' box-sizing: border-box; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 70px 40px 0; font-size: 84px; letter-spacing: 18px; white-space: pre;' +
+                ' background: ' + bg + '; opacity: .9; -webkit-transform: translateZ(0); transform: translateZ(0); }\n' +
+                'body.preview-mode #app::after, body.video-mode #app::after { display: none; }\n';
+            var st = document.createElement('style');
+            st.id = 'season-css';
+            st.appendChild(document.createTextNode(css));
+            document.head.appendChild(st);
+            // Monatswechsel ohne Neustart (Stick läuft oft tagelang): einmal pro Stunde prüfen
+            if (!this.timer) {
+                this.month = new Date().getMonth();
+                this.timer = setInterval(function () { var n = new Date().getMonth(); if (n !== self.month) { self.month = n; self.apply(); } }, 3600000);
+            }
+        },
+        label: function () { return this.on() ? 'An · ' + this.cur().n.split(' – ')[0] : 'Aus'; },
+        toggle: function () { Storage.rawSet('seasonOn', !this.on()); this.apply(); }
+    };
+
     /** Was hat die App zuletzt Großes gemacht? (für den Bericht „Taste verspätet“) */
     var Busy = {
         l: '', at: 0,
@@ -9815,6 +9873,11 @@
             v.textContent = Lite.label();
             toast(Lite.active() ? 'Leichte Darstellung an: ohne Schatten und Übergänge – weniger Arbeit für den Stick.' : 'Leichte Darstellung aus', 5000);
         });
+        row('season', 'star', 'Monats-Design', Season.label(), function (v) {
+            Season.toggle();
+            v.textContent = Season.label();
+            toast(Season.on() ? 'Monats-Design an: ' + Season.cur().n : 'Monats-Design aus', 4000);
+        });
         row('clock', 'clock', 'Uhrzeit oben rechts', Clock.label().replace('An · mit Sekunden', 'Mit Sekunden').replace('An · ohne Sekunden', 'Ohne Sekunden'), function (v) {
             Clock.next();
             v.textContent = Clock.label().replace('An · mit Sekunden', 'Mit Sekunden').replace('An · ohne Sekunden', 'Ohne Sekunden');
@@ -11923,6 +11986,7 @@
 
         try { if (Theme.cur() !== 'gold') Theme.apply(Theme.cur()); } catch (eT) { /* Farbthema ist nur Kosmetik */ }
         try { Lite.apply(); } catch (eL) { /* nur Kosmetik */ }
+        try { Season.apply(); } catch (eS) { /* nur Kosmetik */ }
         try { Net.init(); } catch (eN) { /* egal */ }
         Device.load();
         var saved = Storage.get('account', null);
