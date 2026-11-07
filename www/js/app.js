@@ -1266,7 +1266,7 @@
     var Buffer = {
         available: function () { return !!(AB && AB.setBuffer && AB.getBuffer); },
         get: function () { try { var m = AB.getBuffer(); return m === 'small' || m === 'large' ? m : 'normal'; } catch (e) { return 'normal'; } },
-        set: function (m) { try { AB.setBuffer(m); } catch (e) { /* egal */ } toast('Puffer: ' + this.label(m)); },
+        set: function (m) { try { AB.setBuffer(m); } catch (e) { /* egal */ } Storage.set('bufManual', true); toast('Puffer: ' + this.label(m)); },
         /** Startpuffer bei „Normal“ */
         normalText: function () { return '2,5 s'; },
         label: function (m) { return m === 'small' ? 'Klein · 1 s' : m === 'large' ? 'Groß · 5 s' : 'Normal · ' + this.normalText(); }
@@ -6473,6 +6473,12 @@
             return this.map || (this.map = {});
         },
         entry: function (sid) { return this.load()[String(sid)] || null; },
+        /** Wie oft die Variante in den letzten 5 Malen gehangen hat oder nicht startete */
+        bad: function (sid) {
+            if (!this.on() || !this.acc()) return 0;
+            var e = this.entry(sid), h0 = e && e[0];
+            return h0 ? (h0.match(/[yr]/g) || []).length : 0;
+        },
         /** '', 'g', 'y' oder 'r' */
         level: function (sid) {
             if (!this.on() || !this.acc()) return '';
@@ -6645,7 +6651,16 @@
                 var want = pref[g.key], rep = vs[0];
                 if (want === undefined) {
                     // ohne eigene Wahl: die beste Qualität, die laut Sender-Ampel zuletzt nicht ausgefallen ist
-                    for (var jh = 0; jh < vs.length; jh++) if (Health.level(vs[jh].c.id) !== 'r' && !NoVideo.has(vs[jh].c.id)) { rep = vs[jh]; break; }
+                    // … und dabei Varianten überspringen, die zuletzt öfter gehangen haben (2 von 5), wenn eine ruhigere da ist
+                    var okV = null, calmV = null;
+                    for (var jh = 0; jh < vs.length; jh++) {
+                        var vid = vs[jh].c.id;
+                        if (Health.level(vid) === 'r' || NoVideo.has(vid)) continue;
+                        if (!okV) okV = vs[jh];
+                        if (!calmV && Health.bad(vid) < 2) calmV = vs[jh];
+                        if (okV && calmV) break;
+                    }
+                    if (calmV || okV) rep = calmV || okV;
                 }
                 for (var j = 0; j < vs.length; j++) if (String(vs[j].c.id) === String(want)) rep = vs[j];
                 // Name: die ausführlichste Bezeichnung ohne Qualität und Länderkürzel
@@ -10572,8 +10587,106 @@
         void it;
         Resume.record(this.kind, this.items, this.index, pos, dur, ended);
     };
-    /** Sender-IDs, die bis zum App-Neustart mit VLC laufen (eingebauter Player stürzte dort ab) */
-    PlayerScreen.vlcSids = {};
+    /**
+     * Player je Sender dauerhaft merken (Android mit VLC):
+     * hängt ein Sender mit dem eingebauten Player 3× innerhalb von 7 Tagen (oder stürzt der Player beim Lesen ab),
+     * öffnet die App ihn ab dann immer mit VLC (60 Tage gemerkt). Hängt er auch mit VLC 3× in 7 Tagen,
+     * geht es zurück auf den eingebauten Player – VLC hat dann nicht geholfen.
+     */
+    var EnginePick = {
+        DAYS: 7, KEEP: 60, LIMIT: 3,
+        ok: function () {
+            if (!AB || !AB.setNextEngine || !AB.hasVlc) return false;
+            try { if (!AB.hasVlc()) return false; if (AB.getLiveEngine && AB.getLiveEngine() === 'vlc') return false; } catch (e) { return false; }
+            return true;                                    // nur wenn Live TV sonst mit dem eingebauten Player läuft
+        },
+        map: function () { return Storage.get('vlcPick', {}) || {}; },
+        /** Diesen Sender mit VLC öffnen? */
+        want: function (sid) {
+            if (!sid || !this.ok()) return false;
+            var e = this.map()[String(sid)];
+            return !!e && Date.now() - e.t < this.KEEP * 86400000;
+        },
+        use: function (sid, why) {
+            var m = this.map(), k = String(sid);
+            if (m[k] && Date.now() - m[k].t < this.KEEP * 86400000) return;
+            m[k] = { t: Date.now(), b: [] };
+            var keys = Object.keys(m);
+            if (keys.length > 300) { keys.sort(function (a, b) { return m[a].t - m[b].t; }); for (var i = 0; i < keys.length - 300; i++) delete m[keys[i]]; }
+            Storage.set('vlcPick', m);
+            this.log('vlc:' + k, why);
+        },
+        /** Hänger merken. engine: 'vlc' oder 'exo'. Antwort true = ab jetzt anderer Player für diesen Sender */
+        bad: function (sid, engine) {
+            if (!sid || !this.ok()) return false;
+            var now = Date.now(), lim = this.DAYS * 86400000, k = String(sid);
+            if (engine === 'vlc') {
+                var m = this.map(), e = m[k];
+                if (!e) return false;
+                e.b = (e.b || []).filter(function (t) { return now - t < lim; }).concat([now]);
+                if (e.b.length >= this.LIMIT) { delete m[k]; Storage.set('vlcPick', m); return true; }
+                Storage.set('vlcPick', m);
+                return false;
+            }
+            var x = Storage.get('exoBad', {}) || {};
+            x[k] = (x[k] || []).filter(function (t) { return now - t < lim; }).concat([now]);
+            var hit = x[k].length >= this.LIMIT;
+            if (hit) delete x[k];
+            var ks = Object.keys(x);
+            if (ks.length > 500) ks.slice(0, ks.length - 500).forEach(function (q) { delete x[q]; });
+            Storage.set('exoBad', x);
+            if (hit) this.use(sid, 'hing 3× in 7 Tagen');
+            return hit;
+        },
+        log: function () { /* Platz für spätere Statistik */ }
+    };
+
+    /**
+     * Puffer automatisch (Android): mehrere Hänger in kurzer Zeit (4 in 60 Min., auf mindestens 2 Sendern) →
+     * beim nächsten Senderstart „Groß“. Einen Tag ohne Hänger → zurück auf „Normal“.
+     * Hat der Nutzer den Puffer selbst eingestellt, bleibt alles, wie er es gewählt hat.
+     */
+    var AutoBuf = {
+        ok: function () { return Buffer.available() && !Storage.get('bufManual', false); },
+        st: function () { return Storage.get('autoBuf', null) || { on: false, s: [], last: 0 }; },
+        stall: function (sid) {
+            if (!this.ok()) return;
+            var st = this.st(), now = Date.now();
+            st.s = (st.s || []).filter(function (x) { return now - x[0] < 3600000; }).concat([[now, sid]]);
+            st.last = now;
+            var sids = {};
+            st.s.forEach(function (x) { sids[x[1]] = 1; });
+            if (!st.on && Buffer.get() !== 'large' && st.s.length >= 4 && Object.keys(sids).length >= 2) { st.on = true; st.pending = 'large'; st.s = []; }
+            Storage.set('autoBuf', st);
+        },
+        /** Vor dem Öffnen eines Senders: anstehende Umstellung ausführen (nicht mitten im laufenden Bild) */
+        apply: function () {
+            if (!this.ok()) return;
+            var st = this.st(), now = Date.now();
+            if (st.on && !st.pending && now - (st.last || 0) > 86400000) { st.on = false; st.pending = 'normal'; }
+            if (!st.pending) return;
+            var to = st.pending;
+            st.pending = '';
+            Storage.set('autoBuf', st);
+            if (Buffer.get() === to) return;
+            try { AB.setBuffer(to); } catch (e) { return; }
+            toast(to === 'large' ? 'Mehrere Hänger: Puffer automatisch auf „Groß“ gestellt – weniger Ruckler, Start etwas langsamer.'
+                : 'Läuft seit einem Tag stabil: Puffer wieder auf „Normal“ (schnellerer Start).', 5000);
+        }
+    };
+
+    PlayerScreen.prototype.vlcNow = function () { this.vlcNext = true; try { AB.setNextEngine('vlc'); } catch (e) { /* egal */ } };
+    /** Ein echter Hänger (Bild stand, Sender neu geöffnet): für Player-Wahl und Puffer zählen */
+    PlayerScreen.prototype.countBad = function (forEngine) {
+        if (this.kind !== 'live') return;
+        var it = this.item();
+        if (!it) return;
+        try { AutoBuf.stall(it.id); } catch (e) { /* egal */ }
+        if (!forEngine) return;
+        try {
+            if (EnginePick.bad(it.id, this.engine) && this.engine !== 'vlc') toast('Dieser Sender läuft ab jetzt mit VLC (hing mehrmals mit dem eingebauten Player).', 5000);
+        } catch (e2) { /* egal */ }
+    };
     PlayerScreen.prototype.start = function () {
         var self = this;
         this.rdy = false;                  // erst nach dem Start zählen kurze Hänger (nicht das Laden beim Umschalten)
@@ -10664,10 +10777,13 @@
         });
         Player.aspectKey = this.aspectKey();               // Bildformat dieses Senders/Films/dieser Serie
         Player.nextLangs = this.kind === 'live' ? '' : 'de,en';    // Filme/Serien: Deutsch, sonst Englisch
-        var reuse = this.handoff && this.kind === 'live';
+        // Sender, der dauerhaft mit VLC laufen soll: das Vorschaubild (eingebauter Player) nicht übernehmen
+        var reuse = this.handoff && this.kind === 'live' && !this.vlcNext && !EnginePick.want((this.item() || {}).id);
         this.handoff = false;
         if (!this.openedAt || this.openedFor !== this.index) { this.openedAt = Date.now(); this.openedFor = this.index; }
         if (reuse && Player.keep(this.url(), null)) {
+            this.engine = 'exo';
+            try { if (AB && AB.getLiveEngine && AB.getLiveEngine() === 'vlc') this.engine = 'vlc'; } catch (eE0) { /* egal */ }
             self.buffering = !!Player.isBuf;
             if (!Player.gotReady) this.watchStart();          // war in der Vorschau noch nicht gestartet
             else {
@@ -10680,9 +10796,16 @@
             try { Watch.set(Watch.of('live', this.item().name)); } catch (e) { /* egal */ }                    // Bild läuft schon: nur auf Vollbild vergrößert
         } else {
             // Sender, bei dem der eingebaute Player schon einmal abgestürzt ist: gleich mit VLC öffnen
-            if (this.kind === 'live' && AB && AB.setNextEngine && PlayerScreen.vlcSids[(this.item() || {}).id]) {
-                try { AB.setNextEngine('vlc'); } catch (e) { /* egal */ }
+            this.engine = 'exo';
+            if (this.kind === 'live') {
+                try { AutoBuf.apply(); } catch (eB) { /* egal */ }
+                try { if (AB && AB.getLiveEngine && AB.getLiveEngine() === 'vlc') this.engine = 'vlc'; } catch (eE) { /* egal */ }
+                if (this.vlcNext || EnginePick.want((this.item() || {}).id)) {
+                    if (!this.vlcNext) { try { AB.setNextEngine('vlc'); } catch (e) { /* egal */ } }
+                    this.engine = 'vlc';
+                }
             }
+            this.vlcNext = false;
             Player.open(this.url(), null);
             this.watchStart();
         }
@@ -10855,6 +10978,7 @@
         this.stallLog = (this.stallLog || []).filter(function (t) { return now - t < 300000; });
         this.stallLog.push(now);
         if (this.hs) this.hs.bad = true;
+        this.countBad(true);
         return this.stallLog.length >= 3 && this.tryAlt('Sender hing mehrfach');
     };
     /** Kurze Hänger (2–8 s, erholt sich von selbst): 3 in 5 Minuten → Ersatzsender */
@@ -10867,6 +10991,7 @@
         this.shortLog.push(now);
         if (this.hs) this.hs.bad = true;
         if (this.shortLog.length < 3) return false;
+        this.countBad(true);
         this.shortLog = [];
         Report.stall(this.item(), 'Mehrere kurze Hänger (3 in 5 Min.)', this.openedAt);
         return this.tryAlt('Sender hing mehrmals kurz');
@@ -10985,7 +11110,7 @@
             AB && AB.setNextEngine && AB.hasVlc && (function () { try { return AB.hasVlc(); } catch (e) { return false; } })()) {
             this.vlcFor = this.index;
             if (!this.altName) this.altUrl = '';               // VLC bekommt wieder die normale Adresse (Ersatzsender bleibt)
-            try { AB.setNextEngine('vlc'); } catch (e) { /* egal */ }
+            this.vlcNow();
             toast('Sender wird mit VLC versucht …', 3500);
             this.start();
             return;
@@ -11002,10 +11127,10 @@
         if (this.kind === 'live' && /PARSER_CRASH/.test(msg || '') && this.vlcFor !== this.index &&
             AB && AB.setNextEngine && AB.hasVlc && (function () { try { return AB.hasVlc(); } catch (e) { return false; } })()) {
             this.vlcFor = this.index;
-            PlayerScreen.vlcSids[it.id] = 1;
+            try { EnginePick.use(it.id, 'Player-Absturz'); } catch (eP) { /* egal */ }
             if (!this.altName) this.altUrl = '';
-            try { AB.setNextEngine('vlc'); } catch (e) { /* egal */ }
-            Report.stall(it, 'Player-Absturz beim Lesen des Senders (' + msg + ') – automatisch auf VLC gewechselt', this.openedAt);
+            this.vlcNow();
+            Report.stall(it, 'Player-Absturz beim Lesen des Senders (' + msg + ') – automatisch auf VLC gewechselt (dauerhaft für diesen Sender)', this.openedAt);
             toast('Sender wird mit VLC weitergespielt …', 3000);
             this.start();
             return;
@@ -11016,6 +11141,7 @@
             this.retryAt = Date.now();
             var me = this, at = this.index;
             Report.stall(it, 'Verbindung abgebrochen (' + (msg || 'unbekannt') + ') – neu verbunden', this.openedAt);
+            this.countBad(false);
             this.stallLog = (this.stallLog || []).concat([Date.now()]);
             if (this.retries >= 2 && this.tryAlt('Verbindung zum Sender bricht ab')) return;
             if (this.retries > 1) toast('Verbindung zum Sender unterbrochen – neuer Versuch …', 3000);
