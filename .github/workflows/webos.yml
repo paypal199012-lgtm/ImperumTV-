@@ -1,0 +1,55 @@
+# ImperumTV für LG-Fernseher (webOS): .ipk bauen und im Release „lg“ als „ImperumTV-LG.ipk“ veröffentlichen.
+# Diese Datei lädst du in der LG Seller Lounge hoch (App-Datei / Package).
+name: LG webOS (.ipk)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [web-ui]
+    paths: ['www/**', 'webos/**', '.github/workflows/webos.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: App-Ordner zusammenstellen
+        run: |
+          mkdir -p build/app
+          cp -r www/* build/app/
+          cp webos/appinfo.json webos/icon.png webos/largeIcon.png webos/splash.png build/app/
+          # Samsung-Schnittstelle gibt es auf LG nicht
+          sed -i '/\$WEBAPIS/d' build/app/index.html
+          # Version: 1.0.<Laufnummer>
+          sed -i "s/\"version\": \"1.0.0\"/\"version\": \"1.0.${{ github.run_number }}\"/" build/app/appinfo.json
+          cat build/app/appinfo.json
+      - name: .ipk bauen
+        run: |
+          npm install -g @webos-tools/cli
+          mkdir -p out
+          ares-package build/app -o out --no-minify
+          ls -la out
+          cp out/*.ipk ImperumTV-LG.ipk
+      - name: Prüfen
+        run: |
+          ar t ImperumTV-LG.ipk
+          mkdir chk && cd chk && ar x ../ImperumTV-LG.ipk && tar tzf data.tar.gz | head -30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ImperumTV-LG
+          path: |
+            ImperumTV-LG.ipk
+            webos/icon-400.png
+            webos/splash.png
+      - name: Als Download veröffentlichen (Release „lg“)
+        run: |
+          gh release view lg >/dev/null 2>&1 || gh release create lg --title "ImperumTV für LG (webOS)" --notes "Für die LG Seller Lounge: ImperumTV-LG.ipk hochladen."
+          gh release upload lg ImperumTV-LG.ipk webos/icon-400.png webos/splash.png --clobber
