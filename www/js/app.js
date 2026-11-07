@@ -3667,6 +3667,52 @@
         }
     };
 
+    /**
+     * Fehlende Kategorien untersuchen (Admin-Befehl „Kategorien prüfen“): vergleicht die Kategorien des Anbieters
+     * mit denen in der App und schickt das Ergebnis als Bericht „diagnose“ (nur Namen und Zahlen, keine Zugangsdaten).
+     */
+    var CatDiag = {
+        RX: /leag|ppv|event|liga|sport/i,
+        run: function () {
+            var self = this;
+            if (!Api.acc || Api.acc.demo) { Report.send('diagnose', 'Kategorien prüfen: keine Wiedergabeliste geladen (oder Demo).'); return; }
+            Api.call('get_live_categories').then(function (cats) {
+                cats = Array.isArray(cats) ? cats : [];
+                var local = {}, byId = {};
+                Data.channels.forEach(function (c) {
+                    byId[c.id] = c;
+                    local[c.cat] = (local[c.cat] || 0) + 1;
+                    if (c.cx) c.cx.forEach(function (x) { local[x] = (local[x] || 0) + 1; });
+                });
+                var shown = 0;
+                try { shown = LiveScreen.prototype.categories.call({}).length - 2; } catch (e) { shown = -1; }
+                var head = ['Kategorien beim Anbieter: ' + cats.length + ' · in der App angezeigt: ' + shown + ' · Sender in der App: ' + Data.channels.length +
+                    ' · gemerkte Anbieter-Kategorien: ' + ((LiveCats.get() || []).length)];
+                var hits = cats.filter(function (c) { return c && self.RX.test(String(c.category_name || '')); }).slice(0, 30);
+                if (!hits.length) head.push('Keine Sport/PPV/League-Kategorien gefunden. Erste Kategorien: ' + cats.slice(0, 40).map(function (c) { return c && c.category_name; }).join(' | '));
+                var jobs = hits.map(function (c) {
+                    var nm = str(c.category_name) || '?';
+                    return Api.call('get_live_streams', { category_id: c.category_id }).then(function (list) {
+                        list = Array.isArray(list) ? list : [];
+                        var have = 0, appCat = {};
+                        list.forEach(function (x) {
+                            var ch = byId[parseInt(x.stream_id, 10)];
+                            if (ch) { have++; appCat[ch.cat || '(ohne)'] = 1; }
+                        });
+                        var x0 = list[0] || {};
+                        return nm + ' [id ' + c.category_id + (c.parent_id && c.parent_id !== '0' && c.parent_id !== 0 ? ', parent ' + c.parent_id : '') + ']: Anbieter ' + list.length +
+                            ' Sender, in der App ' + (local[nm] || 0) + ' unter diesem Namen, ' + have + ' davon überhaupt in der App' +
+                            (have ? ' (dort unter: ' + Object.keys(appCat).slice(0, 3).join(' / ') + ')' : '') +
+                            (list.length ? ' · Beispiel: category_id=' + JSON.stringify(x0.category_id) + ' category_ids=' + JSON.stringify(x0.category_ids) + ' „' + String(x0.name || '').slice(0, 40) + '“' : '');
+                    }, function (e) { return nm + ': Fehler beim Abfragen (' + (e && e.message ? e.message : '?') + ')'; });
+                });
+                return Promise.all(jobs).then(function (lines) {
+                    return Report.send('diagnose', head.concat(lines).join('\n')).then(function (ok) { if (ok) toast('Kategorien geprüft – Bericht an den Support geschickt', 4000); });
+                });
+            }, function (e) { Report.send('diagnose', 'Kategorien prüfen: Anbieter antwortet nicht (' + (e && e.message ? e.message : '?') + ')'); });
+        }
+    };
+
     var Data = {
         channels: [], movies: [], series: [],
         expiry: null, status: '',
@@ -5702,6 +5748,7 @@
             var self = this;
             if (cmd === 'help') { Help.ask(true); return; }
             if (cmd === 'survey') { Survey.later(true); return; }
+            if (cmd === 'catreport') { CatDiag.run(); return; }
             if (cmd === 'engine:vlc' || cmd === 'engine:exo') {
                 try { if (AB && AB.setLiveEngine) { AB.setLiveEngine(cmd === 'engine:vlc' ? 'vlc' : 'exo'); toast('Player Live TV: ' + (cmd === 'engine:vlc' ? 'VLC' : 'ImperumTV') + ' (vom Support eingestellt)', 5000); } } catch (e) { /* egal */ }
                 return;
