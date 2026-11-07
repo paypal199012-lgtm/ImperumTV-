@@ -2945,14 +2945,16 @@
             if (kind === 'live') {
                 item = { type: 'live', id: parseInt(s.stream_id, 10), num: i + 1,
                     name: str(s.name) || 'Sender ' + s.stream_id, logo: str(s.stream_icon),
-                    cat: cats[String(s.category_id)] || '', epg: str(s.epg_channel_id) };
+                    cat: cats[String(Array.isArray(s.category_id) ? s.category_id[0] : s.category_id)] || '', epg: str(s.epg_channel_id) };
+                if (!s.category_ids && Array.isArray(s.category_id)) s.category_ids = s.category_id;
                 // Sender in mehreren Kategorien (category_ids, z. B. „DE | LEAGUES FOOTBALL PPV“): weitere Kategorien merken
-                if (s.category_ids && s.category_ids.length > 1) {
+                if (s.category_ids && s.category_ids.length > (item.cat ? 1 : 0)) {
                     var cx = [], cj, cn;
                     for (cj = 0; cj < s.category_ids.length; cj++) {
                         cn = cats[String(s.category_ids[cj])];
                         if (cn && cn !== item.cat && cx.indexOf(cn) < 0) cx.push(cn);
                     }
+                    if (!item.cat && cx.length) item.cat = cx.shift();
                     if (cx.length) item.cx = cx;
                 }
             } else if (kind === 'movie') {
@@ -3011,6 +3013,7 @@
                 if (r[6]) {
                     var cx = [], ids = String(r[6]).split(','), cn;
                     for (var j = 0; j < ids.length; j++) { cn = cats[ids[j]]; if (cn && cn !== it.cat && cx.indexOf(cn) < 0) cx.push(cn); }
+                    if (!it.cat && cx.length) it.cat = cx.shift();
                     if (cx.length) it.cx = cx;
                 }
                 return it;
@@ -3449,7 +3452,7 @@
             if (this.reloading) return this.reloading;
             if (Date.now() - this.lastReload < (manual ? 60000 : 600000)) return Promise.resolve(false);
             this.lastReload = Date.now();
-            this.reloading = Api.list('get_live_streams', 'live', Api.call('get_live_categories')).then(function (list) {
+            this.reloading = Api.list('get_live_streams', 'live', LiveCats.fetch()).then(function (list) {
                 me.reloading = null;
                 if (list && list.length) { Data.channels = list; me._namesOf = null; Epg.nowCache = null; }
                 return list ? list.length : 0;
@@ -3642,6 +3645,28 @@
         }
     };
 
+    /** Live-Kategorien des Anbieters (auch leere, z. B. PPV-Kategorien zwischen zwei Spielen) – Reihenfolge wie beim Anbieter */
+    var LiveCats = {
+        cache: null,
+        fetch: function () {
+            var p = Api.call('get_live_categories'), acc = Resume.accKey(), self = this;
+            p.then(function (cats) { try { self.set(acc, cats); } catch (e) { /* egal */ } }, function () { /* egal */ });
+            return p;
+        },
+        set: function (acc, cats) {
+            if (!Array.isArray(cats) || !acc) return;
+            var names = [], seen = {};
+            cats.forEach(function (c) { var n = c ? (str(c.category_name) || 'Ohne Kategorie') : ''; if (n && !seen[n]) { seen[n] = 1; names.push(n); } });
+            if (names.length > 3000) names = names.slice(0, 3000);
+            this.cache = { acc: acc, names: names };
+            Storage.set('liveCats', this.cache);
+        },
+        get: function () {
+            var acc = Resume.accKey(), c = this.cache || (this.cache = Storage.get('liveCats', null));
+            return c && c.acc === acc && Array.isArray(c.names) && c.names.length ? c.names : null;
+        }
+    };
+
     var Data = {
         channels: [], movies: [], series: [],
         expiry: null, status: '',
@@ -3659,7 +3684,7 @@
             Api.acc = acc;
             Parser.worker();                                   // Hintergrund-Helfer schon starten
             // Alles gleichzeitig anfragen (spart Wartezeit); die Senderliste zählt nur, wenn die Anmeldung klappt
-            var lists = Api.list('get_live_streams', 'live', Api.call('get_live_categories'));
+            var lists = Api.list('get_live_streams', 'live', LiveCats.fetch());
             lists.then(null, function () { /* Fehler wird unten gemeldet */ });
             var info = {};
             return Api.call(null).then(function (json) {
@@ -6623,7 +6648,8 @@
     }
     LiveScreen.prototype.applySearch = applySearch;
     LiveScreen.prototype.categories = function () {
-        var seen = {}, cats = [];
+        var seen = {}, cats = [], prov = LiveCats.get();
+        if (prov) prov.forEach(function (n) { if (!seen[n]) { seen[n] = true; cats.push(n); } });
         Data.channels.forEach(function (c) {
             if (c.cat && !seen[c.cat]) { seen[c.cat] = true; cats.push(c.cat); }
             if (c.cx) for (var i = 0; i < c.cx.length; i++) if (!seen[c.cx[i]]) { seen[c.cx[i]] = true; cats.push(c.cx[i]); }
@@ -6716,7 +6742,7 @@
         this.list = list;
         var nowMap = Epg.nowFull(this.list);             // „Jetzt läuft“ mit Beginn/Ende für alle Sender auf einmal
         if (!this.list.length) {
-            scroll.appendChild(h('div', 'empty-note', this.query ? 'Kein Sender gefunden für „' + this.query + '“.' : this.catIndex === 1 ? 'Noch keine Favoriten. Drücke bei einem Sender die gelbe Taste.' : 'Keine Sender in dieser Kategorie.'));
+            scroll.appendChild(h('div', 'empty-note', this.query ? 'Kein Sender gefunden für „' + this.query + '“.' : this.catIndex === 1 ? 'Noch keine Favoriten. Drücke bei einem Sender die gelbe Taste.' : 'Keine Sender in dieser Kategorie. Dein Anbieter hat hier gerade keine Sender – bei PPV- und Event-Kategorien kommen sie meist erst kurz vor dem Spiel.'));
         }
         var batch = batchRender(scroll, this.list, function (ch, i) {
             var row = h('div', 'row lv' + (self.selected && self.selected.id === ch.id ? ' active' : ''));
