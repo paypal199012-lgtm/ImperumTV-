@@ -3314,7 +3314,22 @@
                 });
             });
             if (!out.length && team.x && team.x.length >= 3) out.push(this.fold(team.x));
-            return out.slice(0, 3);
+            out = out.slice(0, 3);
+            // Kürzel, unter denen Event-Sender den Verein oft nennen („Live | PSG vs. Troyes“)
+            var full = this.fold((team.n || '') + ' ' + (team.s || ''));
+            for (var k in this.ALIAS) if (this.ALIAS.hasOwnProperty(k) && full.indexOf(k) >= 0) this.ALIAS[k].forEach(function (a) { if (out.indexOf(a) < 0) out.push(a); });
+            // Offizielles Drei-Buchstaben-Kürzel (z. B. PSG): zählt nur zusammen mit dem Gegner (beide Vereine im Namen)
+            [team.x, team.s].forEach(function (k) {
+                if (k && /^[a-z0-9]{3}$/i.test(k)) { var x = me.fold(k); if (out.indexOf(x) < 0) out.push(x); }
+            });
+            return out;
+        },
+        ALIAS: {
+            'paris saint': ['psg', 'paris sg'], 'paris sg': ['psg'], 'borussia dortmund': ['bvb'], 'hamburger sv': ['hsv'],
+            'manchester united': ['man utd', 'man united'], 'manchester city': ['man city'], 'internazionale': ['inter'],
+            'inter milan': ['inter'], 'fc internazionale': ['inter'], 'atletico': ['atleti'], 'tottenham': ['spurs'],
+            'wolverhampton': ['wolves'], 'monchengladbach': ['gladbach'], 'bayer 04': ['leverkusen'], 'olympique de marseille': ['marseille'],
+            'olympique lyonnais': ['lyon']
         },
         /** Wer zeigt es in Deutschland? (Rechtelage, ohne Gewähr) */
         rights: function (m) {
@@ -3384,7 +3399,7 @@
                     var n = c.name || '';
                     if (/#{2,}|^\s*[-=*#]|[-=*]{3,}/.test(n)) return;
                     var f = me.fold(n);
-                    if (/(^|\|)\s*(ended|ende|beendet|finished|vorbei)([^a-z]|$)/.test(f)) return;   // beendete Events
+                    if (/(^|\|)\s*(end|ended|ende|beendet|finished|vorbei)([^a-z]|$)/.test(f) || EventOver.over(c, Date.now())) return;   // beendete Events
                     me._names.push({ c: c, f: f, y: youth.test(f) });
                 });
                 this._namesOf = Data.channels;
@@ -6761,8 +6776,79 @@
         }
     };
 
+    /**
+     * Vorbei-Events ausblenden: PPV-/Event-Sender tragen Spiel und Anstoß im Namen
+     * („LIVE | JUVENTUS - LAZIO | Sat 07 Nov 18:00 CET (DE) | …“ oder „… @ Nov 7 8:25 PM …“).
+     * Der Anbieter benennt sie nach dem Spiel oft erst spät in „ENDED | …“ um – oder gar nicht.
+     * Ausgeblendet wird: „ENDED/ENDE/BEENDET | …“ und alles, dessen Anstoß über 3 Stunden her ist
+     * (Fußball dauert gut 2 Stunden; längere Sportarten wie NFL, Tennis, UFC, Formel 1 … erst nach 5 Stunden).
+     */
+    var EventOver = {
+        HOURS: 3,
+        LONG: /(^|[^a-z])(nfl|nba|nhl|mlb|ncaa|tennis|atp|wta|cricket|golf|ufc|mma|boxing|boxen|wwe|aew|oktagon|f1|formel|formula|grand prix|gp|motogp|nascar|darts|snooker|cycling|radsport|tour|marathon|wrestling)([^a-z]|$)/i,
+        MON: { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+            mär: 2, mai: 4, okt: 9, dez: 11 },
+        ZONE: { cet: 1, cest: 2, met: 1, mez: 1, mesz: 2, gmt: 0, utc: 0, wet: 0, bst: 1, west: 1, eet: 2, eest: 3,
+            est: -5, edt: -4, et: -5, cst: -6, cdt: -5, pst: -8, pdt: -7 },
+        _of: null, _at: 0, _ids: null,
+        /** Anstoß aus dem Namen (ms) oder 0 */
+        startOf: function (name) {
+            var n = String(name || ''), m, mon, d, hh, mm, y, t, now = new Date();
+            // „07-11-2026 | 20:30 (GMT)“ oder „07.11.2026 20:30“
+            m = /\b(\d{1,2})[-.\/](\d{1,2})[-.\/](20\d\d)\s*\|?\s*(\d{1,2})[:.](\d{2})(?:\s*([ap]m))?(?:\s*\(?([a-z]{2,4})\)?)?/i.exec(n);
+            if (m) {
+                d = +m[1]; mon = +m[2] - 1; hh = +m[4]; mm = +m[5];
+                if (mon < 0 || mon > 11 || d < 1 || d > 31 || hh > 23 || mm > 59) return 0;
+                if (m[6]) { var pm2 = /pm/i.test(m[6]); if (hh === 12) hh = pm2 ? 12 : 0; else if (pm2) hh += 12; }
+                var z2 = m[7] ? this.ZONE[m[7].toLowerCase()] : undefined;
+                return z2 !== undefined ? Date.UTC(+m[3], mon, d, hh, mm) - z2 * 3600000 : new Date(+m[3], mon, d, hh, mm).getTime();
+            }
+            // „Sat 07 Nov 20:15 CET“
+            m = /\b(\d{1,2})\s+([a-zäö]{3})[a-z]*\.?\s+(\d{1,2})[:.](\d{2})(?:\s*([ap]m))?(?:\s+([a-z]{2,4})\b)?/i.exec(n);
+            if (m) { d = +m[1]; mon = this.MON[m[2].toLowerCase()]; hh = +m[3]; mm = +m[4]; }
+            else {
+                // „@ Nov 7 8:25 PM“
+                m = /\b([a-z]{3})[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{1,2})[:.](\d{2})(?:\s*([ap]m))?(?:\s+([a-z]{2,4})\b)?/i.exec(n);
+                if (!m) return 0;
+                mon = this.MON[m[1].toLowerCase()]; d = +m[2]; hh = +m[3]; mm = +m[4];
+                m = [m[0], '', '', '', '', m[5], m[6]];
+            }
+            if (mon === undefined || d < 1 || d > 31 || hh > 23 || mm > 59) return 0;
+            if (m[5]) { var pm = /pm/i.test(m[5]); if (hh === 12) hh = pm ? 12 : 0; else if (pm) hh += 12; }
+            y = now.getFullYear();
+            var z = m[6] ? this.ZONE[m[6].toLowerCase()] : undefined;
+            var mk = function (yy) { return z !== undefined ? Date.UTC(yy, mon, d, hh, mm) - z * 3600000 : new Date(yy, mon, d, hh, mm).getTime(); };
+            t = mk(y);
+            // Jahreswechsel: „Dec 31“ im Januar ist letztes Jahr, „Jan 1“ im Dezember nächstes
+            if (t - now.getTime() > 180 * 86400000) t = mk(y - 1);
+            else if (now.getTime() - t > 180 * 86400000) t = mk(y + 1);
+            return t;
+        },
+        over: function (c, now) {
+            var n = c && c.name;
+            if (!n || n.indexOf('|') < 0 && n.indexOf('@') < 0) return false;
+            if (/^\s*(end|ended|ende|beendet|finished|vorbei)\s*[|:-]/i.test(n)) return true;
+            if (!/[|@]/.test(n) || NameTidy.isSep(n)) return false;
+            var t = this.startOf(n);
+            return t > 0 && now - t > (this.LONG.test(n) ? 5 : this.HOURS) * 3600000;
+        },
+        /** Liste ohne vorbei-Events (Ergebnis 5 Minuten zwischengespeichert, solange die Senderliste gleich ist) */
+        apply: function (list) {
+            var now = Date.now();
+            if (this._of !== Data.channels || now - this._at > 300000) {
+                var ids = {}, any = false;
+                for (var i = 0; i < Data.channels.length; i++) if (this.over(Data.channels[i], now)) { ids[Data.channels[i].id] = 1; any = true; }
+                this._ids = any ? ids : null; this._of = Data.channels; this._at = now;
+            }
+            var x = this._ids;
+            return x ? list.filter(function (c) { return !x[c.id]; }) : list;
+        },
+        /** Kategorie mit Event-Sendern (PPV, Events, Ligen …)? */
+        isEventCat: function (cat) { return /ppv|event|leag|liga|live ?events?/i.test(cat || ''); }
+    };
+
     LiveScreen.prototype.filter = function () {
-        var all = Hidden.apply(Parental.visible('live', Data.channels));
+        var all = EventOver.apply(Hidden.apply(Parental.visible('live', Data.channels)));
         if (this.query) return Merge.group(all.filter(searchMatcher(this.query)), true);
         var cats = this.categories(), cat = cats[this.catIndex];
         if (this.catIndex === 0) return Merge.group(all, true);
@@ -6772,6 +6858,18 @@
     LiveScreen.prototype.render = function (root) {
         try { Health.sync(function () { Health.paint(); }); } catch (eH) { /* egal */ }
         var self = this;
+        // Senderliste älter als 10 Minuten: im Hintergrund neu holen (PPV-/Event-Sender ändern sich ständig,
+        // der Anbieter benennt beendete Spiele um oder nimmt sie raus). Neu gezeichnet wird nur, wenn gerade
+        // eine Kategorie markiert ist – sonst wäre der Sender unter dem Cursor plötzlich weg.
+        try {
+            Football.reloadChannels(false).then(function (n) {
+                if (!n || Nav.top() !== self || Modal.node) return;
+                var k = Focus.cur ? Focus.cur.getAttribute('data-key') : '';
+                if (!/^cat-/.test(k || '')) return;
+                self.focusKey = k;
+                Nav.show(self);
+            });
+        } catch (eR) { /* egal */ }
         document.body.classList.add('preview-mode');
         // Hintergrund wie überall, nur das Vorschaubild bleibt frei (dort liegt das Video)
         this.bg = h('div', 'live-bg');
@@ -6781,7 +6879,7 @@
         var columns = h('div', 'columns live-b');
         var cats = this.categories();
         // Anzahl Sender je Kategorie (ohne Trennzeilen)
-        var vis = Hidden.apply(Parental.visible('live', Data.channels)), cnt = {}, favN = 0, allN = 0;
+        var vis = EventOver.apply(Hidden.apply(Parental.visible('live', Data.channels))), cnt = {}, favN = 0, allN = 0;
         for (var ci = 0; ci < vis.length; ci++) {
             if (NameTidy.isSep(vis[ci].name)) continue;
             allN++;
@@ -10474,6 +10572,8 @@
         void it;
         Resume.record(this.kind, this.items, this.index, pos, dur, ended);
     };
+    /** Sender-IDs, die bis zum App-Neustart mit VLC laufen (eingebauter Player stürzte dort ab) */
+    PlayerScreen.vlcSids = {};
     PlayerScreen.prototype.start = function () {
         var self = this;
         this.rdy = false;                  // erst nach dem Start zählen kurze Hänger (nicht das Laden beim Umschalten)
@@ -10579,6 +10679,10 @@
             }
             try { Watch.set(Watch.of('live', this.item().name)); } catch (e) { /* egal */ }                    // Bild läuft schon: nur auf Vollbild vergrößert
         } else {
+            // Sender, bei dem der eingebaute Player schon einmal abgestürzt ist: gleich mit VLC öffnen
+            if (this.kind === 'live' && AB && AB.setNextEngine && PlayerScreen.vlcSids[(this.item() || {}).id]) {
+                try { AB.setNextEngine('vlc'); } catch (e) { /* egal */ }
+            }
             Player.open(this.url(), null);
             this.watchStart();
         }
@@ -10891,6 +10995,19 @@
             toast(this.kind === 'live' ? 'Dieses Bild kann der Player auf diesem Gerät nicht abspielen. Tipp: einen anderen Sender wählen oder unter Einstellungen das Live-Format wechseln.' : 'Dieses Bild kann der eingebaute Player auf diesem Gerät nicht abspielen. Tipp: im Player mit ⇄ einen anderen Player wie VLC wählen.', 8000);
             Report.player(it, msg);
             this.showOverlay();
+            return;
+        }
+        // Der eingebaute Player stürzt beim Lesen dieses Senders ab (PARSER_CRASH, z. B. bei manchen HEVC-Sendern):
+        // Neu verbinden hilft nicht, also gleich mit VLC weiter – und diesen Sender bis zum App-Neustart immer mit VLC öffnen
+        if (this.kind === 'live' && /PARSER_CRASH/.test(msg || '') && this.vlcFor !== this.index &&
+            AB && AB.setNextEngine && AB.hasVlc && (function () { try { return AB.hasVlc(); } catch (e) { return false; } })()) {
+            this.vlcFor = this.index;
+            PlayerScreen.vlcSids[it.id] = 1;
+            if (!this.altName) this.altUrl = '';
+            try { AB.setNextEngine('vlc'); } catch (e) { /* egal */ }
+            Report.stall(it, 'Player-Absturz beim Lesen des Senders (' + msg + ') – automatisch auf VLC gewechselt', this.openedAt);
+            toast('Sender wird mit VLC weitergespielt …', 3000);
+            this.start();
             return;
         }
         // Live: Verbindung weg (Netz, Anbieter-Server kurz überlastet …): bis zu 3× nach kurzer Pause neu verbinden
