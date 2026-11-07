@@ -1178,6 +1178,7 @@ body.touch .similar-strip { overflow-x: auto; }
 .fb-ch { color: #f4dc9e; font-weight: bold; }
 .fb-more { margin-left: 10px; color: #a7a39a; }
 .fb-note { font-size: 30px; color: #d8d4cb; padding: 30px 4px; }
+.fb-warn { font-size: 22px; line-height: 1.35; color: #ffcc80; background: rgba(255,152,0,.12); border: 2px solid rgba(255,183,77,.5); border-radius: 12px; padding: 12px 18px; margin: 4px 0 14px; }
 
 .fb-src { font-size: 20px; color: rgba(255,255,255,.5); text-align: center; padding: 18px 0 8px; }
 
