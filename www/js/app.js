@@ -8343,8 +8343,8 @@
         if (!shown.length) { list.appendChild(h('div', 'fb-note', self.sport === 'f1' ? 'Gerade kein Rennwochenende.' : 'In den nächsten Tagen keine Spiele.')); return; }
         // Ohne TV-Programm findet die App nur Event-Sender mit beiden Vereinen im Namen – deutlich sagen
         if (self.sport === 'fb' && AB && AB.epgSearch && !Epg.valid && shown.length) {
-            list.appendChild(h('div', 'fb-warn', '⚠  Das TV-Programm ist gerade nicht geladen. Sender „laut Programm“ (z. B. DAZN, Sky) kann die App deshalb nicht finden – ' +
-                'nur Event-Sender mit beiden Vereinen im Namen. Oft lehnt der Anbieter gerade ab: VPN aus- bzw. umschalten und die App neu starten.'));
+            list.appendChild(h('div', 'fb-warn', 'ⓘ  Das TV-Programm wird gerade geladen oder ist noch nicht da. Sobald es da ist, erscheinen hier auch die Sender, ' +
+                'auf denen die Spiele laufen (z. B. DAZN, Sky). Tipp: App kurz neu starten.'));
         }
         shown.forEach(function (m) {
             var dt = new Date(m.t), dd = new Date(dt); dd.setHours(0, 0, 0, 0);
