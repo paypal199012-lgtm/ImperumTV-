@@ -3672,11 +3672,36 @@
      * mit denen in der App und schickt das Ergebnis als Bericht „diagnose“ (nur Namen und Zahlen, keine Zugangsdaten).
      */
     var CatDiag = {
-        RX: /leag|ppv|event|liga|sport/i,
+        RX: /leag|ppv|event|liga|24\/7/i,
+        /** Promise mit Zeitlimit (hängt eine Anfrage, kommt trotzdem ein Bericht) */
+        limit: function (p, ms, what) {
+            return Promise.race([p, new Promise(function (res, rej) { setTimeout(function () { rej(new Error(what + ': keine Antwort nach ' + (ms / 1000) + ' s')); }, ms); })]);
+        },
+        /** Fußball: was findet die App zu den laufenden/heutigen Spielen? */
+        football: function () {
+            var out = [], d = Football.data;
+            out.push('Programm (EPG): ' + (Epg.valid ? 'geladen' : 'NICHT geladen') + (AB && AB.epgSearch ? '' : ' · keine Programmsuche auf diesem Gerät'));
+            if (!d || !d.matches) { out.push('Fußball: Spielplan noch nicht geladen (Sport-Seite einmal öffnen)'); return out; }
+            var now = Date.now(), list = d.matches.filter(function (m) { return m.h && m.a && m.s !== 'FINISHED' && m.t < now + 3 * 3600000 && m.t > now - 3 * 3600000; }).slice(0, 8);
+            list.forEach(function (m) {
+                var w = Football.words(m.h).concat(Football.words(m.a));
+                var ev = Football.eventChannels(m).slice(0, 3).map(function (x) { return x.c.name + ' (' + x.sc + ')'; });
+                var any = [];
+                for (var i = 0; i < Data.channels.length && any.length < 4; i++) {
+                    var f = Football.fold(Data.channels[i].name);
+                    for (var j = 0; j < w.length; j++) if (Football.has(f, w[j])) { any.push(Data.channels[i].name + ' [' + (Data.channels[i].cat || '-') + ']'); break; }
+                }
+                out.push('Spiel ' + (m.h.s || m.h.n) + ' – ' + (m.a.s || m.a.n) + ' (' + m.s + ') · Suchwörter: ' + w.join(', ') +
+                    ' · Event-Sender: ' + (ev.length ? ev.join(' | ') : 'keine') + ' · Sender mit einem Verein im Namen: ' + (any.length ? any.join(' | ') : 'keine'));
+            });
+            return out;
+        },
         run: function () {
             var self = this;
-            if (!Api.acc || Api.acc.demo) { Report.send('diagnose', 'Kategorien prüfen: keine Wiedergabeliste geladen (oder Demo).'); return; }
-            Api.call('get_live_categories').then(function (cats) {
+            if (!Api.acc || Api.acc.demo) { Report.send('diagnose', 'Prüfen: keine Wiedergabeliste geladen (oder Demo).'); return; }
+            var foot = [];
+            try { foot = this.football(); } catch (eF) { foot = ['Fußball-Prüfung: Fehler ' + eF.message]; }
+            this.limit(Api.call('get_live_categories'), 20000, 'Kategorien').then(function (cats) {
                 cats = Array.isArray(cats) ? cats : [];
                 var local = {}, byId = {};
                 Data.channels.forEach(function (c) {
@@ -3686,13 +3711,13 @@
                 });
                 var shown = 0;
                 try { shown = LiveScreen.prototype.categories.call({}).length - 2; } catch (e) { shown = -1; }
+                var multi = Data.channels.filter(function (c) { return c.cx; }).length;
                 var head = ['Kategorien beim Anbieter: ' + cats.length + ' · in der App angezeigt: ' + shown + ' · Sender in der App: ' + Data.channels.length +
-                    ' · gemerkte Anbieter-Kategorien: ' + ((LiveCats.get() || []).length)];
-                var hits = cats.filter(function (c) { return c && self.RX.test(String(c.category_name || '')); }).slice(0, 30);
-                if (!hits.length) head.push('Keine Sport/PPV/League-Kategorien gefunden. Erste Kategorien: ' + cats.slice(0, 40).map(function (c) { return c && c.category_name; }).join(' | '));
+                    ' (davon ' + multi + ' in mehreren Kategorien) · gemerkte Anbieter-Kategorien: ' + ((LiveCats.get() || []).length)];
+                var hits = cats.filter(function (c) { return c && self.RX.test(String(c.category_name || '')); }).slice(0, 12);
                 var jobs = hits.map(function (c) {
                     var nm = str(c.category_name) || '?';
-                    return Api.call('get_live_streams', { category_id: c.category_id }).then(function (list) {
+                    return self.limit(Api.call('get_live_streams', { category_id: c.category_id }), 15000, nm).then(function (list) {
                         list = Array.isArray(list) ? list : [];
                         var have = 0, appCat = {};
                         list.forEach(function (x) {
@@ -3700,16 +3725,18 @@
                             if (ch) { have++; appCat[ch.cat || '(ohne)'] = 1; }
                         });
                         var x0 = list[0] || {};
-                        return nm + ' [id ' + c.category_id + (c.parent_id && c.parent_id !== '0' && c.parent_id !== 0 ? ', parent ' + c.parent_id : '') + ']: Anbieter ' + list.length +
-                            ' Sender, in der App ' + (local[nm] || 0) + ' unter diesem Namen, ' + have + ' davon überhaupt in der App' +
-                            (have ? ' (dort unter: ' + Object.keys(appCat).slice(0, 3).join(' / ') + ')' : '') +
-                            (list.length ? ' · Beispiel: category_id=' + JSON.stringify(x0.category_id) + ' category_ids=' + JSON.stringify(x0.category_ids) + ' „' + String(x0.name || '').slice(0, 40) + '“' : '');
-                    }, function (e) { return nm + ': Fehler beim Abfragen (' + (e && e.message ? e.message : '?') + ')'; });
+                        return nm + ' [id ' + c.category_id + ']: Anbieter ' + list.length + ' Sender, App ' + (local[nm] || 0) + ' unter diesem Namen, ' + have + ' überhaupt in der App' +
+                            (have ? ' (unter: ' + Object.keys(appCat).slice(0, 3).join(' / ') + ')' : '') +
+                            (list.length ? ' · category_id=' + JSON.stringify(x0.category_id) + ' category_ids=' + JSON.stringify(x0.category_ids) +
+                                ' · Namen: ' + list.slice(0, 6).map(function (x) { return String(x.name || '').slice(0, 50); }).join(' | ') : '');
+                    }, function (e) { return nm + ': ' + (e && e.message ? e.message : 'Fehler'); });
                 });
-                return Promise.all(jobs).then(function (lines) {
-                    return Report.send('diagnose', head.concat(lines).join('\n')).then(function (ok) { if (ok) toast('Kategorien geprüft – Bericht an den Support geschickt', 4000); });
-                });
-            }, function (e) { Report.send('diagnose', 'Kategorien prüfen: Anbieter antwortet nicht (' + (e && e.message ? e.message : '?') + ')'); });
+                return Promise.all(jobs).then(function (lines) { return head.concat(lines); });
+            }, function (e) { return ['Kategorien: ' + (e && e.message ? e.message : 'Fehler')]; }).then(function (lines) {
+                return Report.send('diagnose', foot.concat(lines).join('\n')).then(function (ok) { if (ok) toast('Geprüft – Bericht an den Support geschickt', 4000); });
+            }, function (e) {
+                Report.send('diagnose', foot.concat(['Prüfen fehlgeschlagen: ' + (e && e.message ? e.message : '?')]).join('\n'));
+            });
         }
     };
 
