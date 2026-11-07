@@ -2946,6 +2946,15 @@
                 item = { type: 'live', id: parseInt(s.stream_id, 10), num: i + 1,
                     name: str(s.name) || 'Sender ' + s.stream_id, logo: str(s.stream_icon),
                     cat: cats[String(s.category_id)] || '', epg: str(s.epg_channel_id) };
+                // Sender in mehreren Kategorien (category_ids, z. B. „DE | LEAGUES FOOTBALL PPV“): weitere Kategorien merken
+                if (s.category_ids && s.category_ids.length > 1) {
+                    var cx = [], cj, cn;
+                    for (cj = 0; cj < s.category_ids.length; cj++) {
+                        cn = cats[String(s.category_ids[cj])];
+                        if (cn && cn !== item.cat && cx.indexOf(cn) < 0) cx.push(cn);
+                    }
+                    if (cx.length) item.cx = cx;
+                }
             } else if (kind === 'movie') {
                 name = str(s.name) || 'Film ' + s.stream_id;
                 item = { type: 'movie', id: parseInt(s.stream_id, 10), name: name, logo: str(s.stream_icon),
@@ -2996,7 +3005,16 @@
             }, function () { return null; });
         },
         item: function (kind, r, cats) {
-            if (kind === 'live') return { type: 'live', id: r[0], num: r[1], name: r[2], logo: r[3], cat: cats[r[4]] || '', epg: r[5] };
+            if (kind === 'live') {
+                var it = { type: 'live', id: r[0], num: r[1], name: r[2], logo: r[3], cat: cats[r[4]] || '', epg: r[5] };
+                // Weitere Kategorien des Senders (category_ids), vom Android-Teil als „12,45“ geliefert
+                if (r[6]) {
+                    var cx = [], ids = String(r[6]).split(','), cn;
+                    for (var j = 0; j < ids.length; j++) { cn = cats[ids[j]]; if (cn && cn !== it.cat && cx.indexOf(cn) < 0) cx.push(cn); }
+                    if (cx.length) it.cx = cx;
+                }
+                return it;
+            }
             if (kind === 'movie') return { type: 'movie', id: r[0], name: r[1], logo: r[2], cat: cats[r[3]] || '', ext: r[4], year: r[5], rating: r[6], added: r[7], g: genreMask(r[8]) };
             return { type: 'series', id: r[0], name: r[1], logo: r[2], cat: cats[r[3]] || '', year: r[4], rating: r[5], added: r[6], g: genreMask(r[7]) };
         },
@@ -3528,7 +3546,7 @@
             var out = new Array(list.length), x;
             for (var i = 0; i < list.length; i++) {
                 x = list[i];
-                out[i] = kind === 'live' ? [x.id, x.num, x.name, x.logo, x.cat, x.epg] :
+                out[i] = kind === 'live' ? (x.cx ? [x.id, x.num, x.name, x.logo, x.cat, x.epg, x.cx] : [x.id, x.num, x.name, x.logo, x.cat, x.epg]) :
                     kind === 'movie' ? [x.id, x.name, x.logo, x.cat, x.ext, x.year, x.rating, x.added, x.g || 0] :
                     [x.id, x.name, x.logo, x.cat, x.year, x.rating, x.added, x.g || 0];
             }
@@ -3538,7 +3556,7 @@
             var out = new Array(rows.length), r;
             for (var i = 0; i < rows.length; i++) {
                 r = rows[i];
-                out[i] = kind === 'live' ? { type: 'live', id: r[0], num: r[1], name: r[2], logo: r[3], cat: r[4], epg: r[5] } :
+                out[i] = kind === 'live' ? (r[6] ? { type: 'live', id: r[0], num: r[1], name: r[2], logo: r[3], cat: r[4], epg: r[5], cx: r[6] } : { type: 'live', id: r[0], num: r[1], name: r[2], logo: r[3], cat: r[4], epg: r[5] }) :
                     kind === 'movie' ? { type: 'movie', id: r[0], name: r[1], logo: r[2], cat: r[3], ext: r[4], year: r[5], rating: r[6], added: r[7], g: r[8] || 0 } :
                     { type: 'series', id: r[0], name: r[1], logo: r[2], cat: r[3], year: r[4], rating: r[5], added: r[6], g: r[7] || 0 };
             }
@@ -3885,6 +3903,11 @@
             if (name === 'ready') this.gotReady = true;
             if (name === 'buffer') this.isBuf = !!a;
             if (name === 'frame') this.gotFrame = true;
+            // Stand für die Fernhilfe (Admin sieht, ob der Sender läuft)
+            var st = this.st || (this.st = { at: Date.now() });
+            if (name === 'error') { st.err = String(a || 'Fehler'); st.errAt = Date.now(); }
+            else if (name === 'blank' || name === 'stuck') { st.bad = String(a || name); st.badAt = Date.now(); }
+            else if (name === 'ready' || name === 'frame') st.okAt = Date.now();
             var f = this.handlers[name]; if (f) f(a, b);
         },
 
@@ -3907,6 +3930,7 @@
             this.subIndex = -1;
             this.audioLangs = this.nextLangs || '';            // nur für genau diesen Film/diese Folge
             this.gotReady = false; this.gotFrame = false;
+            this.st = { at: Date.now() };
             this.nextLangs = '';
             NetQ.reset();
             Sleep.awake(true);
@@ -5788,7 +5812,9 @@
             try { snap = this.snapshot(); } catch (e) { snap = ''; }
             var send = snap && snap !== this.last ? snap : null;
             this.busy = true;
-            Remote.rpc('device_help_push', { p_mac: Device.mac, p_key: Device.key, p_snap: send, p_ack: this.ack }).then(function (r) {
+            var pst = null;
+            try { pst = this.pstate(); } catch (e) { pst = null; }
+            Remote.rpc('device_help_push', { p_mac: Device.mac, p_key: Device.key, p_snap: send, p_ack: this.ack, p_pstate: pst }).then(function (r) {
                 self.busy = false; self.fails = 0;
                 if (!self.on) return;
                 if (!r || r.active === false) { self.stop(false); return; }
@@ -5806,6 +5832,32 @@
                 self.busy = false;
                 if (++self.fails > 200) self.stop(false);   // gut 5 Minuten ohne Verbindung
             });
+        },
+        /** Läuft der Sender? Kleiner Stand für die Admin-Seite (Vollbild oder Vorschau in Live TV) */
+        pstate: function () {
+            var top = Nav.top(), P = Player, s = P.st || {}, now = Date.now(), o = { w: '' };
+            var inPlayer = top instanceof PlayerScreen, inPrev = !inPlayer && top instanceof LiveScreen && !!top.pvCur;
+            if (!(inPlayer || inPrev) || !P.url) return o;
+            o.w = inPlayer ? 'Vollbild' : 'Vorschau';
+            var it = inPlayer ? (top.items && top.items[top.index]) : top.pvCur;
+            o.n = it ? String(it.name || '').slice(0, 80) : '';
+            o.k = inPlayer ? (top.kind || 'live') : 'live';
+            if (inPlayer && top.altFor === top.index && top.altName) o.alt = String(top.altName).slice(0, 80);
+            if (inPlayer && it && top.altTried && top.altTried[it.id]) o.tr = top.altTried[it.id].length;
+            var android = !!(AB && AB.maxVideoHeight);
+            if (s.err && (!s.okAt || s.errAt > s.okAt) && now - s.errAt < 30000) { o.s = 'fehler'; o.e = s.err.slice(0, 160); }
+            else if (!P.gotReady) o.s = now - (s.at || now) > 8000 ? 'startet nicht' : 'lädt';
+            else if (s.bad && s.badAt > (s.okAt || 0) && now - s.badAt < 20000) { o.s = 'kein bild'; o.e = s.bad.slice(0, 160); }
+            else if (P.isBuf) o.s = 'puffert';
+            else if (android && !P.gotFrame) o.s = 'kein bild';
+            else if (AB && AB.isPlaying && !AB.isPlaying()) o.s = 'pause';
+            else if (!AB && P.video && P.video.paused && !P.tizen) o.s = 'pause';
+            else o.s = 'läuft';
+            o.t = Math.round((now - (s.at || now)) / 1000);
+            try { if (AB && AB.netInfo) { var ni = JSON.parse(AB.netInfo() || '{}'); if (ni.kbps) o.kb = Math.round(ni.kbps / 100) * 100; } } catch (e1) { /* egal */ }
+            try { if (AB && AB.liveBehindMs && o.k === 'live') { var b = AB.liveBehindMs(); if (b > 3000) o.lb = Math.round(b / 1000); } } catch (e2) { /* egal */ }
+            try { if (AB && AB.position && o.k !== 'live') { o.pos = Math.round(AB.position() || 0); o.dur = Math.round(AB.duration() || 0); } } catch (e3) { /* egal */ }
+            return o;
         },
         KEYS: { up: 'UP', down: 'DOWN', left: 'LEFT', right: 'RIGHT', ok: 'ENTER', back: 'BACK', play: 'PLAYPAUSE',
             red: 'RED', green: 'GREEN', yellow: 'YELLOW', blue: 'BLUE', chup: 'CH_UP', chdown: 'CH_DOWN', ff: 'FF', rw: 'RW' },
@@ -6509,6 +6561,11 @@
                 if (!k || k.length < 2 || off[ck]) ck += '#' + ch.id;
                 if (!k || k.length < 2 || off[ak]) ak += '#' + ch.id;
                 if (!seenCat[ck]) { seenCat[ck] = 1; cat[ch.cat] = (cat[ch.cat] || 0) + 1; }
+                if (ch.cx) for (var xi = 0; xi < ch.cx.length; xi++) {
+                    var xk = 'C:' + ch.cx[xi] + '|' + k;
+                    if (!k || k.length < 2 || off[xk]) xk += '#' + ch.id;
+                    if (!seenCat[xk]) { seenCat[xk] = 1; cat[ch.cx[xi]] = (cat[ch.cx[xi]] || 0) + 1; }
+                }
                 if (!all[ak]) { all[ak] = 1; nAll++; }
             }
             this._cnt = { of: Data.channels, sig: sig, res: { all: nAll, cat: cat } };
@@ -6567,7 +6624,10 @@
     LiveScreen.prototype.applySearch = applySearch;
     LiveScreen.prototype.categories = function () {
         var seen = {}, cats = [];
-        Data.channels.forEach(function (c) { if (c.cat && !seen[c.cat]) { seen[c.cat] = true; cats.push(c.cat); } });
+        Data.channels.forEach(function (c) {
+            if (c.cat && !seen[c.cat]) { seen[c.cat] = true; cats.push(c.cat); }
+            if (c.cx) for (var i = 0; i < c.cx.length; i++) if (!seen[c.cx[i]]) { seen[c.cx[i]] = true; cats.push(c.cx[i]); }
+        });
         return ['Alle', '★ Favoriten'].concat(cats);
     };
     /** Ausgeblendete Sender (der Anbieter liefert sie weiter, die App zeigt sie nur nicht) */
@@ -6607,7 +6667,7 @@
         var cats = this.categories(), cat = cats[this.catIndex];
         if (this.catIndex === 0) return Merge.group(all, true);
         if (this.catIndex === 1) return Favs.sort('live', all.filter(function (c) { c._mv = null; c._mcc = ''; return Favs.has('live', c.id); }));
-        return Merge.group(all.filter(function (c) { return c.cat === cat; }), false);
+        return Merge.group(all.filter(function (c) { return c.cat === cat || (c.cx && c.cx.indexOf(cat) >= 0); }), false);
     };
     LiveScreen.prototype.render = function (root) {
         try { Health.sync(function () { Health.paint(); }); } catch (eH) { /* egal */ }
@@ -6626,6 +6686,7 @@
             if (NameTidy.isSep(vis[ci].name)) continue;
             allN++;
             cnt[vis[ci].cat] = (cnt[vis[ci].cat] || 0) + 1;
+            if (vis[ci].cx) for (var cxi = 0; cxi < vis[ci].cx.length; cxi++) cnt[vis[ci].cx[cxi]] = (cnt[vis[ci].cx[cxi]] || 0) + 1;
             if (Favs.has('live', vis[ci].id)) favN++;
         }
         if (Merge.on()) { var mc = Merge.counts(vis); allN = mc.all; cnt = mc.cat; }
