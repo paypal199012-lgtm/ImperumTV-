@@ -1,0 +1,21 @@
+2026-11-07T15:49:08.820Z UI: [selftest] Brücke: da · Version 42 · Windows-PC · Windows 11
+2026-11-07T15:49:10.822Z UI: [selftest] Vorschau rechts oben …
+2026-11-07T15:49:10.826Z mpv: buffer true
+2026-11-07T15:49:10.828Z UI: [selftest] Ereignis: buffer true
+2026-11-07T15:49:11.715Z mpv: buffer false
+2026-11-07T15:49:11.716Z mpv: ready
+2026-11-07T15:49:11.717Z mpv: frame
+2026-11-07T15:49:11.717Z UI: [selftest] Ereignis: buffer false
+2026-11-07T15:49:11.718Z UI: [selftest] Ereignis: ready
+2026-11-07T15:49:11.718Z UI: [selftest] Ereignis: frame
+2026-11-07T15:49:11.897Z UI: [selftest] time 0.1
+2026-11-07T15:49:16.925Z UI: [selftest] time 4.5
+2026-11-07T15:49:21.949Z UI: [selftest] time 9.4
+2026-11-07T15:49:23.822Z UI: [selftest] isPlaying=true pos=10.6 Ton=[{"i":0,"id":5,"name":"Spur 1","detail":"AAC · Stereo","selected":false}]
+2026-11-07T15:49:27.022Z UI: [selftest] time 13.9
+2026-11-07T15:49:32.073Z UI: [selftest] time 18.7
+2026-11-07T15:49:34.821Z UI: [selftest] Vollbild …
+2026-11-07T15:49:37.112Z UI: [selftest] time 23.5
+2026-11-07T15:49:42.176Z UI: [selftest] time 28.6
+2026-11-07T15:49:46.821Z UI: [selftest] Pause …
+2026-11-07T15:49:52.821Z UI: [selftest] Stopp, echte Oberfläche laden
