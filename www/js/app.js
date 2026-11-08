@@ -6061,6 +6061,7 @@
             this.busy = true;
             var pst = null;
             try { pst = this.pstate(); } catch (e) { pst = null; }
+            if (pst && pst.w && this.viewer) this.frame();   // Support schaut zu und ein Sender läuft: Videobild mitschicken
             Remote.rpc('device_help_push', { p_mac: Device.mac, p_key: Device.key, p_snap: send, p_ack: this.ack, p_pstate: pst }).then(function (r) {
                 self.busy = false; self.fails = 0;
                 if (!self.on) return;
@@ -6079,6 +6080,29 @@
                 self.busy = false;
                 if (++self.fails > 200) self.stop(false);   // gut 5 Minuten ohne Verbindung
             });
+        },
+        /** Videobild für den Support (nur Android): etwa alle 1,5 s ein kleines JPEG, solange der Support zuschaut */
+        frameAt: 0, frameBusy: false, noFrame: false,
+        frame: function () {
+            if (this.noFrame || this.frameBusy || !AB || typeof AB.videoFrame !== 'function') return;
+            var now = Date.now();
+            if (now - this.frameAt < 1500) return;
+            this.frameAt = now; this.frameBusy = true;
+            var self = this;
+            window.__helpFrame = function (b64) { self.gotFrame(b64); };
+            try { AB.videoFrame(480, 55); } catch (e) { this.frameBusy = false; }
+            setTimeout(function () { if (self.frameBusy && Date.now() - self.frameAt > 4000) self.frameBusy = false; }, 4500);
+        },
+        gotFrame: function (b64) {
+            var self = this;
+            if (!b64 || !this.on) { this.frameBusy = false; return; }
+            var r = Player.curRect || { x: 0, y: 0, w: 1920, h: 1080 };
+            Remote.rpc('device_help_frame', { p_mac: Device.mac, p_key: Device.key, p_img: b64,
+                p_rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) } })
+                .then(function () { self.frameBusy = false; }, function (e) {
+                    self.frameBusy = false;
+                    if (e && (e.status === 404 || /HTTP 404/.test(String(e.message || '')))) self.noFrame = true;   // Datenbank noch ohne Videobild
+                });
         },
         /** Läuft der Sender? Kleiner Stand für die Admin-Seite (Vollbild oder Vorschau in Live TV) */
         pstate: function () {
