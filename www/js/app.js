@@ -2764,7 +2764,11 @@
         catCache: {},
         learned: null, learnedFor: null, dirty: 0, saveT: null, changedAt: 0,
         /** Gelernte Genres je Wiedergabeliste: { "m123": Maske, "s45": Maske } (0 = geprüft, kein Genre) */
-        key: function () { return 'genres.' + hash32(Resume.accKey(), 7).toString(36); },
+        key: function () {
+            var a = Resume.accKey();
+            if (this._kFor !== a) { this._kFor = a; this._k = 'genres.' + hash32(a, 7).toString(36); }
+            return this._k;
+        },
         load: function () {
             var k = this.key();
             if (!this.learned || this.learnedFor !== k) { this.learned = Storage.get(k, {}) || {}; this.learnedFor = k; }
@@ -5467,9 +5471,25 @@
         catLocked: function (kind, cat) { return !this.unlocked() && this.catProtected(kind, cat); },
         /** Liste ohne gesperrte Inhalte */
         visible: function (kind, list) {
-            if (!this.enabled() || this.unlocked()) return list;
-            var self = this;
-            return list.filter(function (it) { return !self.catProtected(kind, it.cat); });
+            if (!list || !this.enabled() || this.unlocked()) return list;
+            // Schnell: Entscheidung je Kategorie nur einmal treffen (nicht je Film), Ergebnis an der Liste merken.
+            // Vorher las jede Prüfung mehrmals den Speicher – bei 20.000 Filmen dauerte das Öffnen Sekunden.
+            var sig = kind + '|' + this.sig();
+            if (list._pvSig === sig && list._pvLen === list.length) return list._pvRes;
+            var memo = {}, self = this, res = list.filter(function (it) {
+                var c = it.cat || '';
+                var p = memo[c];
+                if (p === undefined) p = memo[c] = self.catProtected(kind, c);
+                return !p;
+            });
+            try { list._pvSig = sig; list._pvLen = list.length; list._pvRes = res; } catch (e) { /* egal */ }
+            return res;
+        },
+        /** Kurzer Stand der Kindersicherung (ändert sich, wenn PIN, Kategorien, Profil oder Freigabe sich ändern) */
+        sig: function () {
+            var kid = Profiles.isKids() ? Profiles.cur() : null;
+            return (kid ? 'k:' + kid.id + ':' + (Profiles.kidsCatsOf(kid.id) || ['-']).join('\u0001') : 'n') + '|' + (this.enabled() ? 1 : 0) + '|' + (this.unlocked() ? 1 : 0) + '|' +
+                (this.autoAdult() ? 1 : 0) + '|' + this.cats().join('\u0001');
         },
         toggleCat: function (kind, cat) {
             var c = this.cats(), k = kind + ':' + cat, i = c.indexOf(k);
@@ -7336,9 +7356,26 @@
     function MoviesScreen(kind) {
         this.kind = kind;          // 'movies' oder 'series'
         this.catIndex = 0;
+        this.openAt = Date.now();  // für die Messung „Öffnen dauerte …“
     }
     MoviesScreen.prototype.allItems = function () { return this.kind === 'movies' ? Data.movies : Data.series; };
     MoviesScreen.prototype.items = function () { return Parental.visible(this.favType(), this.allItems()); };
+    /** Ergebnis merken, solange sich Liste und Kindersicherung nicht ändern (Öffnen einer Kategorie rechnet sonst alles mehrfach) */
+    /** Zwischenspeicher je Art (Filme/Serien) – bleibt zwischen zwei Öffnungen erhalten und wird im Hintergrund vorbereitet */
+    MoviesScreen.shared = { movies: {}, series: {} };
+    MoviesScreen.prototype.sh = function () { return MoviesScreen.shared[this.kind] || (MoviesScreen.shared[this.kind] = {}); };
+    MoviesScreen.prototype.memo = function (name, key, fn) {
+        var sh = this.sh(), m = sh.memo || (sh.memo = {}), e = m[name];
+        if (e && e.key === key) return e.val;
+        var val = fn.call(this);
+        m[name] = { key: key, val: val };
+        return val;
+    };
+    MoviesScreen.prototype.memoKey = function () {
+        var all = this.allItems(), sh = this.sh();
+        if (sh.all !== all) { sh.all = all; sh.gen = (sh.gen || 0) + 1; }
+        return sh.gen + '|' + (all ? all.length : 0) + '|' + Parental.sig();
+    };
     MoviesScreen.prototype.favType = function () { return this.kind === 'movies' ? 'movie' : 'series'; };
     MoviesScreen.prototype.yearLabel = function () { return 'Filme ' + new Date().getFullYear(); };
     var RESUME_CAT = '▶ Weiter ansehen';
@@ -7350,6 +7387,9 @@
     function liveCat(cat) { return cat === RESUME_CAT || cat === NEWEP_CAT || cat === SEEN_CAT || cat === UNSEEN_CAT; }
     /** Die neuesten Titel des Anbieters (nach Datum, sonst nach Reihenfolge der Liste) */
     MoviesScreen.prototype.newItems = function () {
+        return this.memo('newItems', this.memoKey(), this.newItemsRaw);
+    };
+    MoviesScreen.prototype.newItemsRaw = function () {
         var items = this.items();
         var dated = items.filter(function (m) { return m.added > 0; });
         if (dated.length < items.length / 2) return items.slice(-150).reverse();
@@ -7357,8 +7397,12 @@
     };
     /** Angefangene Filme bzw. Serien, zuletzt geschaute zuerst */
     MoviesScreen.prototype.resumeItems = function () {
-        var byId = {}, out = [], movies = this.kind === 'movies';
-        this.items().forEach(function (m) { byId[String(m.id)] = m; });
+        var out = [], movies = this.kind === 'movies';
+        var byId = this.memo('byId', this.memoKey(), function () {
+            var map = {};
+            this.items().forEach(function (m) { map[String(m.id)] = m; });
+            return map;
+        });
         Resume.all().forEach(function (e) {
             if (movies && e.kind === 'movie' && e.pos >= 30 && byId[String(e.id)]) out.push(byId[String(e.id)]);
             if (!movies && e.kind === 'episode' && e.series && byId[String(e.series.id)]) out.push(byId[String(e.series.id)]);
@@ -7366,6 +7410,13 @@
         return out;
     };
     MoviesScreen.prototype.categories = function () {
+        this.genreCounts();
+        var key = this.memoKey() + '|' + ((this.sh().gcount || {}).at || 0) + '|' + (GenreScan.on() ? GenreScan.progress() : '');
+        var r = this.memo('categories', key, function () { return { cats: this.categoriesRaw(), groups: this.groupAt }; });
+        this.groupAt = r.groups;
+        return r.cats;
+    };
+    MoviesScreen.prototype.categoriesRaw = function () {
         var seen = {}, cats = [];
         this.allItems().forEach(function (m) { if (m.cat && !seen[m.cat]) { seen[m.cat] = true; cats.push(m.cat); } });
         // A1b: Für dich · Neu & Stöbern · Kategorien vom Anbieter
@@ -7386,8 +7437,9 @@
     function isGenreCat(cat) { return typeof cat === 'string' && cat.charAt(0) === GENRE_MARK; }
     /** Wie viele Titel je Genre (nur neu zählen, wenn sich die Liste geändert hat) */
     MoviesScreen.prototype.genreCounts = function () {
-        var items = this.items(), g = this._gcount;
-        if (!g || g.items !== this.allItems() || g.len !== items.length || g.at < (Genre.changedAt || 0)) {
+        var items = this.items(), sh = this.sh(), g = sh.gcount;
+        // Genres lernt die App im Hintergrund laufend dazu: höchstens jede Minute neu zählen (sonst bei jedem Öffnen)
+        if (!g || g.items !== this.allItems() || g.len !== items.length || (g.at < (Genre.changedAt || 0) && Date.now() - g.at > 60000)) {
             var per = new Array(GENRE_NAMES.length);
             for (var k = 0; k < per.length; k++) per[k] = 0;
             for (var i = 0; i < items.length; i++) {
@@ -7395,7 +7447,7 @@
                 if (!m) continue;
                 for (var b = 0; b < per.length; b++) if (m & (1 << b)) per[b]++;
             }
-            g = this._gcount = { items: this.allItems(), len: items.length, per: per, at: Date.now() };
+            g = sh.gcount = { items: this.allItems(), len: items.length, per: per, at: Date.now() };
         }
         return g.per;
     };
@@ -7407,7 +7459,7 @@
     };
     /** Wie viele Filme/Serien in jeder Kategorie stecken (ein Durchlauf über alle Einträge) */
     MoviesScreen.prototype.catCounts = function () {
-        var items = this.items(), all = this.allItems(), fav = this.favType(), c = this._cc;
+        var items = this.items(), all = this.allItems(), fav = this.favType(), sh = this.sh(), c = sh.cc;
         // Zählen nur, wenn sich die Liste geändert hat (bei zehntausenden Filmen spürbar)
         if (!c || c.all !== all || c.len !== items.length) {
             var per = {}, year = 0, ids = {}, thisYear = new Date().getFullYear();
@@ -7417,7 +7469,7 @@
                 if (m.year === thisYear) year++;
                 ids[m.id] = 1;
             }
-            c = this._cc = { all: all, len: items.length, per: per, year: year, ids: ids };
+            c = sh.cc = { all: all, len: items.length, per: per, year: year, ids: ids };
         }
         var favs = 0, pre = fav + ':';
         for (var k in Favs.set) if (Favs.set.hasOwnProperty(k) && k.indexOf(pre) === 0 && c.ids[k.slice(pre.length)]) favs++;
@@ -7439,6 +7491,35 @@
             if (isGenreCat(cat)) return self.genreCounts()[GENRE_NAMES.indexOf(cat.slice(1))] || 0;
             return c.per[cat] || 0;
         });
+    };
+    /**
+     * Filme und Serien im Hintergrund vorbereiten (Kategorien, Zahlen, „Zuletzt hinzugefügt“), sobald die Listen da sind
+     * und 6 s niemand drückt. Dann öffnet sich die Kategorie von der Startseite aus sofort statt nach Sekunden.
+     */
+    var VodWarm = {
+        done: {},
+        tick: function () {
+            if (Date.now() - (Nav.userAt || 0) < 6000) return;
+            var kinds = ['movies', 'series'];
+            for (var i = 0; i < kinds.length; i++) {
+                var k = kinds[i], loaded = k === 'movies' ? Data.moviesLoaded : Data.seriesLoaded;
+                var list = k === 'movies' ? Data.movies : Data.series;
+                if (!loaded || !list || !list.length) continue;
+                var sig = list.length + '|' + Parental.sig();
+                if (this.done[k] === list && this.doneSig[k] === sig) continue;
+                this.done[k] = list; this.doneSig[k] = sig;
+                try {
+                    Busy.mark('Filme/Serien vorbereiten');
+                    var sc = new MoviesScreen(k);
+                    sc.openAt = 0;
+                    sc.categories(); sc.catCounts(); sc.newItems();
+                    if (sc.sortId() === 'az') sc.items().forEach(sortKey);
+                } catch (e) { /* nur Vorbereitung */ }
+                return;                       // eine Liste pro Durchgang (kurze Arbeitsstücke)
+            }
+        },
+        doneSig: {},
+        start: function () { if (!this.timer) { var self = this; this.timer = setInterval(function () { self.tick(); }, 15000); } }
     };
     MoviesScreen.prototype.applySearch = applySearch;
     MoviesScreen.prototype.openSearch = function () {
@@ -7536,7 +7617,10 @@
         var title = this.kind === 'movies' ? 'Filme' : 'Serien';
         var loaded = this.kind === 'movies' ? Data.moviesLoaded : Data.seriesLoaded;
         root.appendChild(topbar(title, 'OK: Öffnen · OK lang: Favorit'));
+        var tm = { t: Date.now(), parts: [] };
+        function lap(name) { var n = Date.now(); tm.parts.push(name + ' ' + (n - tm.t) + ' ms'); tm.t = n; }
         if (!loaded) {
+            this.waitedLoad = this.waitedLoad || Date.now();
             loader(true, title + ' werden geladen …');
             (this.kind === 'movies' ? Data.loadMovies() : Data.loadSeries()).then(function () {
                 loader(false);
@@ -7548,8 +7632,11 @@
             return;
         }
 
+        if (this.waitedLoad) { tm.parts.push('Liste vom Anbieter geladen ' + (Date.now() - this.waitedLoad) + ' ms'); this.waitedLoad = 0; }
+        var catsNow = this.categories(); lap('Kategorien');
+        var countsNow = this.catCounts(); lap('Zählen');
         var columns = h('div', 'columns vod-r1');
-        columns.appendChild(categoryColumn(this.categories(), this.catIndex, function (i) {
+        columns.appendChild(categoryColumn(catsNow, this.catIndex, function (i) {
             self.catIndex = i;
             self.query = '';
             self.focusKey = null;
@@ -7557,8 +7644,9 @@
             Nav.show(self);
             var first = $('.poster');
             if (first) Focus.set(first);
-        }, { query: this.query, kind: this.favType(), dots: true, groups: this.groupAt, onClick: function () { self.openSearch(); }, counts: this.catCounts(),
+        }, { query: this.query, kind: this.favType(), dots: true, groups: this.groupAt, onClick: function () { self.openSearch(); }, counts: countsNow,
              sort: { label: 'Sortieren: ' + this.sortName(), onClick: function () { self.sortMenu(); } } }));
+        lap('Kategorie-Spalte (' + catsNow.length + ')');
 
         var gridCol = h('div', 'col col-grid');
         var scroll = h('div', 'scroll');
@@ -7569,6 +7657,7 @@
         root.appendChild(columns);
 
         var list = this.filter(), fav = this.favType();
+        lap('Liste (' + list.length + ')');
         if (!list.length) {
             var note = this.query ? 'Nichts gefunden für „' + this.query + '“.' :
                 this.categories()[this.catIndex] === RESUME_CAT ? 'Hier erscheinen ' + (this.kind === 'movies' ? 'Filme' : 'Serien') + ', die du angefangen hast.' :
@@ -7596,6 +7685,21 @@
         }
         this.scrollBox = scroll;
         if (!this.focusKey) this.focusKey = list.length ? fav + '-' + list[0].id : 'cat-0';
+        lap('Poster');
+        // Messung: dauert das erste Öffnen über 2,5 s, geht ein Bericht an den Admin (zeigt, welcher Teil bremst)
+        if (this.openAt) {
+            var at = this.openAt, me = this, partsTxt = tm.parts.join(' · ');
+            this.openAt = 0;
+            setTimeout(function () {
+                var total = Date.now() - at;
+                if (total < 2500) return;
+                try {
+                    Report.send('verzögerung', (me.kind === 'movies' ? 'Filme' : 'Serien') + ' öffnen: ' + (total / 1000).toFixed(1).replace('.', ',') + ' s\n' + partsTxt +
+                        '\nEinträge: ' + (me.allItems() || []).length + ' · Kindersicherung: ' + (Parental.enabled() ? 'an' : 'aus') + ' · Sortierung: ' + me.sortId() +
+                        '\nZuletzt: ' + Busy.text());
+                } catch (e) { /* egal */ }
+            }, 0);
+        }
     };
     MoviesScreen.prototype.hide = function () {
         this.savedScroll = this.scrollBox ? this.scrollBox.scrollTop : 0;
@@ -11923,6 +12027,7 @@
 
         try { if (Theme.cur() !== 'gold') Theme.apply(Theme.cur()); } catch (eT) { /* Farbthema ist nur Kosmetik */ }
         try { Lite.apply(); } catch (eL) { /* nur Kosmetik */ }
+        try { VodWarm.start(); } catch (eV) { /* egal */ }
         try { Net.init(); } catch (eN) { /* egal */ }
         Device.load();
         var saved = Storage.get('account', null);
