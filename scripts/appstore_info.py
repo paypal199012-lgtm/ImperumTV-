@@ -17,11 +17,11 @@ for app in get("/v1/apps?limit=20")["data"]:
     for plat in ("IOS", "TV_OS"):
         try:
             bl = get(f"/v1/builds?filter[app]={app['id']}&filter[preReleaseVersion.platform]={plat}&sort=-uploadedDate&limit=3"
-                     f"&include=preReleaseVersion,buildBetaDetail&fields[builds]=version,processingState,uploadedDate,expired")
+                     f"&include=preReleaseVersion,buildBetaDetail&fields[builds]=version,processingState,uploadedDate,expired,preReleaseVersion,buildBetaDetail")
             inc = {(x["type"], x["id"]): x["attributes"] for x in bl.get("included", [])}
             for b in bl["data"]:
-                pr = b["relationships"].get("preReleaseVersion", {}).get("data") or {}
-                bd = b["relationships"].get("buildBetaDetail", {}).get("data") or {}
+                pr = b.get("relationships", {}).get("preReleaseVersion", {}).get("data") or {}
+                bd = b.get("relationships", {}).get("buildBetaDetail", {}).get("data") or {}
                 ver = inc.get(("preReleaseVersions", pr.get("id")), {}).get("version", "?")
                 beta = inc.get(("buildBetaDetails", bd.get("id")), {})
                 print(f"::notice::{plat} Build {ver} ({b['attributes'].get('version')}) · {b['attributes'].get('processingState')}"
