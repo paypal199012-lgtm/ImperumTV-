@@ -14,3 +14,18 @@ for app in get("/v1/apps?limit=20")["data"]:
     vers = get(f"/v1/apps/{app['id']}/appStoreVersions?limit=5")["data"]
     st = ", ".join(f"{v['attributes'].get('platform')} {v['attributes'].get('versionString')}: {v['attributes'].get('appStoreState')}" for v in vers)
     print(f"::notice::App {a.get('name')} · Bundle {a.get('bundleId')} · ID {app['id']} · https://apps.apple.com/app/id{app['id']} · {st}")
+    for plat in ("IOS", "TV_OS"):
+        try:
+            bl = get(f"/v1/builds?filter[app]={app['id']}&filter[preReleaseVersion.platform]={plat}&sort=-uploadedDate&limit=3"
+                     f"&include=preReleaseVersion,buildBetaDetail&fields[builds]=version,processingState,uploadedDate,expired")
+            inc = {(x["type"], x["id"]): x["attributes"] for x in bl.get("included", [])}
+            for b in bl["data"]:
+                pr = b["relationships"].get("preReleaseVersion", {}).get("data") or {}
+                bd = b["relationships"].get("buildBetaDetail", {}).get("data") or {}
+                ver = inc.get(("preReleaseVersions", pr.get("id")), {}).get("version", "?")
+                beta = inc.get(("buildBetaDetails", bd.get("id")), {})
+                print(f"::notice::{plat} Build {ver} ({b['attributes'].get('version')}) · {b['attributes'].get('processingState')}"
+                      f" · hochgeladen {(b['attributes'].get('uploadedDate') or '')[:16]} · TestFlight extern: {beta.get('externalBuildState')}"
+                      f"{' · abgelaufen' if b['attributes'].get('expired') else ''}")
+        except Exception as e:
+            print(f"::warning::{plat} Builds: {e}")
