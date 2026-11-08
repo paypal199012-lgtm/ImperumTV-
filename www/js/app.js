@@ -10810,10 +10810,9 @@
         };
         this.ui.addEventListener('click', this.tapHandler);
         clearInterval(this.watchdog);
-        this.watchdog = setInterval(function () {
-            self.checkStall();
-            try { self.checkPicture(); } catch (e) { /* egal */ }
-        }, 2000);
+        this.watchdog = setInterval(function () { self.checkStall(); }, 2000);
+        clearInterval(this.picTimer);
+        this.picTimer = setInterval(function () { try { self.checkPicture(); } catch (e) { /* egal */ } }, 1000);
         clearInterval(this.netTimer);
         this.netTimer = setInterval(function () { self.netTick(); }, 1000);
     };
@@ -11082,15 +11081,15 @@
         }
     };
     /**
-     * Schwarzbild / Standbild (nur Android, Live): alle 2 s ein winziges Videobild prüfen.
-     * Schwarz seit 8 s oder Bild steht seit 12 s, obwohl der Sender „läuft“ → Ersatzsender, sonst bis zu 2× neu laden.
+     * Schwarzbild / Standbild (nur Android, Live): jede Sekunde ein winziges Videobild prüfen.
+     * Schwarz seit 3 s oder Bild steht seit 6 s, obwohl der Sender „läuft“ → Ersatzsender, sonst bis zu 2× neu laden.
      * Damit nichts falsch auslöst: schwarz zählt nur, wenn derselbe Sender vorher ein Bild hatte; Standbild nur, wenn sich vorher etwas bewegt hat.
      */
     var PicProbe = {
         off: false, okOnce: false, fails: 0, busy: false, at: 0, cb: null,
         usable: function () { return !this.off && !!AB && typeof AB.videoProbe === 'function'; },
         run: function (reset, cb) {
-            if (this.busy && Date.now() - this.at < 5000) return;
+            if (this.busy && Date.now() - this.at < 3000) return;
             var self = this;
             this.busy = true; this.at = Date.now(); this.cb = cb;
             window.__videoProbe = function (r) {
@@ -11120,12 +11119,12 @@
         p.darkSince = dark ? (p.darkSince || now) : 0;
         var still = !dark && r.diff >= 0 && r.diff < 0.3;
         p.stillSince = still ? (p.stillSince || now) : 0;
-        var black = p.seen && p.darkSince && now - p.darkSince >= 8000;
-        var frozen = p.motion && p.stillSince && now - p.stillSince >= 12000;
+        var black = p.seen && p.darkSince && now - p.darkSince >= 3000;
+        var frozen = p.motion && p.stillSince && now - p.stillSince >= 6000;
         if (!black && !frozen) return;
         this.pic = null;
         var what = black ? 'Bild schwarz' : 'Bild steht';
-        Report.stall(this.item(), black ? 'Bild seit 8 s schwarz, obwohl der Sender läuft' : 'Bild steht seit 12 s, obwohl der Sender läuft', this.openedAt);
+        Report.stall(this.item(), black ? 'Bild seit 3 s schwarz, obwohl der Sender läuft' : 'Bild steht seit 6 s, obwohl der Sender läuft', this.openedAt);
         if (this.hs) this.hs.bad = true;
         if (this.tryAlt(what)) return;
         this.picFix = this.picFix || {};
@@ -11996,6 +11995,7 @@
         clearTimeout(this.hideTimer);
         clearTimeout(this.subTimer);
         clearInterval(this.watchdog);
+        clearInterval(this.picTimer);
         clearInterval(this.netTimer);
         if (this.nqBadge) { this.nqBadge.parentNode && this.nqBadge.parentNode.removeChild(this.nqBadge); this.nqBadge = null; }
         // Zurück aus dem Live-Vollbild in die Senderliste/EPG: Sender weiterlaufen lassen, dort nur verkleinern
