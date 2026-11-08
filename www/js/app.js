@@ -5381,7 +5381,7 @@
                 else self.offerWhenIdle();           // automatisch: warten, bis Ladebildschirm/Video weg sind
             }
             function failed(why) {
-                if (manual) { loader(false); toast('Keine Verbindung zu GitHub' + (why ? ' (' + why + ')' : '') + '. Versuche es später noch einmal.', 6000); return; }
+                if (manual) { loader(false); toast('Update-Suche gerade nicht möglich' + (why ? ' (' + why + ')' : '') + '. Versuche es später noch einmal.', 6000); return; }
                 // Automatisch: still in einer Minute noch einmal versuchen (höchstens 3-mal)
                 self.autoRetries = (self.autoRetries || 0) + 1;
                 if (self.autoRetries <= 3) setTimeout(function () { self.check(false); }, 60000);
@@ -5397,6 +5397,22 @@
                     found(rel.tag_name, asset.browser_download_url, asset.size);
                 }, function (e) { failed(e && e.message); });
             }
+            // Zuerst die eigene Website fragen: sie liefert die neue Version auch, wenn GitHub gerade nicht erreichbar ist
+            var key = window.__imptvWindows ? 'exe' : 'apk', siteDone = false;
+            var siteTimer = setTimeout(function () { if (!siteDone) { siteDone = true; viaGithub(); } }, 10000);
+            fetch(REMOTE.website + 'dl/latest.json', { cache: 'no-store' }).then(function (res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            }).then(function (j) {
+                if (siteDone) return;
+                siteDone = true; clearTimeout(siteTimer);
+                var x = j && j[key];
+                if (!x || !x.v) { viaGithub(); return; }
+                found('v1.0.' + x.v, REMOTE.website + 'dl/' + key + '?v=' + x.v, x.size || 0);
+            }, function () { if (!siteDone) { siteDone = true; clearTimeout(siteTimer); viaGithub(); } });
+            return;
+
+            function viaGithub() {
             // Android-App fragt GitHub selbst (keine Sperren im Browser-Teil, kein Abfrage-Limit)
             if (AB.checkLatest) {
                 var done = false;
@@ -5411,6 +5427,7 @@
                 return;
             }
             viaApi();
+            }
         },
         install: function () {
             var self = this;

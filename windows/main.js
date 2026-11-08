@@ -228,7 +228,7 @@ ipcMain.on('ab', (e, m, a) => {
     case 'ovpnSetProfile': if (vpn) { vpn.setProfile(a[0], a[1], a[2]); e.sender.send('vpn', vpn.info()); } break;
     case 'ovpnConnect': if (vpn) { if (a[0]) vpn.connect(); else vpn.disconnect(); } break;
     case 'ovpnSetAutoStart': if (vpn) { vpn.setAuto(a[0]); e.sender.send('vpn', vpn.info()); } break;
-    case 'downloadUpdate': downloadUpdate(); break;
+    case 'downloadUpdate': downloadUpdate(a[0]); break;
   }
 });
 
@@ -261,13 +261,21 @@ async function checkLatest() {
   toUi('__androidLatest', { tag, error: err });
 }
 
-async function downloadUpdate() {
+async function downloadUpdate(siteUrl) {
   try {
-    const { asset } = await latestRelease();
-    if (!asset) throw new Error('Datei fehlt');
-    const r = await net.fetch(asset.browser_download_url, { headers: { 'User-Agent': 'ImperumTV-Update' } });
+    // Bevorzugt über die eigene Website (klappt auch, wenn GitHub gerade gestört ist), sonst direkt bei GitHub
+    let r = null, size = 0;
+    if (siteUrl && /^https:\/\/(www\.)?imperumtv\.(xyz|com)\//.test(siteUrl)) {
+      try { r = await net.fetch(siteUrl, { headers: { 'User-Agent': 'ImperumTV-Update' } }); if (!r.ok || !r.body) r = null; } catch (e1) { r = null; }
+    }
+    if (!r) {
+      const { asset } = await latestRelease();
+      if (!asset) throw new Error('Datei fehlt');
+      size = asset.size || 0;
+      r = await net.fetch(asset.browser_download_url, { headers: { 'User-Agent': 'ImperumTV-Update' } });
+    }
     if (!r.ok || !r.body) throw new Error('HTTP ' + r.status);
-    const total = Number(r.headers.get('content-length')) || asset.size || 0;
+    const total = Number(r.headers.get('content-length')) || size || 0;
     const file = path.join(app.getPath('temp'), 'ImperumTV-Setup-' + Date.now() + '.exe');
     const out = fs.createWriteStream(file);
     const reader = r.body.getReader();

@@ -94,7 +94,7 @@ window.AndroidBridge = {
 
   // Updates (Release „windows“ bei GitHub)
   checkLatest: function () { post('checkLatest'); },
-  downloadUpdate: function () { post('downloadUpdate'); }
+  downloadUpdate: function (url) { post('downloadUpdate', [url || '']); }
 };
 
 // PC: Maus und Tastatur – Hinweis für die Oberfläche
