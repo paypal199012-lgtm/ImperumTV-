@@ -495,6 +495,8 @@
     /** Zurück auf der Startseite: erst fragen, ob die App wirklich beendet werden soll */
     function askExit() {
         if (Modal.node) return;
+        // iPhone/iPad: Apps beendet man nicht selbst (Apple erlaubt kein „Beenden“) – Zurück auf der Startseite tut nichts
+        if (AB && typeof AB.exit !== 'function') return;
         Modal.open('ImperumTV beenden?', 'Möchtest du die App wirklich verlassen?', [
             { label: 'Ja', primary: true, action: function () { exitApp(); } },
             { label: 'Nein' }
@@ -502,7 +504,7 @@
     }
     function exitApp() {
         Player.stop();
-        if (AB) { AB.exit(); return; }
+        if (AB) { if (typeof AB.exit === 'function') AB.exit(); return; }
         if (WEBOS) {
             try {
                 if (window.webOSSystem && webOSSystem.platformBack) { webOSSystem.platformBack(); return; }
