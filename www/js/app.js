@@ -2464,13 +2464,14 @@
             (function check() {
                 if (++tries > (forced ? 720 : 40)) return;
                 var top = Nav.top();
-                if (!top || Modal.node || top instanceof PlayerScreen || Date.now() - (Nav.userAt || 0) < 4000) { setTimeout(check, forced ? 5000 : 3000); return; }
+                if (!top || Modal.node || (!forced && top instanceof PlayerScreen) || Date.now() - (Nav.userAt || 0) < 4000) { setTimeout(check, forced ? 5000 : 3000); return; }   // vom Admin geschickt: auch beim Schauen
                 self.show();
             })();
         },
         show: function () {
             var self = this, chosen = 0;
             Storage.set('surveyNext', Date.now() + 7 * 864e5);       // ohne Antwort geschlossen: in 7 Tagen nochmal
+            Modal.openedAt = Date.now();                                // OK, das gerade noch für den Player gedrückt wurde, nicht als Antwort werten
             var box = h('div', 'modal-box sv-box');
             box.appendChild(h('div', 'modal-title', 'Wie gefällt dir ImperumTV?'));
             box.appendChild(h('div', 'modal-text', 'Deine Meinung hilft, die App besser zu machen. Wähle 1 bis 5 Sterne.'));
