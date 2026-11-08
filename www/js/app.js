@@ -10810,7 +10810,10 @@
         };
         this.ui.addEventListener('click', this.tapHandler);
         clearInterval(this.watchdog);
-        this.watchdog = setInterval(function () { self.checkStall(); }, 2000);
+        this.watchdog = setInterval(function () {
+            self.checkStall();
+            try { self.checkPicture(); } catch (e) { /* egal */ }
+        }, 2000);
         clearInterval(this.netTimer);
         this.netTimer = setInterval(function () { self.netTick(); }, 1000);
     };
@@ -11077,6 +11080,57 @@
             toast('Sender hängt – wird neu geladen …');
             this.start();
         }
+    };
+    /**
+     * Schwarzbild / Standbild (nur Android, Live): alle 2 s ein winziges Videobild prüfen.
+     * Schwarz seit 8 s oder Bild steht seit 12 s, obwohl der Sender „läuft“ → Ersatzsender, sonst bis zu 2× neu laden.
+     * Damit nichts falsch auslöst: schwarz zählt nur, wenn derselbe Sender vorher ein Bild hatte; Standbild nur, wenn sich vorher etwas bewegt hat.
+     */
+    var PicProbe = {
+        off: false, okOnce: false, fails: 0, busy: false, at: 0, cb: null,
+        usable: function () { return !this.off && !!AB && typeof AB.videoProbe === 'function'; },
+        run: function (reset, cb) {
+            if (this.busy && Date.now() - this.at < 5000) return;
+            var self = this;
+            this.busy = true; this.at = Date.now(); this.cb = cb;
+            window.__videoProbe = function (r) {
+                self.busy = false;
+                var c = self.cb; self.cb = null;
+                if (!r || !r.ok) { if (!self.okOnce && ++self.fails >= 5) self.off = true; return; }   // Gerät kann das Bild nicht prüfen
+                self.okOnce = true; self.fails = 0;
+                if (c) c(r);
+            };
+            try { AB.videoProbe(!!reset); } catch (e) { this.busy = false; this.off = true; }
+        }
+    };
+    PlayerScreen.prototype.checkPicture = function () {
+        if (this.kind !== 'live' || !PicProbe.usable()) return;
+        if (Nav.top() !== this || !this.started || this.buffering || !Player.isPlaying() || Net.off) { this.pic = null; return; }
+        var self = this, at = this.index, fresh = !this.pic || this.pic.at !== at;
+        if (fresh) this.pic = { at: at, seen: false, motion: false, darkSince: 0, stillSince: 0 };
+        PicProbe.run(fresh, function (r) { self.onPicture(at, r); });
+    };
+    PlayerScreen.prototype.onPicture = function (at, r) {
+        var p = this.pic;
+        if (!p || p.at !== at || this.index !== at || Nav.top() !== this || !this.started || this.buffering) return;
+        var now = Date.now();
+        var dark = r.mean < 10 && r.sd < 4;
+        if (!dark && (r.mean > 20 || r.sd > 8)) p.seen = true;
+        if (r.diff > 2) p.motion = true;
+        p.darkSince = dark ? (p.darkSince || now) : 0;
+        var still = !dark && r.diff >= 0 && r.diff < 0.3;
+        p.stillSince = still ? (p.stillSince || now) : 0;
+        var black = p.seen && p.darkSince && now - p.darkSince >= 8000;
+        var frozen = p.motion && p.stillSince && now - p.stillSince >= 12000;
+        if (!black && !frozen) return;
+        this.pic = null;
+        var what = black ? 'Bild schwarz' : 'Bild steht';
+        Report.stall(this.item(), black ? 'Bild seit 8 s schwarz, obwohl der Sender läuft' : 'Bild steht seit 12 s, obwohl der Sender läuft', this.openedAt);
+        if (this.hs) this.hs.bad = true;
+        if (this.tryAlt(what)) return;
+        this.picFix = this.picFix || {};
+        var n = this.picFix[at] = (this.picFix[at] || 0) + 1;
+        if (n <= 2) { toast(what + ' – Sender wird neu geladen …', 3000); this.start(); }
     };
     PlayerScreen.prototype.onEnd = function () {
         this.showPop(null);
