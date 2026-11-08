@@ -5501,7 +5501,8 @@
                 if (siteDone) return;
                 siteDone = true; clearTimeout(siteTimer);
                 var x = j && j[key];
-                if (!x || !x.v) { viaGithub(); return; }
+                // Website kennt nichts Neueres (ihre Kopie kann älter sein): zusätzlich bei GitHub nachsehen
+                if (!x || !x.v || x.v <= self.current()) { viaGithub(); return; }
                 found('v1.0.' + x.v, REMOTE.website + 'dl/' + key + '?v=' + x.v, x.size || 0);
             }, function () { if (!siteDone) { siteDone = true; clearTimeout(siteTimer); viaGithub(); } });
             return;
