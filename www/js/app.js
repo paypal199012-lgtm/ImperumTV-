@@ -50,7 +50,7 @@
     }
 
     // Diese Daten hat jedes Profil für sich (Hauptprofil „p0“ nutzt die bisherigen Schlüssel)
-    var PROFILE_KEYS = { favs: 1, seen: 1, newEps: 1, resume: 1, kidsCats: 1 };
+    var PROFILE_KEYS = { favs: 1, favMeta: 1, seen: 1, newEps: 1, resume: 1, kidsCats: 1 };
     function profileKey(key) {
         if (!PROFILE_KEYS[key] || !Profiles) return key;
         var id = Profiles.curId();
@@ -1283,6 +1283,7 @@
             if (this.set[k]) delete this.set[k]; else this.set[k] = true;
             Storage.set('favs', Object.keys(this.set));
             this._rank = null;
+            try { FavSync.touch(k, !!this.set[k]); } catch (e) { /* egal */ }
             return !!this.set[k];
         },
         /** Eigene Reihenfolge: Position jedes Favoriten (Reihenfolge der Liste im Speicher) */
@@ -1314,7 +1315,98 @@
             for (var i = 0; i < keys.length; i++) this.set[keys[i]] = true;
             Storage.set('favs', keys);
             this._rank = null;
+            try { FavSync.touchOrder(); } catch (e) { /* egal */ }
             return true;
+        }
+    };
+
+    /**
+     * Favoriten auf allen Geräten mit derselben Wiedergabeliste gleich halten (z. B. Fire TV und BlueStacks).
+     * Gespeichert wird auf der Website unter einem Prüfwert der Zugangsdaten (nicht die Zugangsdaten selbst).
+     * Hinzufügen/Entfernen merken sich die Zeit; beim Abgleich gewinnt die jeweils neuere Änderung. Nur Hauptprofil.
+     */
+    var FavSync = {
+        timer: null, busy: false,
+        ok: function () {
+            if (!Api.acc || Api.acc.demo || !Device.validMac(Device.mac) || !Device.validKey(Device.key)) return false;
+            try { if (Profiles.curId() !== 'p0') return false; } catch (e) { return false; }
+            return !!Favs.set;
+        },
+        acc: function () { var a = Api.acc; return String(a.server || '').trim().replace(/\/+$/, '').toLowerCase() + '|' + a.username + '|' + a.password; },
+        meta: function () {
+            var m = Storage.get('favMeta', null);
+            if (!m || typeof m !== 'object') m = {};
+            if (!m.add || typeof m.add !== 'object') m.add = {};
+            if (!m.del || typeof m.del !== 'object') m.del = {};
+            m.ord = m.ord || 0;
+            return m;
+        },
+        touch: function (k, on) {
+            var m = this.meta(), t = Date.now();
+            if (on) { m.add[k] = t; delete m.del[k]; } else { m.del[k] = t; delete m.add[k]; }
+            Storage.set('favMeta', m);
+            this.later();
+        },
+        touchOrder: function () { var m = this.meta(); m.ord = Date.now(); Storage.set('favMeta', m); this.later(); },
+        later: function () { var self = this; clearTimeout(this.timer); this.timer = setTimeout(function () { self.sync(); }, 3000); },
+        local: function () {
+            var m = this.meta(), keys = Object.keys(Favs.set || {});
+            keys.forEach(function (k) { if (!m.add[k]) m.add[k] = 1; });     // ältere Favoriten ohne Zeit
+            return { keys: keys, add: m.add, del: m.del, ord: m.ord };
+        },
+        merge: function (L, R) {
+            var add = {}, del = {}, k;
+            [L, R].forEach(function (x) {
+                for (k in x.add) if (x.add.hasOwnProperty(k) && (!add[k] || x.add[k] > add[k])) add[k] = x.add[k];
+                for (k in x.del) if (x.del.hasOwnProperty(k) && (!del[k] || x.del[k] > del[k])) del[k] = x.del[k];
+            });
+            function on(key) { return (add[key] || 0) > (del[key] || 0); }
+            var first = (R.ord || 0) > (L.ord || 0) ? R : L, second = first === R ? L : R, keys = [], seen = {};
+            first.keys.concat(second.keys, Object.keys(add)).forEach(function (key) { if (!seen[key] && on(key)) { seen[key] = 1; keys.push(key); } });
+            var add2 = {}, delList = [];
+            keys.forEach(function (key) { add2[key] = add[key]; });
+            for (k in del) if (del.hasOwnProperty(k) && !on(k)) delList.push([k, del[k]]);
+            delList.sort(function (a, b) { return b[1] - a[1]; });
+            var del2 = {};
+            delList.slice(0, 800).forEach(function (x) { del2[x[0]] = x[1]; });       // Gelöschte nur begrenzt merken
+            return { keys: keys, add: add2, del: del2, ord: Math.max(L.ord || 0, R.ord || 0) };
+        },
+        apply: function (M) {
+            var before = Object.keys(Favs.set || {}).join(',');
+            Favs.set = {};
+            M.keys.forEach(function (k) { Favs.set[k] = true; });
+            Favs._rank = null;
+            Storage.set('favs', M.keys);
+            Storage.set('favMeta', { add: M.add, del: M.del, ord: M.ord });
+            return before !== M.keys.join(',');
+        },
+        /** Holen, zusammenführen, zurückschreiben (bei gleichzeitiger Änderung eines anderen Geräts: nochmal) */
+        sync: function (tries) {
+            var self = this;
+            if (!this.ok() || this.busy) return;
+            this.busy = true;
+            var acc = this.acc(), base = { p_mac: Device.mac, p_key: Device.key, p_acc: acc };
+            function done() { self.busy = false; }
+            Remote.rpc('fav_get', base).then(function (r) {
+                if (!r || r.ok === false) { done(); return; }
+                var R = r.data && r.data.keys ? r.data : { keys: [], add: {}, del: {}, ord: 0 };
+                R.add = R.add || {}; R.del = R.del || {};
+                var L = self.local(), M = self.merge(L, R);
+                if (self.apply(M)) self.refresh();
+                var same = r.data && JSON.stringify(M.keys) === JSON.stringify(R.keys) && JSON.stringify(M.del) === JSON.stringify(R.del);
+                if (same) { done(); return; }
+                return Remote.rpc('fav_put', { p_mac: base.p_mac, p_key: base.p_key, p_acc: acc, p_data: M, p_rev: r.rev || 0 }).then(function (w) {
+                    done();
+                    if (w && w.conflict && (tries || 0) < 3) setTimeout(function () { self.sync((tries || 0) + 1); }, 400);
+                }, done);
+            }, done);
+        },
+        /** Neue Favoriten von einem anderen Gerät: Liste neu zeichnen (nicht mitten im Film/Fenster) */
+        refresh: function () {
+            var t = Nav.top();
+            if (!t || Modal.node || t instanceof PlayerScreen) return;
+            t.focusKey = Focus.cur ? Focus.cur.getAttribute('data-key') : t.focusKey;
+            Nav.show(t, true);
         }
     };
 
@@ -12113,6 +12205,7 @@
             start(saved);
             Remote.load().then(function () {
                 setTimeout(function () { Hello.send(true); }, 5000);
+                setTimeout(function () { FavSync.sync(); }, 9000);
                 setTimeout(function () { StickState.send(); }, 40000);
                 var chosen = Remote.find(lastId);
                 var acc = chosen ? playlistAccount(chosen) : null;
@@ -12125,6 +12218,7 @@
         Remote.load().then(function () {
             loader(false);
             setTimeout(function () { Hello.send(true); }, 5000);
+            setTimeout(function () { FavSync.sync(); }, 9000);
             setTimeout(function () { StickState.send(); }, 40000);
             var chosen = lastId !== null ? Remote.find(lastId) : null;
             var acc = chosen ? playlistAccount(chosen) : null;
@@ -12145,6 +12239,7 @@
         setInterval(function () {
             Hello.send(true);
             StickState.send();
+            FavSync.sync();
             Updater.flags();
             Watch.refresh();
             Remote.load().then(null, function () { /* offline: gespeicherter Stand */ });
