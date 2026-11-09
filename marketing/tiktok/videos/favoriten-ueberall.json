@@ -1,0 +1,14 @@
+{
+  "id": "favoriten-ueberall",
+  "title": "Favoriten auf allen Geräten",
+  "version": "1.0.288",
+  "hook": { "h": "Am Fernseher<br>Favoriten gemacht …", "s": "… und am Handy wieder alles weg?", "art": { "type": "tv", "screen": "movie", "badge": "Kino Plus ★" } },
+  "scenes": [
+    { "h": "Einmal markieren.", "s": "Am Fernseher OK lange drücken – Stern dran.", "art": { "type": "cards", "items": [ { "t": "Sport Arena 1", "v": "Favorit", "icon": "★" }, { "t": "Kino Plus", "v": "Favorit", "icon": "★" }, { "t": "Doku Welt", "v": "neu dazu", "icon": "★" } ] } },
+    { "h": "Überall da.", "s": "Handy, Tablet, PC – gleiche Liste, gleiche Favoriten.", "art": { "type": "phone", "title": "Handy · Favoriten", "rows": [["Sport Arena 1", "★"], ["Kino Plus", "★"], ["Doku Welt", "★"]] } },
+    { "h": "Auch die<br>Reihenfolge.", "s": "Sortierst du am Fernseher, ist es am Handy genauso.", "art": { "type": "cards", "items": [ { "t": "Fire TV", "v": "abgeglichen", "ok": true }, { "t": "Handy", "v": "abgeglichen", "ok": true }, { "t": "PC", "v": "abgeglichen", "ok": true } ] } }
+  ],
+  "end": { "h": "Einmal einrichten.<br>Überall gleich.", "s": "Favoriten-Abgleich ist eingebaut." },
+  "caption": "Favoriten am Fernseher gesetzt – und am Handy sind sie auch da ⭐ Gleiche Liste, gleiche Favoriten auf allen Geräten.",
+  "hashtags": "#firetvstick #androidtv #smarttv #techtipps #apptipp #streaming #fyp"
+}

@@ -1,0 +1,14 @@
+{
+  "id": "fernhilfe-mit-bild",
+  "title": "Fernhilfe – der Support sieht dein Bild",
+  "version": "1.0.291",
+  "hook": { "h": "Oma ruft an:<br>„Der Fernseher<br>geht nicht.“", "s": "Kennst du das?", "art": { "type": "tv", "screen": "pitch", "blackFrom": 0.9, "badge": "Sport Arena 1" } },
+  "scenes": [
+    { "h": "Fernhilfe<br>starten.", "s": "In der App: Einstellungen → Fernhilfe. Code vorlesen – fertig.", "art": { "type": "big", "text": "482 913", "small": "Dein Fernhilfe-Code" } },
+    { "h": "Der Support sieht<br>dein Bild.", "s": "Auch ob der Sender läuft – live aufs Handy.", "art": { "type": "phone", "title": "Fernhilfe · Code 482 913", "ok": "Sender läuft · 6,4 Mbit/s", "screen": "pitch", "rows": [["↩ Zurück", ""], ["▲ ▼ ◀ ▶", ""], ["OK", "✓"]] } },
+    { "h": "Und hilft<br>direkt am Fernseher.", "s": "Ohne vorbeizukommen. Ohne langes Erklären.", "art": { "type": "cards", "items": [ { "t": "Sender gewechselt", "v": "vom Handy aus", "ok": true }, { "t": "Einstellung korrigiert", "v": "in Sekunden", "ok": true }, { "t": "Problem gelöst", "v": "Oma schaut wieder", "ok": true } ] } }
+  ],
+  "end": { "h": "Hilfe direkt<br>am Fernseher.", "s": "Fernhilfe ist in ImperumTV eingebaut." },
+  "caption": "Oma ruft an: „Der Fernseher geht nicht“ 😅 Mit der Fernhilfe in ImperumTV siehst du ihr Bild und hilfst direkt vom Handy aus.",
+  "hashtags": "#firetvstick #androidtv #smarttv #techtipps #oma #fernsehen #fyp"
+}

@@ -1,0 +1,54 @@
+# ImperumTV: TikTok-Videos automatisch bauen.
+# Neue oder geänderte Beschreibung in marketing/tiktok/videos/*.json hochladen → Video (mit und ohne Musik) + Text
+# landen in der Vorab-Version „tiktok“ (nie als neueste Version markiert) und erscheinen im Admin unter „TikTok-Videos“.
+name: TikTok-Videos bauen
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [web-ui]
+    paths: ['marketing/tiktok/**', '.github/workflows/tiktok.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tiktok
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Werkzeuge
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-noto-color-emoji >/dev/null
+          pip install --quiet numpy scipy
+          cd marketing/tiktok && npm init -y >/dev/null && npm install --silent playwright@1.48.2 && npx playwright install --with-deps chromium >/dev/null
+      - name: Welche Videos?
+        id: which
+        run: |
+          cd marketing/tiktok
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || git diff --name-only HEAD~1 HEAD -- . ../../.github/workflows/tiktok.yml | grep -qvE '^marketing/tiktok/videos/'; then
+            ls videos/*.json > ../../list.txt
+          else
+            git diff --name-only --diff-filter=AM HEAD~1 HEAD -- videos | sed 's#^marketing/tiktok/##' > ../../list.txt
+          fi
+          echo "Videos:"; cat ../../list.txt
+      - name: Bauen
+        run: |
+          cd marketing/tiktok
+          while read -r f; do [ -n "$f" ] && node build.js "$f" ../../out; done < ../../list.txt
+          ls -la ../../out || true
+      - name: Hochladen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -d out ] && [ -n "$(ls out)" ] || { echo "Nichts zu tun"; exit 0; }
+          gh release view tiktok >/dev/null 2>&1 || gh release create tiktok --prerelease --latest=false --title "TikTok-Videos" \
+            --notes "Automatisch gebaute TikTok-Videos (Hochformat 1080×1920). Im Admin unter „TikTok-Videos“."
+          gh release upload tiktok out/* --clobber
+          for f in out/*.mp4; do echo "::notice::Fertig: $(basename "$f")"; done

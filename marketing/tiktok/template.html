@@ -1,0 +1,111 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- ImperumTV TikTok-Baukasten: baut ein Hochkant-Video (1080×1920) aus window.SPEC. Zeitachse: setT(sekunden). -->
+<style>
+@font-face{font-family:IT;src:url(fonts/Inter-Regular.otf);font-weight:400}
+@font-face{font-family:IT;src:url(fonts/Inter-SemiBold.otf);font-weight:600}
+@font-face{font-family:IT;src:url(fonts/Inter-Bold.otf);font-weight:700}
+@font-face{font-family:IT;src:url(fonts/Inter-ExtraBold.otf);font-weight:800}
+@font-face{font-family:LR;src:url(fonts/Lora-Variable.ttf);font-weight:400 700}
+:root{--bg:#0d0e12;--card:#1a1c23;--line:#2d3039;--gold:#d9b066;--gold2:#f4dc9e;--txt:#efe9dc;--mut:#9a9488;--ok:#8fd19e;--bad:#f19a8a}
+*{box-sizing:border-box}html,body{margin:0;width:1080px;height:1920px;overflow:hidden;background:var(--bg);font-family:IT,"Noto Color Emoji",sans-serif;color:var(--txt)}
+#glow{position:absolute;inset:0;background:radial-gradient(900px 800px at 50% 50%,rgba(217,176,102,.13),transparent 70%)}
+.sc{position:absolute;inset:0;opacity:0}
+.cap{position:absolute;left:70px;right:150px;top:250px}
+.n{font-size:34px;font-weight:800;color:var(--gold);letter-spacing:3px}
+.cap h1{font-family:LR,serif;font-weight:700;font-size:88px;line-height:1.05;margin:14px 0 0}
+.cap p{font-size:40px;color:var(--gold2);font-weight:600;margin:20px 0 0;line-height:1.25}
+.hook .cap h1{font-size:104px}
+.st{position:absolute;left:60px;right:60px;top:760px;height:640px}
+.tv{position:absolute;left:0;top:40px;width:960px;height:540px;background:#050506;border:8px solid #22252d;border-radius:22px;overflow:hidden;box-shadow:0 40px 90px rgba(0,0,0,.6)}
+.tv canvas{position:absolute;inset:0}
+.tvbar{position:absolute;left:20px;right:20px;bottom:18px;height:66px;border-radius:14px;background:rgba(10,11,15,.8);display:flex;align-items:center;gap:16px;padding:0 20px;font-size:26px}
+.live{background:#d64545;color:#fff;font-weight:800;font-size:20px;padding:5px 10px;border-radius:7px}
+.toast{position:absolute;left:50%;top:22px;transform:translateX(-50%);white-space:nowrap;background:rgba(20,21,27,.95);border:2px solid var(--gold);font-size:26px;font-weight:600;padding:12px 24px;border-radius:40px}
+.ph{position:absolute;left:250px;top:-40px;width:460px;height:700px;background:#0a0b0e;border:8px solid #22252d;border-radius:40px;overflow:hidden;padding:36px 22px}
+.ph .pt{font-size:24px;color:var(--gold2);font-weight:700;margin-bottom:12px}
+.ph canvas{display:block;width:100%;height:220px;border-radius:14px;border:2px solid var(--gold);margin:12px 0}
+.row{display:flex;align-items:center;gap:14px;padding:14px 6px;border-bottom:1px solid var(--line);font-size:24px}
+.row .r{margin-left:auto;color:var(--gold)}
+.okbox{border:2px solid #3d6b47;background:#18261c;border-radius:16px;padding:14px;font-size:24px}
+.okbox b{color:var(--ok)}
+.cards{display:flex;flex-direction:column;gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px 26px;display:flex;align-items:center;gap:20px}
+.card .ic{width:64px;height:64px;border-radius:16px;background:rgba(217,176,102,.15);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:800;flex:none}
+.card .t{font-size:34px;font-weight:700}.card .v{font-size:26px;color:var(--mut);margin-top:4px}
+.card.ok .ic{background:rgba(143,209,158,.15);color:var(--ok)}
+.big{font-family:LR,serif;font-weight:700;font-size:150px;line-height:1;color:var(--gold);text-align:center;margin-top:120px}
+.big small{display:block;font-family:IT;font-size:40px;color:var(--txt);font-weight:600;margin-top:24px}
+#end{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;text-align:center;padding:0 90px 260px;opacity:0;background:var(--bg)}
+#end img{width:760px}#end h2{font-family:LR,serif;font-weight:700;font-size:80px;margin:0;line-height:1.08}
+#end .s{font-size:36px;color:var(--gold2);font-weight:600}
+#end .chips{display:flex;gap:16px}#end .chips span{border:2px solid #3a3d47;border-radius:40px;padding:12px 26px;font-size:32px}
+#end .cta{background:var(--gold);color:#17181c;font-weight:800;font-size:54px;padding:24px 56px;border-radius:60px}
+#end .cta2{font-size:32px;font-weight:600;margin-top:-14px}
+#end small{font-size:28px;color:var(--mut)}
+</style></head><body><div id="glow"></div><div id="root"></div>
+<div id="end"><img src="logo.png" alt=""><h2 id="eh"></h2><div class="s" id="es"></div><div class="chips"><span>Fire TV</span><span>Android</span><span>iPhone</span><span>PC</span></div><div class="cta">🌐 imperumtv.xyz</div><div class="cta2">Jetzt kostenlos laden</div><small>ImperumTV enthält keine Sender. Du nutzt deine eigene Wiedergabeliste.</small></div>
+<script>
+const $ = id => document.getElementById(id), E = v => v < 0 ? 0 : v > 1 ? 1 : 1 - Math.pow(1 - v, 3);
+const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const rich = s => esc(s).replace(/&lt;br&gt;/g, '<br>');   // nur <br> ist im Text erlaubt
+// Zeitplan: Intro 2,6 s, jede Szene 3,6 s (8 Schläge à 0,45 s), Abschluss 3 s – die Musik richtet sich danach
+const HOOK = 2.6, SCENE = 3.6, END = 3.0;
+function pitch(cx, w, h, t) {
+  for (let i = 0; i < 10; i++) { cx.fillStyle = i % 2 ? '#2f8a3e' : '#2a7d38'; cx.fillRect(i * w / 10, 0, w / 10 + 1, h); }
+  cx.strokeStyle = 'rgba(255,255,255,.85)'; cx.lineWidth = Math.max(2, w / 240); cx.strokeRect(w * .03, h * .05, w * .94, h * .9);
+  cx.beginPath(); cx.moveTo(w / 2, h * .05); cx.lineTo(w / 2, h * .95); cx.stroke(); cx.beginPath(); cx.arc(w / 2, h / 2, h * .13, 0, 7); cx.stroke();
+  const bx = w / 2 + Math.sin(t * 1.3) * w * .3, by = h / 2 + Math.sin(t * 2.1) * h * .28;
+  for (let i = 0; i < 14; i++) {
+    cx.fillStyle = i < 7 ? '#d23b3b' : '#f4f4f4'; cx.beginPath();
+    cx.arc(w * .12 + ((i * 137) % (w * .76)) + Math.sin(t * 1.1 + i) * w * .04 + (bx - w / 2) * .25, h * .17 + ((i * 89) % (h * .66)) + Math.cos(t * .9 + i) * h * .05, Math.max(5, w / 72), 0, 7); cx.fill();
+  }
+  cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(bx, by, Math.max(4, w / 118), 0, 7); cx.fill();
+}
+function movie(cx, w, h, t) {
+  const g = cx.createLinearGradient(0, 0, w, h); g.addColorStop(0, '#1b2a4a'); g.addColorStop(1, '#4a2340'); cx.fillStyle = g; cx.fillRect(0, 0, w, h);
+  for (let i = 0; i < 6; i++) { const x = (i * w / 5 + t * 60) % (w + 200) - 100; cx.fillStyle = 'rgba(255,210,150,' + (.08 + i * .02) + ')'; cx.beginPath(); cx.arc(x, h * .35 + Math.sin(t + i) * 30, 40 + i * 14, 0, 7); cx.fill(); }
+  for (let i = 0; i < 9; i++) { cx.fillStyle = '#0d0d12'; cx.fillRect(i * w / 9 + 10, h * .55 - ((i * 37) % 70), w / 9 - 20, h * .45 + ((i * 37) % 70)); }
+}
+function screen(cx, w, h, kind, t) {
+  cx.clearRect(0, 0, w, h);
+  if (kind === 'black') { cx.fillStyle = '#000'; cx.fillRect(0, 0, w, h); return; }
+  if (kind === 'movie') return movie(cx, w, h, t);
+  return pitch(cx, w, h, t);
+}
+function art(a) {
+  if (!a) return '';
+  if (a.type === 'tv') return '<div class="tv"><canvas width="944" height="524"></canvas>' + (a.badge ? '<div class="tvbar"><span class="live">LIVE</span><b>' + esc(a.badge) + '</b></div>' : '') +
+    (a.toast ? '<div class="toast" data-at="' + (a.toastAt || 1.2) + '">' + esc(a.toast) + '</div>' : '') + '</div>';
+  if (a.type === 'phone') return '<div class="ph"><div class="pt">' + esc(a.title || '') + '</div>' + (a.ok ? '<div class="okbox"><b>● ' + esc(a.ok) + '</b></div>' : '') +
+    (a.screen ? '<canvas width="410" height="220"></canvas>' : '') + (a.rows || []).map((r, i) => '<div class="row" data-i="' + i + '">' + esc(r[0]) + '<span class="r">' + esc(r[1] || '') + '</span></div>').join('') + '</div>';
+  if (a.type === 'cards') return '<div class="cards">' + (a.items || []).map((c, i) => '<div class="card' + (c.ok ? ' ok' : '') + '" data-i="' + i + '"><div class="ic">' + esc(c.icon || (c.ok ? '✓' : '•')) + '</div><div><div class="t">' + esc(c.t) + '</div>' + (c.v ? '<div class="v">' + esc(c.v) + '</div>' : '') + '</div></div>').join('') + '</div>';
+  if (a.type === 'big') return '<div class="big">' + esc(a.text) + (a.small ? '<small>' + esc(a.small) + '</small>' : '') + '</div>';
+  return '';
+}
+const S = window.SPEC, root = $('root'), scenes = [];
+let t0 = 0;
+function addScene(html, dur, data) { const el = document.createElement('div'); el.className = 'sc' + (data.hook ? ' hook' : ''); el.innerHTML = html; root.appendChild(el); scenes.push({ el, t0, t1: t0 + dur, a: data.art }); t0 += dur; }
+addScene('<div class="cap"><h1>' + rich(S.hook.h) + '</h1>' + (S.hook.s ? '<p>' + rich(S.hook.s) + '</p>' : '') + '</div>' + (S.hook.art ? '<div class="st">' + art(S.hook.art) + '</div>' : ''), HOOK, { hook: 1, art: S.hook.art });
+S.scenes.forEach((c, i) => addScene('<div class="cap">' + (S.scenes.length > 1 && S.numbered !== false ? '<div class="n">' + (i + 1) + ' / ' + S.scenes.length + '</div>' : '') +
+  '<h1>' + rich(c.h) + '</h1>' + (c.s ? '<p>' + rich(c.s) + '</p>' : '') + '</div><div class="st">' + art(c.art) + '</div>', SCENE, { art: c.art }));
+$('eh').innerHTML = rich(S.end && S.end.h || 'Alles in einer App.'); $('es').innerHTML = rich(S.end && S.end.s || '');
+window.DURATION = t0 + END;
+window.setT = function (t) {
+  scenes.forEach(sc => {
+    const on = t >= sc.t0 && t < sc.t1, u = t - sc.t0;
+    sc.el.style.opacity = on ? Math.min(E(u / .35), t > sc.t1 - .25 ? (sc.t1 - t) / .25 : 1) : 0;
+    if (!on || !sc.a) return;
+    const a = sc.a;
+    sc.el.querySelectorAll('canvas').forEach(cv => {
+      let k = a.screen || 'pitch';
+      if (a.blackFrom != null && u >= a.blackFrom && u < (a.blackTo || 99)) k = 'black';
+      screen(cv.getContext('2d'), cv.width, cv.height, k, t);
+    });
+    sc.el.querySelectorAll('.toast').forEach(el => { el.style.opacity = u >= +el.dataset.at ? E((u - el.dataset.at) / .3) : 0; });
+    sc.el.querySelectorAll('[data-i]').forEach(el => { const k = E((u - .3 - el.dataset.i * .35) / .4); el.style.opacity = k; el.style.transform = 'translateY(' + (1 - k) * 24 + 'px)'; });
+    sc.el.querySelectorAll('.big').forEach(el => { el.style.transform = 'scale(' + (.9 + E(u / .6) * .1) + ')'; });
+  });
+  const e = t >= t0 ? E((t - t0) / .5) : 0; $('end').style.opacity = e;
+};
+setT(0);
+</script></body></html>
