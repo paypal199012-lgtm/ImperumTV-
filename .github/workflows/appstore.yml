@@ -16,6 +16,11 @@ permissions:
 
 on:
   workflow_dispatch:
+    inputs:
+      einreichen:
+        description: 'Direkt bei Apple zur App-Store-Prüfung einreichen (nein = nur TestFlight)'
+        type: boolean
+        default: true
   push:
     tags: ['appstore-*']   # Start: Markierung „appstore-1“, „appstore-2“ … auf web-ui setzen
 
@@ -24,12 +29,12 @@ jobs:
     runs-on: macos-15-intel
     env:
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
-      APP_VERSION: '1.3'            # neue App-Store-Version: bei jedem Einreichen erhöhen
+      APP_VERSION: '1.4'            # neue App-Store-Version: bei jedem Einreichen erhöhen
       WHATS_NEW: |
-        • Favoriten sind jetzt auf allen Geräten mit derselben Wiedergabeliste gleich.
-        • Serien: „Staffel 2: 5 von 10 gesehen“, fertige Staffeln mit Haken.
-        • Alle Kategorien deines Anbieters, auch PPV- und 24/7-Kategorien.
-        • Fehlerbehebungen und schnellere Updates.
+        • iPhone: Kategorien und Senderliste größer und breiter – leichter zu treffen.
+        • Schwarzbild-Erkennung: Bleibt das Bild schwarz oder hängt, wird automatisch umgeschaltet.
+        • Fernhilfe zeigt dem Support auf Wunsch das laufende Bild.
+        • Fehlerbehebungen und Verbesserungen.
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
@@ -106,7 +111,11 @@ jobs:
           BUILD_NO: ${{ github.run_number }}
         run: |
           python3 -m pip install --quiet "pyjwt[crypto]" 2>/dev/null || python3 -m pip install --quiet --break-system-packages "pyjwt[crypto]"
-          python3 scripts/appstore_submit.py
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ] || [ "${{ inputs.einreichen }}" = "true" ]; then
+            python3 scripts/appstore_submit.py
+          else
+            echo "::notice::Nur TestFlight – nicht zur App-Store-Prüfung eingereicht"
+          fi
           python3 scripts/testflight_public.py || echo "::warning::TestFlight-Link konnte nicht aktualisiert werden"
 
       - name: Fehler anzeigen
