@@ -583,7 +583,20 @@ body.touch .scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .pl-side .pl-buttons .button { margin: 0 0 14px; min-width: 340px; white-space: nowrap; text-align: center; box-sizing: border-box; }
 
 /* ---------- Testphase und Aktivierung ---------- */
+.trial-note {
+    position: absolute; left: 0; right: 0; bottom: 84px;
+    text-align: center; font-size: 26px; color: #f4dc9e;
+    text-shadow: 0 2px 6px rgba(0,0,0,.7);
+}
+.pl-status.trial { color: #f4dc9e; }
+.pl-price { font-size: 26px; color: rgba(255,255,255,.85); margin-top: 8px; }
 .lock { padding: 120px 110px 0; box-sizing: border-box; }
+.lock-logo { height: 150px; border-radius: 18px; margin-bottom: 50px; }
+.lock-title { font-size: 64px; font-weight: bold; color: #fff; margin-bottom: 26px; }
+.lock-text { font-size: 34px; line-height: 50px; color: rgba(255,255,255,.88); max-width: 1000px; }
+.lock-steps { font-size: 30px; line-height: 46px; color: #f4dc9e; margin: 40px 0 0; padding-left: 40px; }
+.lock-steps li { margin-bottom: 10px; }
+.lock-note { margin-top: 50px; }
 
 /* ---------- EPG ---------- */
 .col-epg { left: 420px; right: 0; background: rgba(16,18,22,.94); }

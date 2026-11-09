@@ -2137,10 +2137,12 @@
         // Datenbank (Supabase): Project URL und publishable key
         url: 'https://dprwastkfqhisvsjrvrv.supabase.co',
         key: 'sb_publishable_LZau0nT_CfDUYqrzlQfM2Q_61r7g-K3',
-        // Website, auf der man Wiedergabelisten einträgt (Cloudflare)
+        // Website, auf der man Wiedergabelisten einträgt und das Gerät aktiviert (Cloudflare)
         website: 'https://imperumtv.xyz/',
         // Hier baut GitHub die Android-App; die App sucht dort nach Updates
-        updateRepo: 'paypal199012-lgtm/ImperumTV-Android'
+        updateRepo: 'paypal199012-lgtm/ImperumTV-Android',
+        // Wird nur angezeigt, der echte Preis steht in der Stripe-Funktion
+        price: '9,99 €'
     };
 
     function hash32(text, seed) {
@@ -2196,18 +2198,50 @@
         }
     };
 
-    /** ImperumTV ist kostenlos: keine Testphase, keine Aktivierung, keine Bezahlung. */
+    /** Testphase (7 Tage) und Aktivierung. Der letzte Stand wird gespeichert, damit es auch ohne Internet gilt. */
     var License = {
-        state: null,
-        set: function () { },
-        known: function () { return true; },
-        free: function () { return false; },
-        activated: function () { return true; },
-        active: function () { return true; },
-        daysLeft: function () { return 0; },
-        text: function () { return 'Dein Gerät ist verbunden.'; }
+        state: Storage.get('license', null),   // { activated, trialUntil (ms), checked (ms) }
+        set: function (row) {
+            if (!row) return;
+            var until = row.trial_until ? new Date(row.trial_until).getTime() : 0;
+            var serverNow = row.server_time ? new Date(row.server_time).getTime() : Date.now();
+            // Falsche Uhr am Gerät ausgleichen
+            this.offset = serverNow - Date.now();
+            var free = row.free_until ? new Date(row.free_until).getTime() : 0;
+            this.state = { activated: !!row.activated, trialUntil: until, freeUntil: free, serverActive: !!row.active, checked: Date.now() };
+            Storage.set('license', this.state);
+        },
+        known: function () { return STORE_BUILD || !!this.state; },
+        /** Vom Entwickler kostenlos freigeschaltet (z. B. für 1 Jahr) */
+        free: function () {
+            return !!(this.state && !this.state.activated && this.state.freeUntil && Date.now() + (this.offset || 0) < this.state.freeUntil);
+        },
+        freeText: function () {
+            var d = new Date(this.state.freeUntil);
+            return 'Freigeschaltet bis ' + pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' + d.getFullYear();
+        },
+        activated: function () { return STORE_BUILD || !!(this.state && this.state.activated); },
+        active: function () {
+            if (STORE_BUILD || !this.state) return true;     // noch nie geprüft (z. B. ganz neues Gerät ohne Internet)
+            if (this.state.activated) return true;
+            var t = Date.now() + (this.offset || 0);
+            return t < this.state.trialUntil || t < (this.state.freeUntil || 0);
+        },
+        daysLeft: function () {
+            if (!this.state || this.state.activated) return 0;
+            var ms = this.state.trialUntil - (Date.now() + (this.offset || 0));
+            return Math.max(0, Math.ceil(ms / 86400000));
+        },
+        text: function () {
+            if (STORE_BUILD) return 'Dein Gerät ist verbunden.';
+            if (!this.state) return '';
+            if (this.state.activated) return 'Dein Gerät ist aktiviert.';
+            if (this.free()) return this.freeText();
+            var d = this.daysLeft();
+            if (d <= 0) return 'Testphase abgelaufen';
+            return 'Testphase: noch ' + d + (d === 1 ? ' Tag' : ' Tage');
+        }
     };
-    try { localStorage.removeItem('imptv.license'); } catch (e) { /* egal */ }
 
     /**
      * Fehlerberichte automatisch an die Website (Admin → Fehlerberichte):
@@ -2403,7 +2437,7 @@
             (function check() {
                 if (++tries > 40) return;
                 var top = Nav.top();
-                if (!top || Modal.node || top instanceof PlayerScreen || Date.now() - (Nav.userAt || 0) < 2500) { setTimeout(check, 3000); return; }
+                if (!top || Modal.node || top instanceof PlayerScreen || top instanceof LockScreen || Date.now() - (Nav.userAt || 0) < 2500) { setTimeout(check, 3000); return; }
                 self.show();
             })();
         },
@@ -2867,7 +2901,7 @@
             var args = { p_mac: Device.mac, p_key: Device.key };
             var ready = self.registered ? Promise.resolve() : self.register().then(null, function () { /* unten nochmal */ });
             return ready.then(function () {
-                // Gerätestatus, z. B. Kinderschutz zurückgesetzt (ältere Datenbank ohne diese Funktion: einfach weiter)
+                // Stand der Testphase / Aktivierung (ältere Datenbank ohne diese Funktion: einfach weiter)
                 var status = self.rpc('device_status', args).then(function (rows) {
                     if (rows && rows.length) { License.set(rows[0]); Parental.onStatus(rows[0].parental_reset_at); }
                 }, function (e) { if (e.status !== 404) throw e; });
@@ -5272,8 +5306,11 @@
         sideIn.appendChild(qr);
         var col1 = h('div', 'pl-col1'), col2 = h('div', 'pl-col2'), col3 = h('div', 'pl-col3');
         col1.appendChild(h('div', 'pl-yellow', 'Scanne den QR-Code, um eine Wiedergabeliste hinzuzufügen.'));
-        var statusText = (Remote.registered ? 'Dein Gerät ist angemeldet.' : (this.error ? 'Gerät noch nicht verbunden.' : 'Gerät wird angemeldet …'));
-        col1.appendChild(h('div', 'pl-status', statusText));
+        var statusText = License.known() ? License.text() : (Remote.registered ? 'Dein Gerät ist angemeldet.' : (this.error ? 'Gerät noch nicht verbunden.' : 'Gerät wird angemeldet …'));
+        col1.appendChild(h('div', 'pl-status' + (License.known() && !License.activated() && !License.free() ? ' trial' : ''), statusText));
+        if (License.known() && !License.activated() && !License.free()) {
+            col1.appendChild(h('div', 'pl-price', 'Danach ' + REMOTE.price + ' einmalig auf der Website aktivieren.'));
+        }
         col1.appendChild(h('div', 'pl-site', REMOTE.website.replace(/^https?:\/\//, '').replace(/\/$/, '')));
         col2.appendChild(h('div', 'pl-label', 'MAC-Adresse'));
         col2.appendChild(h('div', 'pl-value', Device.macText()));
@@ -5308,7 +5345,7 @@
         if (!this.focusKey || !Focus.byKey(this.focusKey)) {
             this.focusKey = current && Remote.find(current) ? 'pl-' + current : (lists.length ? 'pl-' + lists[0].id : 'pl-demo');
         }
-        this.signature = JSON.stringify([Remote.lists, Remote.registered, this.error, this.loading]);
+        this.signature = JSON.stringify([Remote.lists, Remote.registered, this.error, this.loading, License.state && License.state.activated, License.state && License.state.freeUntil, License.daysLeft()]);
 
         if (this.message) { toast(this.message, 7000); this.message = ''; }
         if (!this.timer) {
@@ -5336,7 +5373,8 @@
                 toast(self.error ? self.error : (Remote.lists.length ? Remote.lists.length + ' Wiedergabeliste(n) gefunden' : 'Noch keine Wiedergabeliste eingetragen'));
             }
             if (Nav.top() !== self) return;
-            var sig = JSON.stringify([Remote.lists, Remote.registered, self.error, self.loading]);
+            if (!License.active()) { Nav.replace(new LockScreen()); return; }
+            var sig = JSON.stringify([Remote.lists, Remote.registered, self.error, self.loading, License.state && License.state.activated, License.state && License.state.freeUntil, License.daysLeft()]);
             if (sig === self.signature) return;
             self.focusKey = Focus.cur ? Focus.cur.getAttribute('data-key') : self.focusKey;
             // Erste Wiedergabeliste ist gerade angekommen: gleich darauf springen
@@ -5345,6 +5383,7 @@
         });
     };
     PlaylistsScreen.prototype.connect = function (p) {
+        if (!License.active() && !p.demo) { Nav.replace(new LockScreen()); return; }
         var acc = playlistAccount(p);
         if (!acc) {
             toast('Diese Wiedergabeliste wird nicht unterstützt. Nötig sind Server, Benutzername und Passwort oder ein Link mit get.php?username=…&password=…', 8000);
@@ -5366,6 +5405,76 @@
         askExit();
     };
 
+    // =====================================================================
+    // Testphase abgelaufen: Aktivierung auf der Website
+    // =====================================================================
+
+    function LockScreen() { this.timer = null; this.lastBack = 0; }
+    LockScreen.prototype.render = function (root) {
+        var self = this;
+        Player.stop();
+        var wrap = h('div', 'pl');
+        var left = h('div', 'pl-left lock');
+        var logo = h('img', 'lock-logo');
+        logo.src = 'img/icon.png';
+        left.appendChild(logo);
+        left.appendChild(h('div', 'lock-title', 'Deine Testphase ist abgelaufen'));
+        left.appendChild(h('div', 'lock-text', 'Aktiviere ImperumTV für ' + REMOTE.price + ' einmalig. Danach kannst du die App auf diesem Gerät unbegrenzt nutzen, ohne Abo.'));
+        var steps = h('ol', 'lock-steps');
+        ['Scanne den QR-Code rechts mit dem Handy.', 'Bezahle auf der Website ' + REMOTE.price + ' per PayPal und tippe dort auf „Ich habe bezahlt“.', 'Sobald die Zahlung bestätigt ist, geht es hier von selbst weiter.'].forEach(function (t) {
+            steps.appendChild(h('li', null, t));
+        });
+        left.appendChild(steps);
+        left.appendChild(h('div', 'pl-foot-small lock-note', 'Deine Wiedergabelisten bleiben gespeichert.'));
+        wrap.appendChild(left);
+
+        var side = h('div', 'pl-side');
+        var qr = h('div', 'pl-qr');
+        try { qr.innerHTML = window.ImperumQR.svg(Device.link(), 280); } catch (e) { qr.classList.add('hidden'); }
+        side.appendChild(qr);
+        side.appendChild(h('div', 'pl-yellow', 'Scanne den QR-Code, um dein Gerät zu aktivieren.'));
+        side.appendChild(h('div', 'pl-site', REMOTE.website.replace(/^https?:\/\//, '').replace(/\/$/, '')));
+        side.appendChild(h('div', 'pl-label', 'MAC-Adresse'));
+        side.appendChild(h('div', 'pl-value', Device.macText()));
+        side.appendChild(h('div', 'pl-label', 'Geräte-Schlüssel'));
+        side.appendChild(h('div', 'pl-value', Device.key));
+        var buttons = h('div', 'pl-buttons');
+        var refresh = h('div', 'button primary', 'Ich habe bezahlt');
+        buttons.appendChild(focusable(refresh, 'lock-refresh', function () { self.check(true); }, 'side'));
+        if (Demo.ENABLED) {
+            var demo = h('div', 'button', 'Demo ansehen');
+            buttons.appendChild(focusable(demo, 'lock-demo', function () { new PlaylistsScreen().connect(Demo.playlist); }, 'side'));
+        }
+        if (AB && AB.openUrl) {                          // Android und Fire TV: Website direkt öffnen
+            var open = h('div', 'button', 'Website öffnen');
+            buttons.appendChild(focusable(open, 'lock-open', function () { AB.openUrl(Device.link()); }, 'side'));
+        }
+        side.appendChild(buttons);
+        wrap.appendChild(side);
+        root.appendChild(wrap);
+        if (!this.focusKey) this.focusKey = 'lock-refresh';
+        if (!this.timer) this.timer = setInterval(function () { self.check(false); }, 10000);
+    };
+    LockScreen.prototype.hide = function () { clearInterval(this.timer); this.timer = null; };
+    LockScreen.prototype.check = function (manual) {
+        var self = this;
+        if (manual) loader(true, 'Aktivierung wird geprüft …');
+        Remote.load().then(function () {
+            if (manual) loader(false);
+            if (Nav.top() !== self) return;
+            if (License.active()) {
+                toast(License.activated() ? 'Danke! Dein Gerät ist jetzt aktiviert.' : 'Weiter geht\'s');
+                startWithLists();
+            } else if (manual) {
+                toast('Noch nicht freigeschaltet. PayPal-Zahlungen werden von Hand geprüft, meist innerhalb von 24 Stunden.', 7000);
+            }
+        }, function (e) {
+            if (manual) { loader(false); toast(e.message || String(e), 6000); }
+        });
+    };
+    LockScreen.prototype.onRootBack = function () {
+        askExit();
+    };
 
 
     // =====================================================================
@@ -6008,6 +6117,10 @@
         });
         root.appendChild(tiles);
 
+        // Ablaufdatum steht jetzt oben in der Infoleiste
+        if (License.known() && !License.activated() && !License.free()) {
+            root.appendChild(h('div', 'trial-note', License.text() + ' · danach ' + REMOTE.price + ' einmalig unter Einstellungen → Wiedergabelisten aktivieren'));
+        }
         if (!this.focusKey) this.focusKey = 'home-live';
     };
     HomeScreen.prototype.onRootBack = function () {
@@ -8991,6 +9104,7 @@
         line('Live-Sender', String(Data.channels.length));
         line('Filme', Data.moviesLoaded ? String(Data.movies.length) : 'noch nicht geladen');
         line('Serien', Data.seriesLoaded ? String(Data.series.length) : 'noch nicht geladen');
+        line('Lizenz', License.activated() ? 'Aktiviert (unbegrenzt)' : (License.free() ? License.freeText() : (License.known() ? License.text() : '–')));
         line('MAC-Adresse', Device.macText());
         line('Geräte-Schlüssel', Device.key);
 
@@ -9936,7 +10050,7 @@
         root.appendChild(topbar('Einstellungen', ''));
         var box = h('div', 'settings set6');
         function go(key, fn) { return function () { self.focusKey = key; fn(); }; }
-        var accText = 'Gerät verbunden';
+        var accText = License.activated() ? 'Konto aktiviert' : (License.free() ? License.freeText() : License.text());
         function parentalOpen() {
             if (!Parental.hasPin()) newPinFlow(function () { Nav.push(new ParentalScreen()); });
             else Parental.ask('PIN eingeben', function () { Nav.push(new ParentalScreen()); }, true);
@@ -10222,7 +10336,7 @@
         row('backup', 'up', 'Sicherung', Backup.missing ? 'nicht eingerichtet' : (Storage.get('backupAt', 0) ? 'Gesichert · ' + fmtClock(new Date(Storage.get('backupAt', 0))) + ' Uhr' : 'Favoriten, Profile …'), function () { Nav.push(new BackupScreen()); });
         if (Chat.available()) row('chat', 'user', 'Support-Chat', Chat.unread ? Chat.unread + ' neue Nachricht' + (Chat.unread > 1 ? 'en' : '') : 'Schreib uns', function () { Chat.open(); });
         if (Help.available()) row('help', 'shield', 'Fernhilfe', Help.on ? 'Läuft · Code ' + Help.codeText() : 'Support hilft aus der Ferne', function () { if (Help.on) Help.menu(); else Help.ask(false); });
-        if (!STORE_BUILD) row('account', 'user', 'Konto', 'Gerät verbunden', function () { Nav.push(new AccountScreen()); });
+        if (!STORE_BUILD) row('account', 'user', 'Konto', License.activated() ? 'Aktiviert' : (License.free() ? License.freeText() : License.text()), function () { Nav.push(new AccountScreen()); });
 
         // ---------- Unten: Aktionen ----------
         var acts = h('div', 'set6-acts');
@@ -12409,14 +12523,15 @@
         else loadLists();
 
         function loadLists() {
-        // Schnellstart: Liste gespeichert → sofort loslegen, Website im Hintergrund fragen
-        if (lastId !== null && saved && saved.server && saved.username && saved.password &&
+        // Schnellstart: Freischaltung bekannt und Liste gespeichert → sofort loslegen, Website im Hintergrund fragen
+        if (License.known() && License.active() && lastId !== null && saved && saved.server && saved.username && saved.password &&
             !(saved.demo && !Demo.ENABLED)) {
             start(saved);
             Remote.load().then(function () {
                 setTimeout(function () { Hello.send(true); }, 5000);
                 setTimeout(function () { FavSync.sync(); }, 9000);
                 setTimeout(function () { StickState.send(); }, 40000);
+                if (!License.active() && !saved.demo) { Nav.replace(new LockScreen()); return; }
                 var chosen = Remote.find(lastId);
                 var acc = chosen ? playlistAccount(chosen) : null;
                 if (acc && !sameAcc(acc, saved)) { saved = acc; start(acc); }    // Zugangsdaten auf der Website geändert
@@ -12431,12 +12546,14 @@
             setTimeout(function () { FavSync.sync(); }, 9000);
             setTimeout(function () { StickState.send(); }, 40000);
             var chosen = lastId !== null ? Remote.find(lastId) : null;
+            if (!License.active() && !(chosen && chosen.demo)) { Nav.replace(new LockScreen()); return; }
             var acc = chosen ? playlistAccount(chosen) : null;
             if (acc) start(acc);
             else Nav.replace(new PlaylistsScreen(lastId !== null && !chosen && Remote.lists.length ? 'Die zuletzt genutzte Wiedergabeliste gibt es nicht mehr. Bitte wähle eine aus.' : ''));
         }, function (e) {
             loader(false);
-            // Website nicht erreichbar: mit der gespeicherten Liste weitermachen
+            // Website nicht erreichbar: zuletzt bekannter Stand der Testphase gilt
+            if (!License.active() && !(Demo.ENABLED && saved && saved.demo && lastId === 'demo')) { Nav.replace(new LockScreen()); return; }
             if (lastId !== null && saved && saved.server && saved.username && saved.password && !(saved.demo && !Demo.ENABLED)) start(saved);
             else Nav.replace(new PlaylistsScreen(e.message || String(e)));
         });
@@ -12445,20 +12562,39 @@
         setTimeout(function () { WhatsNew.later(); }, 8000);
         setTimeout(function () { Survey.later(false); }, 60000);
 
-        // Alle 10 Minuten: Listen und Status mit der Website abgleichen
+        // Läuft die Testphase während der Nutzung ab: alle 10 Minuten nachsehen
         setInterval(function () {
+            if (Nav.top() instanceof LockScreen) return;
             Hello.send(true);
             StickState.send();
             FavSync.sync();
             Updater.flags();
             Watch.refresh();
-            Remote.load().then(null, function () { /* offline: gespeicherter Stand */ });
+            Remote.load().then(null, function () { /* offline: gespeicherter Stand */ }).then(function () {
+                if (Api.acc && Api.acc.demo) return;      // Demo braucht keine Freischaltung
+                if (!License.active() && !(Nav.top() instanceof LockScreen)) Nav.replace(new LockScreen());
+            });
         }, 600000);
 
         // Fernwartung (z. B. „Fernhilfe anfragen“) jede Minute abholen, damit Anfragen vom Support schnell ankommen
         setInterval(function () {
+            if (Nav.top() instanceof LockScreen) return;
             Updater.flags();
         }, 60000);
+    }
+
+    /** Nach der Aktivierung: mit der zuletzt genutzten Liste weitermachen oder die Listen zeigen */
+    function startWithLists() {
+        var lastId = Storage.get('playlistId', null);
+        var chosen = lastId !== null ? Remote.find(lastId) : null;
+        var acc = chosen ? playlistAccount(chosen) : null;
+        if (!acc) { Nav.replace(new PlaylistsScreen()); return; }
+        syncAll(acc, 'Anmelden und alles laden …', function () {
+            Nav.replace(new HomeScreen());
+            Updater.autoCheck();
+        }, function (e) {
+            Nav.replace(new PlaylistsScreen(e.message || String(e)));
+        });
     }
 
     // Nur für automatische Tests im Browser
