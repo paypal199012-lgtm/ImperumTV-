@@ -1767,3 +1767,7 @@ body.ios .live-b .row.lv { height: 122px; margin: 7px 4px; }
 body.ios .live-b .row.lv .rn { font-size: 30px; line-height: 36px; }
 body.ios .live-b .row.lv .logo { width: 100px; height: 64px; }
 body.ios .lv-act { padding: 12px 16px; margin-right: 10px; font-size: 21px; white-space: nowrap; }
+
+/* Wiedergabeliste wartet auf Freischaltung durch den Support */
+.pl-card.pl-wait { opacity: .75; border-style: dashed; }
+.pl-card.pl-wait .pl-url { color: #f4dc9e; }

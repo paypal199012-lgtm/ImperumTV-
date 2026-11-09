@@ -2767,6 +2767,8 @@
                     });
                 });
             }).then(function (rows) {
+                // Vom Support noch nicht freigeschaltet: nur den Namen merken (ohne Adresse/Zugang)
+                self.pending = (Array.isArray(rows) ? rows : []).filter(function (r) { return r && r.pending; }).map(function (r) { return str(r.name) || 'Wiedergabeliste'; });
                 self.lists = (Array.isArray(rows) ? rows : []).filter(function (r) {
                     return r && (r.m3u_url || r.server);
                 }).map(function (r) {
@@ -5113,6 +5115,12 @@
         var current = Api.acc ? String(Storage.get('playlistId', '')) : '';
         if (this.loading && !lists.length) {
             grid.appendChild(h('div', 'pl-note', 'Wiedergabelisten werden geladen …'));
+        } else if (!lists.length && (Remote.pending || []).length) {
+            var wait = h('div', 'pl-note');
+            wait.appendChild(h('div', 'pl-note-title', 'Wartet auf Freischaltung'));
+            wait.appendChild(h('div', null, '„' + Remote.pending.join('“, „') + '“ ist eingetragen und wird gerade vom Support geprüft. ' +
+                'Sobald sie freigeschaltet ist, erscheint sie hier von selbst – oder drücke „Aktualisieren“.'));
+            grid.appendChild(wait);
         } else if (!lists.length) {
             var note = h('div', 'pl-note');
             note.appendChild(h('div', 'pl-note-title', this.error ? 'Keine Verbindung zur Website' : 'Noch keine Wiedergabeliste'));
@@ -5128,6 +5136,12 @@
                 card.appendChild(h('div', 'pl-url', playlistAddress(p)));
                 if (p.id === current) card.appendChild(h('div', 'pl-badge', 'Verbunden'));
                 grid.appendChild(focusable(card, 'pl-' + p.id, function () { self.connect(p); }, 'plgrid'));
+            });
+            if (lists.length) (Remote.pending || []).forEach(function (n, i) {      // weitere Liste wartet noch
+                var card = h('div', 'pl-card pl-wait');
+                card.appendChild(h('div', 'pl-name', n));
+                card.appendChild(h('div', 'pl-url', '⏳ Wartet auf Freischaltung'));
+                grid.appendChild(focusable(card, 'pl-wait-' + i, function () { toast('Diese Wiedergabeliste wird gerade vom Support geprüft.', 4000); }, 'plgrid'));
             });
         }
         left.appendChild(grid);
