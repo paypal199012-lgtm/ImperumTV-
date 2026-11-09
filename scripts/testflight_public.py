@@ -203,6 +203,10 @@ gid = grp["id"]
 
 st, data = call("POST", f"/v1/betaGroups/{gid}/relationships/builds",
                 {"data": [{"type": "builds", "id": build_id}]})
+if st == 404:
+    # andere Richtung versuchen (manche Builds lassen sich nur so zuordnen)
+    st, data = call("POST", f"/v1/builds/{build_id}/relationships/betaGroups",
+                    {"data": [{"type": "betaGroups", "id": gid}]})
 if st not in (200, 201, 204, 409):
     errs = "; ".join(x.get("detail", "") for x in data.get("errors", []))
     fail(f"Build zur Gruppe hinzufügen → HTTP {st}: {errs}")
