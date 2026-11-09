@@ -1,0 +1,14 @@
+{
+  "id": "support-chat",
+  "title": "Support-Chat direkt am Fernseher",
+  "version": "1.0.294",
+  "hook": { "h": "Sender hängt –<br>und keiner hilft?", "s": "Bei ImperumTV schreibst du direkt dem Support.", "art": { "type": "tv", "screen": "pitch", "blackFrom": 1.0, "badge": "Sport Arena 1" } },
+  "scenes": [
+    { "h": "Einfach<br>schreiben.", "s": "Einstellungen → Support-Chat. Mit der Fernbedienung oder am Handy.", "art": { "type": "phone", "title": "Support-Chat", "rows": [["Du: Sport Arena 1 hängt", "20:03"], ["Support: Hast du VPN an?", "20:04"], ["Du: Ja, schalte aus", "20:05"]] } },
+    { "h": "Antwort kommt<br>auf den Fernseher.", "s": "Als Hinweis – nicht mitten im Spiel, sondern danach.", "art": { "type": "tv", "screen": "movie", "toast": "💬 Neue Nachricht vom Support", "toastAt": 0.8 } },
+    { "h": "Problem gelöst.", "s": "Ohne Hotline, ohne Warteschleife.", "art": { "type": "cards", "items": [ { "t": "Nachricht geschrieben", "v": "20:03", "ok": true }, { "t": "Antwort vom Support", "v": "20:04", "ok": true }, { "t": "Sender läuft wieder", "v": "20:05", "ok": true } ] } }
+  ],
+  "end": { "h": "Hilfe, wenn du<br>sie brauchst.", "s": "Support-Chat ist in ImperumTV eingebaut." },
+  "caption": "Sender hängt? Schreib dem Support direkt aus der App – die Antwort kommt auf deinen Fernseher 💬📺",
+  "hashtags": "#firetvstick #androidtv #smarttv #techtipps #support #streaming #fyp"
+}

@@ -1771,3 +1771,14 @@ body.ios .lv-act { padding: 12px 16px; margin-right: 10px; font-size: 21px; whit
 /* Wiedergabeliste wartet auf Freischaltung durch den Support */
 .pl-card.pl-wait { opacity: .75; border-style: dashed; }
 .pl-card.pl-wait .pl-url { color: #f4dc9e; }
+
+/* Support-Chat */
+.chat-box { width: 1000px; }
+.chat-list { max-height: 520px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; margin: 10px 0 24px; padding-right: 6px; }
+.chat-msg { max-width: 80%; padding: 14px 20px; border-radius: 18px; font-size: 26px; line-height: 34px; }
+.chat-msg.them { align-self: flex-start; background: rgba(255,255,255,.08); border-bottom-left-radius: 4px; }
+.chat-msg.me { align-self: flex-end; background: rgba(217,176,102,.28); border-bottom-right-radius: 4px; }
+.chat-who { font-size: 18px; color: #a7a39a; margin-bottom: 4px; }
+.chat-text { white-space: pre-wrap; word-break: break-word; }
+.chat-empty { font-size: 26px; color: #c9c3b6; }
+body.touch .chat-list { -webkit-overflow-scrolling: touch; }

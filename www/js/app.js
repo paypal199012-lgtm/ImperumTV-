@@ -2538,6 +2538,118 @@
         }
     };
 
+    /**
+     * Nachrichten mit dem Support (Chat): jede Minute nach neuen Nachrichten schauen.
+     * Neue Nachricht vom Support → Hinweis (beim Schauen nur kurz unten, sonst als Fenster mit „Antworten“).
+     */
+    var Chat = {
+        msgs: [], unread: 0, busy: false, timer: null,
+        available: function () { return Device.validMac(Device.mac) && Device.validKey(Device.key); },
+        start: function () {
+            var self = this;
+            if (!this.available() || this.timer) return;
+            this.msgs = Storage.get('chatMsgs', []) || [];
+            this.timer = setInterval(function () { self.poll(false); }, 60000);
+            setTimeout(function () { self.poll(false); }, 15000);
+        },
+        lastId: function () { return this.msgs.length ? this.msgs[this.msgs.length - 1].id : 0; },
+        merge: function (list) {
+            var have = {}, self = this, added = [];
+            this.msgs.forEach(function (m) { have[m.id] = m; });
+            (list || []).forEach(function (m) { if (have[m.id]) have[m.id].r = m.r; else { self.msgs.push(m); added.push(m); } });
+            this.msgs.sort(function (a, b) { return a.id - b.id; });
+            if (this.msgs.length > 80) this.msgs = this.msgs.slice(-80);
+            Storage.set('chatMsgs', this.msgs);
+            return added;
+        },
+        poll: function (markRead) {
+            var self = this;
+            if (this.busy || !this.available()) return Promise.resolve();
+            this.busy = true;
+            return Remote.rpc('device_chat_get', { p_mac: Device.mac, p_key: Device.key, p_after: markRead ? 0 : this.lastId(), p_read: !!markRead }).then(function (r) {
+                self.busy = false;
+                if (!r || r.ok === false) return;
+                var added = self.merge(r.msgs);
+                self.unread = r.unread || 0;
+                var fromSupport = added.filter(function (m) { return m.a && !m.r; });
+                if (fromSupport.length && !markRead) self.notify(fromSupport[fromSupport.length - 1]);
+            }, function () { self.busy = false; });
+        },
+        notify: function (m) {
+            var self = this;
+            if (Nav.top() instanceof PlayerScreen || Modal.node) {
+                toast('💬 Neue Nachricht vom Support – unter Einstellungen → Support-Chat lesen', 8000);
+                // nach dem Schauen noch einmal als Fenster
+                clearInterval(this.waiter);
+                this.waiter = setInterval(function () {
+                    if (Nav.top() instanceof PlayerScreen || Modal.node || !Nav.top()) return;
+                    clearInterval(self.waiter);
+                    if (self.unread) self.open();
+                }, 2000);
+                return;
+            }
+            this.open();
+        },
+        fmt: function (iso) {
+            var d = new Date(iso), now = new Date();
+            var t = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+            return d.toDateString() === now.toDateString() ? t : d.getDate() + '.' + (d.getMonth() + 1) + '. ' + t;
+        },
+        /** Verlauf zeigen (die letzten Nachrichten) und als gelesen markieren */
+        open: function () {
+            var self = this;
+            this.poll(true).then(function () {
+                var box = h('div', 'modal-box chat-box');
+                box.appendChild(h('div', 'modal-title', '💬 Support-Chat'));
+                var list = h('div', 'chat-list');
+                var last = self.msgs.slice(-8);
+                if (!last.length) list.appendChild(h('div', 'chat-empty', 'Schreib uns, wenn du Hilfe brauchst – wir antworten hier in der App.'));
+                last.forEach(function (m) {
+                    var b = h('div', 'chat-msg ' + (m.a ? 'them' : 'me'));
+                    b.appendChild(h('div', 'chat-who', (m.a ? 'Support' : 'Du') + ' · ' + self.fmt(m.at) + (!m.a && m.r ? ' · gelesen' : '')));
+                    b.appendChild(h('div', 'chat-text', m.t));
+                    list.appendChild(b);
+                });
+                box.appendChild(list);
+                var row = h('div', 'modal-buttons');
+                var ans = h('div', 'button primary', last.length ? 'Antworten' : 'Nachricht schreiben');
+                focusable(ans, 'chat-reply', function () { Modal.close(); self.write(); }, 'dialog');
+                var cls = h('div', 'button', 'Schließen');
+                focusable(cls, 'chat-close', function () { Modal.close(); }, 'dialog');
+                row.appendChild(ans); row.appendChild(cls); box.appendChild(row);
+                Modal.openBox(box, ans);
+                setTimeout(function () { list.scrollTop = list.scrollHeight; }, 50);
+            });
+        },
+        write: function () {
+            var self = this;
+            var box = h('div', 'modal-box kbd-box');
+            box.appendChild(h('div', 'modal-title', 'Nachricht an den Support'));
+            var input = h('input', 'input search-input');
+            input.type = 'text'; input.maxLength = 1000; input.placeholder = 'Deine Nachricht …';
+            input.setAttribute('autocomplete', 'off');
+            focusable(input, 'chat-input', null, 'searchbox');
+            box.appendChild(input);
+            var kb = Keyboard.build(input, 'chat');
+            box.appendChild(kb);
+            var row = h('div', 'modal-buttons');
+            var send = h('div', 'button primary', 'Senden');
+            focusable(send, 'chat-send', function () {
+                var t = String(input.value || '').trim();
+                if (!t) { toast('Bitte erst etwas schreiben.', 2500); return; }
+                Modal.close();
+                Remote.rpc('device_chat_send', { p_mac: Device.mac, p_key: Device.key, p_text: t }).then(function (r) {
+                    if (r && r.ok) { toast('Nachricht gesendet ✓', 3000); self.poll(false); }
+                    else toast('Nicht gesendet: ' + ((r && r.error) || 'unbekannter Fehler'), 5000);
+                }, function () { toast('Keine Verbindung – Nachricht nicht gesendet.', 5000); });
+            }, 'dialog');
+            var cancel = h('div', 'button', 'Abbrechen');
+            focusable(cancel, 'chat-cancel', function () { Modal.close(); }, 'dialog');
+            row.appendChild(send); row.appendChild(cancel); box.appendChild(row);
+            Modal.openBox(box, Keyboard.first(kb));
+        }
+    };
+
     /** Stick-Zustand für die Admin-Seite (Speicher, Arbeitsspeicher, WLAN, Tempo …): alle 10 Minuten, nur Android */
     var StickState = {
         day: function () { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); },
@@ -10108,6 +10220,7 @@
         }
         row('lists', 'list', 'Wiedergabelisten', 'Wechseln', function () { Nav.push(new PlaylistsScreen()); });
         row('backup', 'up', 'Sicherung', Backup.missing ? 'nicht eingerichtet' : (Storage.get('backupAt', 0) ? 'Gesichert · ' + fmtClock(new Date(Storage.get('backupAt', 0))) + ' Uhr' : 'Favoriten, Profile …'), function () { Nav.push(new BackupScreen()); });
+        if (Chat.available()) row('chat', 'user', 'Support-Chat', Chat.unread ? Chat.unread + ' neue Nachricht' + (Chat.unread > 1 ? 'en' : '') : 'Schreib uns', function () { Chat.open(); });
         if (Help.available()) row('help', 'shield', 'Fernhilfe', Help.on ? 'Läuft · Code ' + Help.codeText() : 'Support hilft aus der Ferne', function () { if (Help.on) Help.menu(); else Help.ask(false); });
         if (!STORE_BUILD) row('account', 'user', 'Konto', 'Gerät verbunden', function () { Nav.push(new AccountScreen()); });
 
@@ -12135,7 +12248,8 @@
         (function warmLater(n) { setTimeout(function () { try { if (Data.channels && Data.channels.length) Merge.warm(); else if (n < 20) warmLater(n + 1); } catch (e) { /* egal */ } }, 3000); })(0);
         setTimeout(function () { try { Backup.startup(); } catch (e) { /* egal */ } }, 25000);   // Sicherung: übertragene prüfen, täglich sichern   // Genres im Hintergrund sammeln (nur wenn nichts läuft)
         setTimeout(function () { Updater.flags(); }, 8000);     // vom Admin erzwungenes Update?
-        setTimeout(function () { try { Help.resume(); } catch (e) { /* egal */ } }, 6000);   // Fernhilfe lief vor dem Neustart
+        setTimeout(function () { try { Help.resume(); } catch (e) { /* egal */ } }, 6000);
+        setTimeout(function () { try { Chat.start(); } catch (e) { /* egal */ } }, 5000);   // Support-Chat: neue Nachrichten   // Fernhilfe lief vor dem Neustart
         setTimeout(function () { Report.flushNative(); }, 8000);   // Absturzbericht vom letzten Mal an die Website
         setTimeout(function () {
             var had = OVpn.native() && OVpn.info().has;
