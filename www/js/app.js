@@ -7201,7 +7201,7 @@
         // Breite Handys: Senderliste nicht in die Länge ziehen, den Platz bekommt die Vorschau
         if (SW > 1920) {
             // iPhone: linke Spalten breiter (leichter zu treffen), die Vorschau wird dafür etwas kleiner
-            var leftEnd = document.body.classList.contains('ios') ? 1400 : 1180;
+            var leftEnd = document.body.classList.contains('ios') ? 1500 : 1180;
             var iw = SW - leftEnd - 40, ph = Math.min(Math.round(iw * 9 / 16), 600);
             iw = Math.round(ph * 16 / 9);
             info.style.width = iw + 'px';
