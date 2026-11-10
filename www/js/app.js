@@ -2211,6 +2211,29 @@
             this.state = { activated: !!row.activated, trialUntil: until, freeUntil: free, serverActive: !!row.active, checked: Date.now() };
             Storage.set('license', this.state);
         },
+        /** Admin hat die Freischaltung geändert (device_flags meldet einen neuen Stand): sofort neu holen, sperren oder entsperren */
+        remoteRev: function (rev) {
+            if (STORE_BUILD || !rev) return;
+            var old = Storage.get('licRev', null);
+            if (old === rev) return;
+            Storage.set('licRev', rev);
+            if (old !== null) this.refresh();
+        },
+        refresh: function () {
+            if (STORE_BUILD || !Device.validMac(Device.mac) || !Device.validKey(Device.key)) return;
+            var was = this.active(), wasAct = this.activated();
+            Remote.rpc('device_status', { p_mac: Device.mac, p_key: Device.key }).then(function (rows) {
+                if (!rows || !rows.length) return;
+                License.set(rows[0]);
+                if (Api.acc && Api.acc.demo) return;
+                var top = Nav.top();
+                if (!License.active() && !(top instanceof LockScreen)) { Nav.replace(new LockScreen()); return; }
+                if (License.active() && top instanceof LockScreen) { top.check(false); return; }
+                if (License.activated() && !wasAct) toast('Danke! Dein Gerät ist jetzt aktiviert.', 5000);
+                else if (License.active() && !was) toast('Weiter geht\'s', 3000);
+                if (top instanceof SettingsScreen && !Modal.node) Nav.show(top);      // Anzeige „Testphase / aktiviert“ auffrischen
+            }, function () { /* offline: später */ });
+        },
         known: function () { return STORE_BUILD || !!this.state; },
         /** Vom Entwickler kostenlos freigeschaltet (z. B. für 1 Jahr) */
         free: function () {
@@ -2612,7 +2635,10 @@
             ws.onmessage = function (e) {
                 var m = null;
                 try { m = JSON.parse(e.data); } catch (x) { return; }
-                if (m && m.topic === topic && m.event === 'broadcast') { self.hurry(); self.poll(false); }
+                if (m && m.topic === topic && m.event === 'broadcast') {
+                    if (m.payload && m.payload.event === 'lic') { License.refresh(); return; }
+                    self.hurry(); self.poll(false);
+                }
             };
             ws.onclose = function () {
                 clearInterval(beat); self.ws = null;
@@ -5513,7 +5539,7 @@
                 toast(License.activated() ? 'Danke! Dein Gerät ist jetzt aktiviert.' : 'Weiter geht\'s');
                 startWithLists();
             } else if (manual) {
-                toast('Noch nicht freigeschaltet. PayPal-Zahlungen werden von Hand geprüft, meist innerhalb von 24 Stunden.', 7000);
+                toast('Noch nicht freigeschaltet. Nach der Zahlung über die Website wird dein Gerät automatisch freigeschaltet – meist innerhalb einer Minute.', 7000);
             }
         }, function (e) {
             if (manual) { loader(false); toast(e.message || String(e), 6000); }
@@ -5686,6 +5712,7 @@
             if (!this.available() || !Device.validMac(Device.mac) || !Device.validKey(Device.key)) return;
             Remote.rpc('device_flags', { p_mac: Device.mac, p_key: Device.key, p_version: Report.version() }).then(function (r) {
                 if (r && r.cmd) RemoteCmd.run(r.cmd);
+                if (r && r.lic) License.remoteRev(r.lic);
                 if (!r || !r.force || self.forced) return;
                 self.forced = true;
                 self.dismissed = 0;
@@ -12592,11 +12619,11 @@
             });
         }, 600000);
 
-        // Fernwartung (z. B. „Fernhilfe anfragen“) jede Minute abholen, damit Anfragen vom Support schnell ankommen
+        // Fernwartung (z. B. „Fernhilfe anfragen“) und Änderungen an der Freischaltung alle 30 Sekunden abholen
         setInterval(function () {
             if (Nav.top() instanceof LockScreen) return;
             Updater.flags();
-        }, 60000);
+        }, 30000);
     }
 
     /** Nach der Aktivierung: mit der zuletzt genutzten Liste weitermachen oder die Listen zeigen */
