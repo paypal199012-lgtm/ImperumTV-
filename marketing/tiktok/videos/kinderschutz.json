@@ -2,13 +2,78 @@
   "id": "kinderschutz",
   "title": "Kinderschutz und Kinder-Profil",
   "version": "1.0.288",
-  "hook": { "h": "Kinder schauen<br>allein fern?", "s": "Und du willst wissen, was läuft?", "art": { "type": "big", "text": "🔒", "small": "Kinderschutz" } },
+  "hook": {
+    "h": "Kinder schauen<br>allein fern?",
+    "s": "Und du willst wissen, was läuft?",
+    "art": {
+      "type": "big",
+      "text": "🔒",
+      "small": "Kinderschutz"
+    }
+  },
   "scenes": [
-    { "h": "PIN setzen.", "s": "Einstellungen → Kinderschutz → 4 Ziffern.", "art": { "type": "big", "text": "• • • •", "small": "Deine PIN" } },
-    { "h": "Erwachsenen-Kategorien<br>sind gesperrt.", "s": "Automatisch – und eigene Kategorien kannst du dazu sperren.", "art": { "type": "cards", "items": [ { "t": "Kinder", "v": "frei", "ok": true }, { "t": "Doku & Natur", "v": "frei", "ok": true }, { "t": "Erwachsene", "v": "gesperrt mit PIN", "icon": "🔒" } ] } },
-    { "h": "Kinder-Profil.", "s": "Nur Kindersender – verlassen geht nur mit PIN.", "art": { "type": "phone", "title": "Profil: Kinder", "ok": "Kinder-Profil aktiv", "rows": [["Kinder Kanal", "▶"], ["Natur HD", "▶"], ["Zeichentrick", "▶"]] } }
+    {
+      "h": "PIN setzen.",
+      "s": "Einstellungen → Kinderschutz → 4 Ziffern.",
+      "art": {
+        "type": "big",
+        "text": "• • • •",
+        "small": "Deine PIN"
+      }
+    },
+    {
+      "h": "Erwachsenen-Kategorien<br>sind gesperrt.",
+      "s": "Automatisch – und eigene Kategorien kannst du dazu sperren.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Kinder",
+            "v": "frei",
+            "ok": true
+          },
+          {
+            "t": "Doku & Natur",
+            "v": "frei",
+            "ok": true
+          },
+          {
+            "t": "Erwachsene",
+            "v": "gesperrt mit PIN",
+            "icon": "🔒"
+          }
+        ]
+      }
+    },
+    {
+      "h": "Kinder-Profil.",
+      "s": "Nur Kindersender – verlassen geht nur mit PIN.",
+      "art": {
+        "type": "phone",
+        "title": "Profil: Kinder",
+        "ok": "Kinder-Profil aktiv",
+        "rows": [
+          [
+            "Kinder Kanal",
+            "▶"
+          ],
+          [
+            "Natur HD",
+            "▶"
+          ],
+          [
+            "Zeichentrick",
+            "▶"
+          ]
+        ]
+      }
+    }
   ],
-  "end": { "h": "Entspannt<br>fernsehen lassen.", "s": "Kinderschutz ist in ImperumTV eingebaut." },
+  "end": {
+    "h": "Entspannt<br>fernsehen lassen.",
+    "s": "Kinderschutz ist in ImperumTV eingebaut."
+  },
   "caption": "Kinder schauen allein fern? 👀 Mit PIN und Kinder-Profil in ImperumTV sehen sie nur, was sie sehen sollen.",
-  "hashtags": "#eltern #kinder #firetvstick #androidtv #smarttv #techtipps #fyp"
+  "hashtags": "#eltern #kinder #firetvstick #androidtv #smarttv #techtipps #fyp",
+  "music": "ambient"
 }

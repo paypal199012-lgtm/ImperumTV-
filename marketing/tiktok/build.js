@@ -22,7 +22,8 @@ const fs = require('fs'), path = require('path'), { execFileSync } = require('ch
   await b.close();
   const silent = path.join(outDir, id + '-ohne-musik.mp4'), withMusic = path.join(outDir, id + '.mp4'), wav = path.join(frames, 'm.wav');
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', path.join(frames, 'f%04d.jpg'), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', silent]);
-  execFileSync('python3', [path.join(__dirname, 'music.py'), wav, String(spec.scenes.length)], { cwd: __dirname });
+  const style = execFileSync('python3', [path.join(__dirname, 'music.py'), wav, String(spec.scenes.length), spec.music || '', id], { cwd: __dirname }).toString().trim();
+  console.log('Musik: ' + style);
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', silent, '-i', wav, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', withMusic]);
   fs.writeFileSync(path.join(outDir, id + '.txt'), (spec.caption || '') + '\n🌐 imperumtv.xyz\n' + (spec.hashtags || '#firetvstick #androidtv #smarttv #techtipps #fyp') + '\n');
   fs.rmSync(frames, { recursive: true, force: true });

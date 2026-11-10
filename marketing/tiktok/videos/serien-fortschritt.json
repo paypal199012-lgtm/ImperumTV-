@@ -2,13 +2,64 @@
   "id": "serien-fortschritt",
   "title": "Serien-Fortschritt pro Staffel",
   "version": "1.0.288",
-  "hook": { "h": "Welche Folge<br>war das nochmal?", "s": "Staffel 2? Folge 5? Oder 6?", "art": { "type": "tv", "screen": "movie" } },
+  "hook": {
+    "h": "Welche Folge<br>war das nochmal?",
+    "s": "Staffel 2? Folge 5? Oder 6?",
+    "art": {
+      "type": "tv",
+      "screen": "movie"
+    }
+  },
   "scenes": [
-    { "h": "ImperumTV<br>merkt es sich.", "s": "Jede Staffel zeigt, wie weit du bist.", "art": { "type": "cards", "items": [ { "t": "Staffel 1", "v": "10 von 10 gesehen", "ok": true }, { "t": "Staffel 2", "v": "5 von 10 gesehen", "icon": "▶" }, { "t": "Staffel 3", "v": "noch nicht angefangen", "icon": "•" } ] } },
-    { "h": "Weiterschauen<br>mit einem Klick.", "s": "Genau da, wo du aufgehört hast.", "art": { "type": "tv", "screen": "movie", "toast": "▶ Weiter: Staffel 2 · Folge 6", "toastAt": 0.8 } },
-    { "h": "Fertige Staffeln<br>mit Haken.", "s": "Auf einen Blick, was du schon kennst.", "art": { "type": "big", "text": "✓", "small": "Staffel 1 komplett gesehen" } }
+    {
+      "h": "ImperumTV<br>merkt es sich.",
+      "s": "Jede Staffel zeigt, wie weit du bist.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Staffel 1",
+            "v": "10 von 10 gesehen",
+            "ok": true
+          },
+          {
+            "t": "Staffel 2",
+            "v": "5 von 10 gesehen",
+            "icon": "▶"
+          },
+          {
+            "t": "Staffel 3",
+            "v": "noch nicht angefangen",
+            "icon": "•"
+          }
+        ]
+      }
+    },
+    {
+      "h": "Weiterschauen<br>mit einem Klick.",
+      "s": "Genau da, wo du aufgehört hast.",
+      "art": {
+        "type": "tv",
+        "screen": "movie",
+        "toast": "▶ Weiter: Staffel 2 · Folge 6",
+        "toastAt": 0.8
+      }
+    },
+    {
+      "h": "Fertige Staffeln<br>mit Haken.",
+      "s": "Auf einen Blick, was du schon kennst.",
+      "art": {
+        "type": "big",
+        "text": "✓",
+        "small": "Staffel 1 komplett gesehen"
+      }
+    }
   ],
-  "end": { "h": "Nie wieder<br>Folge suchen.", "s": "Serien-Fortschritt ist in ImperumTV eingebaut." },
+  "end": {
+    "h": "Nie wieder<br>Folge suchen.",
+    "s": "Serien-Fortschritt ist in ImperumTV eingebaut."
+  },
   "caption": "Welche Folge war das nochmal? 🤔 ImperumTV zeigt bei jeder Staffel, wie weit du bist – und macht genau da weiter.",
-  "hashtags": "#serien #bingewatching #firetvstick #androidtv #smarttv #techtipps #fyp"
+  "hashtags": "#serien #bingewatching #firetvstick #androidtv #smarttv #techtipps #fyp",
+  "music": "chill"
 }

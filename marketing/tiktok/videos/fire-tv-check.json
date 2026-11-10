@@ -2,13 +2,79 @@
   "id": "fire-tv-check",
   "title": "Welcher Fire TV Stick geht noch?",
   "version": "",
-  "hook": { "h": "Neuen Fire TV<br>Stick gekauft …", "s": "… und deine App lässt sich nicht installieren?", "art": { "type": "big", "text": "📺❓", "small": "Achtung beim Kauf" } },
+  "hook": {
+    "h": "Neuen Fire TV<br>Stick gekauft …",
+    "s": "… und deine App lässt sich nicht installieren?",
+    "art": {
+      "type": "big",
+      "text": "📺❓",
+      "small": "Achtung beim Kauf"
+    }
+  },
   "scenes": [
-    { "h": "Neue Sticks laufen<br>mit Vega OS.", "s": "Darauf lassen sich viele Apps nicht installieren.", "art": { "type": "cards", "items": [ { "t": "Fire TV Stick 4K Select", "v": "Vega OS", "icon": "✕" }, { "t": "Fire TV Stick HD (2026)", "v": "Vega OS", "icon": "✕" }, { "t": "Fire TV Stick 4K (2026)", "v": "Vega OS", "icon": "✕" } ] } },
-    { "h": "Diese gehen:", "s": "Mit Fire OS – Apps lassen sich installieren.", "art": { "type": "cards", "items": [ { "t": "Fire TV Stick 4K Max (2023)", "v": "Fire OS · Empfehlung", "ok": true }, { "t": "Fire TV Cube", "v": "Fire OS · mit LAN", "ok": true }, { "t": "Google TV Streamer", "v": "Google TV · mit LAN", "ok": true } ] } },
-    { "h": "Tipp:", "s": "Steht „Vega OS“ auf der Packung – lieber weglassen.", "art": { "type": "big", "text": "Fire OS ✓", "small": "Vega OS ✕" } }
+    {
+      "h": "Neue Sticks laufen<br>mit Vega OS.",
+      "s": "Darauf lassen sich viele Apps nicht installieren.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Fire TV Stick 4K Select",
+            "v": "Vega OS",
+            "icon": "✕"
+          },
+          {
+            "t": "Fire TV Stick HD (2026)",
+            "v": "Vega OS",
+            "icon": "✕"
+          },
+          {
+            "t": "Fire TV Stick 4K (2026)",
+            "v": "Vega OS",
+            "icon": "✕"
+          }
+        ]
+      }
+    },
+    {
+      "h": "Diese gehen:",
+      "s": "Mit Fire OS – Apps lassen sich installieren.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Fire TV Stick 4K Max (2023)",
+            "v": "Fire OS · Empfehlung",
+            "ok": true
+          },
+          {
+            "t": "Fire TV Cube",
+            "v": "Fire OS · mit LAN",
+            "ok": true
+          },
+          {
+            "t": "Google TV Streamer",
+            "v": "Google TV · mit LAN",
+            "ok": true
+          }
+        ]
+      }
+    },
+    {
+      "h": "Tipp:",
+      "s": "Steht „Vega OS“ auf der Packung – lieber weglassen.",
+      "art": {
+        "type": "big",
+        "text": "Fire OS ✓",
+        "small": "Vega OS ✕"
+      }
+    }
   ],
-  "end": { "h": "Speichern &<br>vor dem Kauf ansehen.", "s": "ImperumTV läuft auf Fire OS, Android, iPhone und PC." },
+  "end": {
+    "h": "Speichern &<br>vor dem Kauf ansehen.",
+    "s": "ImperumTV läuft auf Fire OS, Android, iPhone und PC."
+  },
   "caption": "Achtung beim Fire-TV-Kauf ⚠️ Die neuen Sticks mit Vega OS können viele Apps nicht installieren. Speicher dir das für später!",
-  "hashtags": "#firetvstick #firetv #amazon #techtipps #kauftipp #smarttv #fyp"
+  "hashtags": "#firetvstick #firetv #amazon #techtipps #kauftipp #smarttv #fyp",
+  "music": "tech"
 }

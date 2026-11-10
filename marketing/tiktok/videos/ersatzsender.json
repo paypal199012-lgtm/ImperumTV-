@@ -2,13 +2,68 @@
   "id": "ersatzsender",
   "title": "Sender hängt? Ersatzsender kommt automatisch",
   "version": "1.0.298",
-  "hook": { "h": "Elfmeter.<br>Und das Bild<br>bleibt hängen.", "s": "Kennst du das?", "art": { "type": "tv", "screen": "pitch", "badge": "Sport Arena 1 · FHD" } },
+  "hook": {
+    "h": "Elfmeter.<br>Und das Bild<br>bleibt hängen.",
+    "s": "Kennst du das?",
+    "art": {
+      "type": "tv",
+      "screen": "pitch",
+      "badge": "Sport Arena 1 · FHD"
+    }
+  },
   "scenes": [
-    { "h": "ImperumTV<br>merkt es sofort.", "s": "Bild steht oder bleibt schwarz – die App erkennt es selbst.", "art": { "type": "tv", "screen": "pitch", "blackFrom": 0.2, "toast": "Sender hängt – nächste Quelle: Sport Arena 1 HD", "toastAt": 1.4 } },
-    { "h": "Und schaltet<br>selbst um.", "s": "Auf denselben Sender aus einer anderen Quelle.", "art": { "type": "cards", "items": [ { "t": "Sport Arena 1 · 4K", "v": "hängt", "icon": "✕" }, { "t": "Sport Arena 1 · FHD", "v": "hängt", "icon": "✕" }, { "t": "Sport Arena 1 · HD", "v": "läuft", "ok": true } ] } },
-    { "h": "Du siehst<br>das Tor.", "s": "Ohne Suchen, ohne Fernbedienung.", "art": { "type": "tv", "screen": "pitch", "badge": "Sport Arena 1 · HD", "toast": "⚽ Weiter geht's", "toastAt": 0.8 } }
+    {
+      "h": "ImperumTV<br>merkt es sofort.",
+      "s": "Bild steht oder bleibt schwarz – die App erkennt es selbst.",
+      "art": {
+        "type": "tv",
+        "screen": "pitch",
+        "blackFrom": 0.2,
+        "toast": "Sender hängt – nächste Quelle: Sport Arena 1 HD",
+        "toastAt": 1.4
+      }
+    },
+    {
+      "h": "Und schaltet<br>selbst um.",
+      "s": "Auf denselben Sender aus einer anderen Quelle.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Sport Arena 1 · 4K",
+            "v": "hängt",
+            "icon": "✕"
+          },
+          {
+            "t": "Sport Arena 1 · FHD",
+            "v": "hängt",
+            "icon": "✕"
+          },
+          {
+            "t": "Sport Arena 1 · HD",
+            "v": "läuft",
+            "ok": true
+          }
+        ]
+      }
+    },
+    {
+      "h": "Du siehst<br>das Tor.",
+      "s": "Ohne Suchen, ohne Fernbedienung.",
+      "art": {
+        "type": "tv",
+        "screen": "pitch",
+        "badge": "Sport Arena 1 · HD",
+        "toast": "⚽ Weiter geht's",
+        "toastAt": 0.8
+      }
+    }
   ],
-  "end": { "h": "Nie wieder<br>Standbild.", "s": "Ersatzsender ist in ImperumTV eingebaut." },
+  "end": {
+    "h": "Nie wieder<br>Standbild.",
+    "s": "Ersatzsender ist in ImperumTV eingebaut."
+  },
   "caption": "Elfmeter und das Bild hängt? 😤 ImperumTV merkt das und schaltet selbst auf eine andere Quelle um ⚽",
-  "hashtags": "#firetvstick #androidtv #smarttv #fussball #techtipps #streaming #fyp"
+  "hashtags": "#firetvstick #androidtv #smarttv #fussball #techtipps #streaming #fyp",
+  "music": "drama"
 }

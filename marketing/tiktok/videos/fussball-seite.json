@@ -2,13 +2,74 @@
   "id": "fussball-seite",
   "title": "Wo läuft mein Spiel? Die Fußball-Seite",
   "version": "1.0.298",
-  "hook": { "h": "Wo läuft<br>heute das Spiel?", "s": "Nie wieder alle Sender durchklicken.", "art": { "type": "big", "text": "⚽", "small": "Samstag, 15:30" } },
+  "hook": {
+    "h": "Wo läuft<br>heute das Spiel?",
+    "s": "Nie wieder alle Sender durchklicken.",
+    "art": {
+      "type": "big",
+      "text": "⚽",
+      "small": "Samstag, 15:30"
+    }
+  },
   "scenes": [
-    { "h": "Alle Spiele<br>auf einen Blick.", "s": "Heute, morgen, die ganze Woche.", "art": { "type": "cards", "items": [ { "t": "Heim FC – Gast United", "v": "Heute 15:30 · Liga", "icon": "⚽" }, { "t": "Nord 04 – Süd Athletic", "v": "Heute 18:30 · Pokal", "icon": "⚽" }, { "t": "Stadt SV – Berg Kickers", "v": "Morgen 20:45 · Liga", "icon": "⚽" } ] } },
-    { "h": "Mit dem Sender<br>gleich dabei.", "s": "Spiel antippen – der passende Sender startet.", "art": { "type": "phone", "title": "Heim FC – Gast United", "ok": "Läuft auf 2 Sendern", "rows": [["Sport Arena 1", "▶"], ["Sport Arena 2 HD", "▶"]] } },
-    { "h": "Ein Klick –<br>Anpfiff.", "s": "Direkt ins Spiel, ohne Suchen.", "art": { "type": "tv", "screen": "pitch", "badge": "Sport Arena 1 · Heim FC – Gast United" } }
+    {
+      "h": "Alle Spiele<br>auf einen Blick.",
+      "s": "Heute, morgen, die ganze Woche.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Heim FC – Gast United",
+            "v": "Heute 15:30 · Liga",
+            "icon": "⚽"
+          },
+          {
+            "t": "Nord 04 – Süd Athletic",
+            "v": "Heute 18:30 · Pokal",
+            "icon": "⚽"
+          },
+          {
+            "t": "Stadt SV – Berg Kickers",
+            "v": "Morgen 20:45 · Liga",
+            "icon": "⚽"
+          }
+        ]
+      }
+    },
+    {
+      "h": "Mit dem Sender<br>gleich dabei.",
+      "s": "Spiel antippen – der passende Sender startet.",
+      "art": {
+        "type": "phone",
+        "title": "Heim FC – Gast United",
+        "ok": "Läuft auf 2 Sendern",
+        "rows": [
+          [
+            "Sport Arena 1",
+            "▶"
+          ],
+          [
+            "Sport Arena 2 HD",
+            "▶"
+          ]
+        ]
+      }
+    },
+    {
+      "h": "Ein Klick –<br>Anpfiff.",
+      "s": "Direkt ins Spiel, ohne Suchen.",
+      "art": {
+        "type": "tv",
+        "screen": "pitch",
+        "badge": "Sport Arena 1 · Heim FC – Gast United"
+      }
+    }
   ],
-  "end": { "h": "Fußball finden<br>in Sekunden.", "s": "Die Fußball-Seite ist in ImperumTV eingebaut." },
+  "end": {
+    "h": "Fußball finden<br>in Sekunden.",
+    "s": "Die Fußball-Seite ist in ImperumTV eingebaut."
+  },
   "caption": "Wo läuft heute das Spiel? ⚽ Die Fußball-Seite in ImperumTV zeigt alle Spiele und startet direkt den passenden Sender.",
-  "hashtags": "#fussball #firetvstick #androidtv #smarttv #bundesliga #techtipps #fyp"
+  "hashtags": "#fussball #firetvstick #androidtv #smarttv #bundesliga #techtipps #fyp",
+  "music": "epic"
 }
