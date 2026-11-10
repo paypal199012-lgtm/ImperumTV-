@@ -1010,7 +1010,7 @@
     };
 
     var Theme = {
-        LIST: [['gold', 'Gold'], ['blau', 'Blau'], ['silber', 'Silber'], ['smaragd', 'Smaragd'], ['pink', 'Pink'], ['violett', 'Violett'], ['tuerkis', 'Türkis'], ['kobalt', 'Kobalt']],
+        LIST: [['gold', 'Gold'], ['blau', 'Blau'], ['silber', 'Silber'], ['smaragd', 'Smaragd'], ['pink', 'Pink'], ['violett', 'Violett'], ['tuerkis', 'Türkis'], ['kobalt', 'Kobalt'], ['neongruen', 'Neongrün']],
         DEF: {
             blau:    { h: 212, s: 1.0,  logo: 'hue-rotate(175deg) saturate(1.2)' },
             silber:  { h: 0,   s: 0,    l: 1.06, logo: 'grayscale(1) brightness(1.08)' },
@@ -1018,7 +1018,8 @@
             pink:    { h: 322, s: 1.15, logo: 'hue-rotate(-95deg) saturate(1.6)' },
             violett: { h: 268, s: 0.95, logo: 'hue-rotate(225deg) saturate(1.2)' },
             tuerkis: { h: 178, s: 1.0,  logo: 'hue-rotate(135deg) saturate(1.3)' },
-            kobalt:  { h: 230, s: 1.35, logo: 'hue-rotate(195deg) saturate(1.8)' }
+            kobalt:  { h: 230, s: 1.35, logo: 'hue-rotate(195deg) saturate(1.8)' },
+            neongruen: { h: 118, s: 1.45, logo: 'hue-rotate(80deg) saturate(2.0)' }
         },
         src: null,
         cur: function () { var t = Storage.rawGet('theme', 'gold'); return this.DEF[t] ? t : 'gold'; },      // pro Gerät, nicht pro Profil
