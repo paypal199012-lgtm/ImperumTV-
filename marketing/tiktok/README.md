@@ -16,7 +16,8 @@ Die Dateien landen in der Vorab-Version **tiktok** und erscheinen im Admin unter
   "hook":   { "h": "Große Überschrift<br>mit Zeilenumbruch", "s": "Unterzeile", "art": { ... } },
   "scenes": [ { "h": "…", "s": "…", "art": { ... } } ],
   "end":    { "h": "Schlusssatz", "s": "Zeile darunter" },
-  "caption": "Text für TikTok", "hashtags": "#firetvstick …"
+  "caption": "Text für TikTok", "hashtags": "#firetvstick …",
+  "music": "drama | upbeat | chill | playful | epic | tech | funk | ambient"
 }
 ```
 
