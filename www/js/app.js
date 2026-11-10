@@ -2140,7 +2140,6 @@
         // Website, auf der man Wiedergabelisten einträgt und das Gerät aktiviert (Cloudflare)
         website: 'https://imperumtv.xyz/',
         // Hier baut GitHub die Android-App; die App sucht dort nach Updates
-        updateRepo: 'paypal199012-lgtm/ImperumTV-Android',
         // Wird nur angezeigt, der echte Preis steht in der Stripe-Funktion
         price: '9,99 €'
     };
@@ -5690,13 +5689,12 @@
         available: function () { return !!(AB && AB.downloadUpdate && AB.appVersion); },
         current: function () { try { return AB.appVersion() || 0; } catch (e) { return 0; } },
         versionText: function (n) { return '1.0.' + n; },
-        /** Bei GitHub nachsehen. manual = vom Benutzer ausgelöst (dann auch „schon aktuell“ melden) */
+        /** Auf der eigenen Website nachsehen. manual = vom Benutzer ausgelöst (dann auch „schon aktuell“ melden) */
         check: function (manual) {
             var self = this;
             if (!this.available()) return;
             if (manual) loader(true, 'Suche nach Updates …');
             this.lastCheck = Date.now();
-            var repo = REMOTE.updateRepo;
             function found(tag, apkUrl, size) {
                 if (manual) loader(false);
                 var m = /(\d+)\s*$/.exec(String(tag || ''));
@@ -5706,7 +5704,7 @@
                     if (manual) toast('Du hast schon die neueste Version (' + self.versionText(cur) + ').');
                     return;
                 }
-                self.latest = { version: latest, url: apkUrl || ('https://github.com/' + repo + '/releases/download/' + tag + '/ImperumTV.apk'), size: size || 0 };
+                self.latest = { version: latest, url: apkUrl, size: size || 0 };
                 if (manual) self.offer();
                 else self.offerWhenIdle();           // automatisch: warten, bis Ladebildschirm/Video weg sind
             }
@@ -5716,20 +5714,9 @@
                 self.autoRetries = (self.autoRetries || 0) + 1;
                 if (self.autoRetries <= 3) setTimeout(function () { self.check(false); }, 60000);
             }
-            // Über die GitHub-Schnittstelle (Fallback, falls die App den Weg unten nicht kennt)
-            function viaApi() {
-                fetch('https://api.github.com/repos/' + repo + '/releases/latest', { cache: 'no-store' }).then(function (res) {
-                    if (!res.ok) throw new Error('HTTP ' + res.status);
-                    return res.json();
-                }).then(function (rel) {
-                    var asset = (rel.assets || []).filter(function (a) { return /\.apk$/i.test(a.name || ''); })[0];
-                    if (!asset) { found('', null, 0); return; }
-                    found(rel.tag_name, asset.browser_download_url, asset.size);
-                }, function (e) { failed(e && e.message); });
-            }
-            // Zuerst die eigene Website fragen: sie liefert die neue Version auch, wenn GitHub gerade nicht erreichbar ist
+            // Nur über die eigene Website: sie fragt GitHub selbst und liefert immer die neueste Version
             var key = window.__imptvWindows ? 'exe' : 'apk', siteDone = false;
-            var siteTimer = setTimeout(function () { if (!siteDone) { siteDone = true; viaGithub(); } }, 10000);
+            var siteTimer = setTimeout(function () { if (!siteDone) { siteDone = true; failed('keine Antwort'); } }, 20000);
             fetch(REMOTE.website + 'dl/latest.json', { cache: 'no-store' }).then(function (res) {
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 return res.json();
@@ -5737,28 +5724,9 @@
                 if (siteDone) return;
                 siteDone = true; clearTimeout(siteTimer);
                 var x = j && j[key];
-                // Website kennt nichts Neueres (ihre Kopie kann älter sein): zusätzlich bei GitHub nachsehen
-                if (!x || !x.v || x.v <= self.current()) { viaGithub(); return; }
+                if (!x || !x.v) { found('', null, 0); return; }
                 found('v1.0.' + x.v, REMOTE.website + 'dl/' + key + '?v=' + x.v, x.size || 0);
-            }, function () { if (!siteDone) { siteDone = true; clearTimeout(siteTimer); viaGithub(); } });
-            return;
-
-            function viaGithub() {
-            // Android-App fragt GitHub selbst (keine Sperren im Browser-Teil, kein Abfrage-Limit)
-            if (AB.checkLatest) {
-                var done = false;
-                var timer = setTimeout(function () { if (!done) { done = true; viaApi(); } }, 45000);
-                window.__androidLatest = function (r) {
-                    if (done) return;
-                    done = true; clearTimeout(timer);
-                    if (r && r.tag) found(r.tag, null, 0);
-                    else viaApi();                            // nicht geklappt: zweiter Weg
-                };
-                AB.checkLatest(repo);
-                return;
-            }
-            viaApi();
-            }
+            }, function (e) { if (!siteDone) { siteDone = true; clearTimeout(siteTimer); failed(e && e.message); } });
         },
         install: function () {
             var self = this;

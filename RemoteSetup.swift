@@ -8,7 +8,7 @@ enum RemoteSetup {
     static let supabaseKey = "sb_publishable_LZau0nT_CfDUYqrzlQfM2Q_61r7g-K3"
 
     /// Adresse der Website (GitHub Pages)
-    static let websiteURL = "https://paypal199012-lgtm.github.io/ImperumTV-/"
+    static let websiteURL = "https://imperumtv.xyz/"
 
     static var isConfigured: Bool {
         supabaseURL.hasPrefix("https://") && !supabaseKey.hasPrefix("DEIN")

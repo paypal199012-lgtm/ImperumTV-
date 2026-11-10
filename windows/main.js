@@ -10,9 +10,7 @@ const { execSync, spawn } = require('child_process');
 const Mpv = require('./mpv');
 const Vpn = require('./vpn');
 
-const UPDATE_REPO = 'paypal199012-lgtm/ImperumTV-';
-const UPDATE_TAG = 'windows';
-const SETUP_NAME = 'ImperumTV-Setup.exe';
+const UPDATE_SITE = 'https://imperumtv.xyz/';   // Updates nur über die eigene Website (sie holt die Datei selbst bei GitHub)
 
 // Oberfläche ohne Grafikkarte zeichnen: durchsichtige Fenster klappen damit auf allen PCs
 // (mit manchen Grafikkarten deckte die Oberfläche sonst das Video ab: Ton, aber schwarzes Bild).
@@ -242,16 +240,14 @@ ipcMain.on('health', (e) => {
   e.returnValue = JSON.stringify(o);
 });
 
-// ---------- Updates: Release „windows“ bei GitHub, Datei ImperumTV-Setup.exe ----------
+// ---------- Updates: über die eigene Website (dl/latest.json und dl/exe) ----------
 
 async function latestRelease() {
-  const r = await net.fetch('https://api.github.com/repos/' + UPDATE_REPO + '/releases/tags/' + UPDATE_TAG, { headers: { 'User-Agent': 'ImperumTV-Update', Accept: 'application/vnd.github+json' } });
+  const r = await net.fetch(UPDATE_SITE + 'dl/latest.json', { headers: { 'User-Agent': 'ImperumTV-Update' }, cache: 'no-store' });
   if (!r.ok) throw new Error('HTTP ' + r.status);
-  const rel = await r.json();
-  const m = /(\d+)\.(\d+)\.(\d+)/.exec(rel.name || '') || /(\d+)\s*$/.exec(rel.body || '');
-  const n = m ? parseInt(m[m.length - 1], 10) : 0;
-  const asset = (rel.assets || []).find((x) => x.name === SETUP_NAME);
-  return { n, asset };
+  const j = await r.json();
+  const x = j && j.exe;
+  return { n: x && x.v ? Number(x.v) : 0, size: (x && x.size) || 0 };
 }
 
 async function checkLatest() {
@@ -263,16 +259,16 @@ async function checkLatest() {
 
 async function downloadUpdate(siteUrl) {
   try {
-    // Bevorzugt über die eigene Website (klappt auch, wenn GitHub gerade gestört ist), sonst direkt bei GitHub
+    // Über die eigene Website (Adresse aus der Oberfläche, sonst neu nachgefragt)
     let r = null, size = 0;
     if (siteUrl && /^https:\/\/(www\.)?imperumtv\.(xyz|com)\//.test(siteUrl)) {
       try { r = await net.fetch(siteUrl, { headers: { 'User-Agent': 'ImperumTV-Update' } }); if (!r.ok || !r.body) r = null; } catch (e1) { r = null; }
     }
     if (!r) {
-      const { asset } = await latestRelease();
-      if (!asset) throw new Error('Datei fehlt');
-      size = asset.size || 0;
-      r = await net.fetch(asset.browser_download_url, { headers: { 'User-Agent': 'ImperumTV-Update' } });
+      const { n, size: sz } = await latestRelease();
+      if (!n) throw new Error('Datei fehlt');
+      size = sz || 0;
+      r = await net.fetch(UPDATE_SITE + 'dl/exe?v=' + n, { headers: { 'User-Agent': 'ImperumTV-Update' } });
     }
     if (!r.ok || !r.body) throw new Error('HTTP ' + r.status);
     const total = Number(r.headers.get('content-length')) || size || 0;
