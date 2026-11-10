@@ -2356,7 +2356,7 @@
             if (!force && this.cur === this.sent) return;
             var what = this.cur, self = this;
             this.sent = what; this.sentAt = Date.now();
-            Remote.rpc('device_watch', { p_mac: Device.mac, p_key: Device.key, p_what: what }).then(null, function () { self.sent = null; });
+            Remote.rpc('device_watch', { p_mac: Device.mac, p_key: Device.key, p_what: what, p_host: what && Api.acc && !Api.acc.demo ? String(Api.acc.server || '') : '' }).then(null, function () { self.sent = null; });
         },
         /** alle 10 Minuten: läuft noch etwas, erneut melden (sonst gilt es auf der Admin-Seite als beendet) */
         refresh: function () { if (this.cur) this.send(true); }
