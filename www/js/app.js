@@ -3188,7 +3188,7 @@
             this.flying[fk] = 1;
             var acc = Api.acc;
             Api.call(n.type === 'movie' ? 'get_vod_info' : 'get_series_info', n.type === 'movie' ? { vod_id: n.id } : { series_id: n.id }).then(function (json) {
-                self.busy--; delete self.flying[fk]; self.fails = 0;
+                self.busy--; delete self.flying[fk]; self.fails = 0; self.miss = 0;
                 if (Api.acc !== acc) return;
                 var info = parseInfo(json && json.info);
                 Genre.learnId(n.type, n.id, info.genre, info.plot);
@@ -3203,6 +3203,17 @@
                     return;
                 }
                 if (e && /HTTP (429|503)/.test(e.message || '')) { self.pauseUntil = Date.now() + 30 * 60000; self.fails = 0; return; }
+                // 404: Titel gibt es beim Anbieter nicht mehr → leise überspringen (kein Fehlerbericht).
+                // Viele 404 hintereinander: Anbieter kennt diese Abfrage gar nicht → 24 Stunden Ruhe
+                if (e && /HTTP 404/.test(e.message || '')) {
+                    Genre.learnId(n.type, n.id, '', '');
+                    self.done = Math.min(self.total, self.done + 1);
+                    self.fails = 0;
+                    if ((self.miss = (self.miss || 0) + 1) >= 20) { self.miss = 0; self.pauseUntil = Date.now() + 24 * 3600000; }
+                    else self.pauseUntil = Date.now() + 1500;
+                    return;
+                }
+                self.miss = 0;
                 // Fehler: kurz warten; derselbe Titel 3× kaputt → überspringen; viele Fehler hintereinander → 10 Minuten Pause
                 var k = n.type + n.id;
                 self.failCount = self.failId === k ? (self.failCount || 0) + 1 : 1;
