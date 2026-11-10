@@ -29,11 +29,11 @@ jobs:
     runs-on: macos-15-intel
     env:
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
-      APP_VERSION: '1.4'            # neue App-Store-Version: bei jedem Einreichen erhöhen
+      APP_VERSION: '1.5'            # neue App-Store-Version: bei jedem Einreichen erhöhen
       WHATS_NEW: |
-        • iPhone: Kategorien und Senderliste größer und breiter – leichter zu treffen.
-        • Schwarzbild-Erkennung: Bleibt das Bild schwarz oder hängt, wird automatisch umgeschaltet.
-        • Fernhilfe zeigt dem Support auf Wunsch das laufende Bild.
+        • Neues Farbthema: Neongrün (Einstellungen → Farbthema).
+        • Support-Chat: Nachrichten kommen jetzt deutlich schneller an.
+        • Genres von Filmen und Serien werden zuverlässiger gesammelt.
         • Fehlerbehebungen und Verbesserungen.
     steps:
       - uses: actions/checkout@v4
