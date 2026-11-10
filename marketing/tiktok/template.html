@@ -42,6 +42,19 @@
 #end .cta{background:var(--gold);color:#17181c;font-weight:800;font-size:54px;padding:24px 56px;border-radius:60px}
 #end .cta2{font-size:32px;font-weight:600;margin-top:-14px}
 #end small{font-size:28px;color:var(--mut)}
+#end .code{border:2px solid var(--gold);border-radius:24px;padding:16px 40px;font-size:30px;color:var(--mut);font-weight:600}
+#end .code b{display:block;font-family:LR,serif;font-size:76px;color:var(--gold);letter-spacing:6px;margin-top:4px}
+#clock{position:absolute;right:56px;top:80px;width:230px;background:rgba(20,21,27,.92);border:2px solid var(--gold);border-radius:24px;padding:14px 18px;text-align:center;opacity:0}
+#clock .ck{font-family:LR,serif;font-weight:700;font-size:64px;color:var(--gold2);line-height:1}
+#clock .cl{font-size:20px;color:var(--mut);font-weight:600;letter-spacing:2px;margin-top:4px}
+#clock .cbar{height:8px;border-radius:4px;background:#2d3039;margin-top:10px;overflow:hidden}#clock .cbar i{display:block;height:100%;background:var(--gold);width:0}
+.menu{position:absolute;inset:0;background:linear-gradient(180deg,#14161d,#0b0c10);padding:34px 44px}
+.menu .mp{font-size:26px;color:var(--mut);font-weight:600;margin-bottom:22px}.menu .mp b{color:var(--gold2)}
+.mrow{display:flex;align-items:center;font-size:34px;padding:20px 24px;border-radius:14px;margin-bottom:8px;border:3px solid transparent;color:#cfc9bc}
+.mrow .mv{margin-left:auto;font-size:28px;color:var(--mut);font-weight:700}
+.mrow.hl{background:rgba(217,176,102,.14);border-color:var(--gold);color:#fff}
+.mrow.hl .mv{color:var(--ok)}
+.tapn{position:absolute;right:40px;top:30px;background:var(--gold);color:#17181c;font-weight:800;font-size:44px;border-radius:40px;padding:8px 26px;opacity:0}
 </style></head><body><div id="glow"></div><div id="root"></div>
 <div id="end"><img src="logo.png" alt=""><h2 id="eh"></h2><div class="s" id="es"></div><div class="chips"><span>Fire TV</span><span>Android</span><span>iPhone</span><span>PC</span></div><div class="cta">🌐 imperumtv.xyz</div><div class="cta2">Jetzt kostenlos laden</div><small>ImperumTV enthält keine Sender. Du nutzt deine eigene Wiedergabeliste.</small></div>
 <script>
@@ -79,6 +92,10 @@ function art(a) {
   if (a.type === 'phone') return '<div class="ph"><div class="pt">' + esc(a.title || '') + '</div>' + (a.ok ? '<div class="okbox"><b>● ' + esc(a.ok) + '</b></div>' : '') +
     (a.screen ? '<canvas width="410" height="220"></canvas>' : '') + (a.rows || []).map((r, i) => '<div class="row" data-i="' + i + '">' + esc(r[0]) + '<span class="r">' + esc(r[1] || '') + '</span></div>').join('') + '</div>';
   if (a.type === 'cards') return '<div class="cards">' + (a.items || []).map((c, i) => '<div class="card' + (c.ok ? ' ok' : '') + '" data-i="' + i + '"><div class="ic">' + esc(c.icon || (c.ok ? '✓' : '•')) + '</div><div><div class="t">' + esc(c.t) + '</div>' + (c.v ? '<div class="v">' + esc(c.v) + '</div>' : '') + '</div></div>').join('') + '</div>';
+  if (a.type === 'menu') return '<div class="tv"><div class="menu"><div class="mp">' + (a.path || '').split('›').map((x, i, all) => i === all.length - 1 ? '<b>' + esc(x.trim()) + '</b>' : esc(x.trim())).join(' › ') + '</div>' +
+    (a.rows || []).map((r, i) => { r = Array.isArray(r) ? r : [r]; return '<div class="mrow" data-m="' + i + '">' + esc(r[0]) + (r[1] != null ? '<span class="mv" data-v="' + esc(r[1]) + '" data-v0="' + esc(r[2] != null ? r[2] : r[1]) + '">' + esc(r[2] != null ? r[2] : r[1]) + '</span>' : '') + '</div>'; }).join('') +
+    '</div>' + (a.tap ? '<div class="tapn" data-tap="' + a.tap + '"></div>' : '') + '</div>';
+  if (a.type === 'logo') return '<div class="tv" style="background:radial-gradient(600px 300px at 50% 50%,#2a2418,#08080a)"><img src="logo.png" alt="" style="position:absolute;left:50%;top:50%;width:640px;transform:translate(-50%,-50%)"></div>';
   if (a.type === 'big') return '<div class="big">' + esc(a.text) + (a.small ? '<small>' + esc(a.small) + '</small>' : '') + '</div>';
   return '';
 }
@@ -86,9 +103,13 @@ const S = window.SPEC, root = $('root'), scenes = [];
 let t0 = 0;
 function addScene(html, dur, data) { const el = document.createElement('div'); el.className = 'sc' + (data.hook ? ' hook' : ''); el.innerHTML = html; root.appendChild(el); scenes.push({ el, t0, t1: t0 + dur, a: data.art }); t0 += dur; }
 addScene('<div class="cap"><h1>' + rich(S.hook.h) + '</h1>' + (S.hook.s ? '<p>' + rich(S.hook.s) + '</p>' : '') + '</div>' + (S.hook.art ? '<div class="st">' + art(S.hook.art) + '</div>' : ''), HOOK, { hook: 1, art: S.hook.art });
-S.scenes.forEach((c, i) => addScene('<div class="cap">' + (S.scenes.length > 1 && S.numbered !== false ? '<div class="n">' + (i + 1) + ' / ' + S.scenes.length + '</div>' : '') +
+S.scenes.forEach((c, i) => addScene('<div class="cap">' + (c.n ? '<div class="n">' + esc(c.n) + '</div>' : S.scenes.length > 1 && S.numbered !== false ? '<div class="n">' + (i + 1) + ' / ' + S.scenes.length + '</div>' : '') +
   '<h1>' + rich(c.h) + '</h1>' + (c.s ? '<p>' + rich(c.s) + '</p>' : '') + '</div><div class="st">' + art(c.art) + '</div>', SCENE, { art: c.art }));
 $('eh').innerHTML = rich(S.end && S.end.h || 'Alles in einer App.'); $('es').innerHTML = rich(S.end && S.end.s || '');
+if (S.end && S.end.code) { const c = document.createElement('div'); c.className = 'code'; c.innerHTML = 'Downloader-Code<b>' + esc(S.end.code) + '</b>'; $('es').after(c); }
+// Stoppuhr („in 20 Sekunden“): läuft über alle Szenen von 0 bis S.timer
+const SC_END = t0;
+if (S.timer) { const c = document.createElement('div'); c.id = 'clock'; c.innerHTML = '<div class="ck">0:00</div><div class="cl">STOPPUHR</div><div class="cbar"><i></i></div>'; document.body.appendChild(c); }
 window.DURATION = t0 + END;
 window.setT = function (t) {
   scenes.forEach(sc => {
@@ -103,8 +124,20 @@ window.setT = function (t) {
     });
     sc.el.querySelectorAll('.toast').forEach(el => { el.style.opacity = u >= +el.dataset.at ? E((u - el.dataset.at) / .3) : 0; });
     sc.el.querySelectorAll('[data-i]').forEach(el => { const k = E((u - .3 - el.dataset.i * .35) / .4); el.style.opacity = k; el.style.transform = 'translateY(' + (1 - k) * 24 + 'px)'; });
+    sc.el.querySelectorAll('[data-m]').forEach(el => {
+      const hl = a.hl == null ? -1 : a.hl, at = a.hlAt || 0.6;
+      el.classList.toggle('hl', +el.dataset.m === hl && u >= at);
+      const v = el.querySelector('.mv'); if (v) v.textContent = +el.dataset.m === hl && u >= (a.switchAt || 1.6) ? v.dataset.v : v.dataset.v0;
+    });
+    sc.el.querySelectorAll('.tapn').forEach(el => { const n = +el.dataset.tap, k = Math.max(0, Math.min(n, Math.floor((u - 0.5) / 0.28) + 1)); el.style.opacity = k > 0 ? 1 : 0; el.textContent = k + '×'; });
     sc.el.querySelectorAll('.big').forEach(el => { el.style.transform = 'scale(' + (.9 + E(u / .6) * .1) + ')'; });
   });
+  if (S.timer) {
+    const el = Math.max(0, Math.min(1, (t - HOOK) / (SC_END - HOOK))) * S.timer, c = $('clock');
+    c.style.opacity = t > HOOK - .2 && t < SC_END ? 1 : 0;
+    c.querySelector('.ck').textContent = '0:' + String(Math.floor(el)).padStart(2, '0');
+    c.querySelector('.cbar i').style.width = (el / S.timer * 100) + '%';
+  }
   const e = t >= t0 ? E((t - t0) / .5) : 0; $('end').style.opacity = e;
 };
 setT(0);

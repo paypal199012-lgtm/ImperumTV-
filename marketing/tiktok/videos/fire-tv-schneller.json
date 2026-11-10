@@ -1,0 +1,95 @@
+{
+  "id": "fire-tv-schneller",
+  "title": "Fire TV langsam? 4 Schritte",
+  "version": "",
+  "timer": 30,
+  "hook": {
+    "h": "Fire TV<br>langsam?",
+    "s": "4 Einstellungen – in 30 Sekunden erledigt.",
+    "art": {
+      "type": "logo"
+    }
+  },
+  "scenes": [
+    {
+      "n": "SCHRITT 1",
+      "h": "Autoplay aus.",
+      "s": "Werbevideos auf der Startseite starten nicht mehr von selbst.",
+      "art": {
+        "type": "menu",
+        "path": "Einstellungen › Präferenzen",
+        "rows": [
+          [
+            "Video-Autoplay",
+            "AUS",
+            "AN"
+          ],
+          [
+            "Audio-Autoplay",
+            "AN"
+          ]
+        ],
+        "hl": 0
+      }
+    },
+    {
+      "n": "SCHRITT 2",
+      "h": "Nutzungsdaten aus.",
+      "s": "Weniger Hintergrund-Arbeit für den Stick.",
+      "art": {
+        "type": "menu",
+        "path": "Präferenzen › Datenschutzeinstellungen",
+        "rows": [
+          [
+            "Gerätenutzungsdaten",
+            "AUS",
+            "AN"
+          ],
+          [
+            "App-Nutzungsdaten",
+            "AN"
+          ]
+        ],
+        "hl": 0
+      }
+    },
+    {
+      "n": "SCHRITT 3",
+      "h": "Cache leeren.",
+      "s": "Bei Apps, die oft hängen. Nicht „Daten löschen“!",
+      "art": {
+        "type": "menu",
+        "path": "Anwendungen › Installierte Anwendungen verwalten",
+        "rows": [
+          "Cache leeren",
+          "Daten löschen",
+          "Deinstallieren"
+        ],
+        "hl": 0
+      }
+    },
+    {
+      "n": "SCHRITT 4",
+      "h": "Neu starten.",
+      "s": "Am besten einmal pro Woche.",
+      "art": {
+        "type": "menu",
+        "path": "Einstellungen › Mein Fire TV",
+        "rows": [
+          "Info",
+          "Neu starten",
+          "Auf Werkseinstellungen zurücksetzen"
+        ],
+        "hl": 1
+      }
+    }
+  ],
+  "end": {
+    "h": "Speichern &<br>heute Abend testen.",
+    "s": "Flüssig schauen mit ImperumTV:",
+    "code": "2336102"
+  },
+  "caption": "Fire TV lahm? Diese 4 Einstellungen machen ihn spürbar schneller ⚡ Speicher dir das!",
+  "hashtags": "#firetvstick #firetv #techtipps #lifehack #firetvtipps #smarttv #fyp",
+  "music": "garage"
+}

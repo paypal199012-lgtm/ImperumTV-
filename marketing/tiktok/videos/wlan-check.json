@@ -1,0 +1,111 @@
+{
+  "id": "wlan-check",
+  "title": "Bild ruckelt? Liegt's am WLAN?",
+  "version": "",
+  "timer": 15,
+  "hook": {
+    "h": "Bild ruckelt?<br>Liegt’s am WLAN?",
+    "s": "In 15 Sekunden weißt du es.",
+    "art": {
+      "type": "tv",
+      "screen": "pitch",
+      "badge": "Sport Arena 2 · FHD",
+      "toast": "Verbindung zu langsam – Bild lädt nach …",
+      "toastAt": 0.6,
+      "blackFrom": 0.9,
+      "blackTo": 2.2
+    }
+  },
+  "scenes": [
+    {
+      "n": "SCHRITT 1",
+      "h": "Einstellungen →<br>Verbindungstest.",
+      "s": "Direkt in ImperumTV.",
+      "art": {
+        "type": "menu",
+        "path": "ImperumTV › Einstellungen",
+        "rows": [
+          [
+            "Verbindungstest",
+            "Internet & Sender"
+          ],
+          [
+            "Support-Chat"
+          ],
+          [
+            "Fernhilfe"
+          ]
+        ],
+        "hl": 0
+      }
+    },
+    {
+      "n": "SCHRITT 2",
+      "h": "Er prüft alles<br>auf einmal.",
+      "s": "Dauert etwa 15 Sekunden.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Internet",
+            "v": "verbunden",
+            "ok": true
+          },
+          {
+            "t": "Geschwindigkeit",
+            "v": "48 Mbit/s",
+            "ok": true
+          },
+          {
+            "t": "Server deines Anbieters",
+            "v": "antwortet",
+            "ok": true
+          },
+          {
+            "t": "Test-Sender",
+            "v": "läuft",
+            "ok": true
+          }
+        ]
+      }
+    },
+    {
+      "n": "ERGEBNIS",
+      "h": "Unter 10 Mbit/s?",
+      "s": "Dann ruckelt HD. Router näher oder LAN-Adapter.",
+      "art": {
+        "type": "big",
+        "text": "10 Mbit/s",
+        "small": "reicht für HD · 4K braucht ca. 25"
+      }
+    },
+    {
+      "n": "ERGEBNIS",
+      "h": "Anbieter rot?",
+      "s": "Dann liegt es nicht an dir – sondern am Server.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Internet",
+            "v": "verbunden",
+            "ok": true
+          },
+          {
+            "t": "Server deines Anbieters",
+            "v": "antwortet nicht",
+            "icon": "✕"
+          }
+        ]
+      }
+    }
+  ],
+  "end": {
+    "h": "Nie mehr raten,<br>woran es liegt.",
+    "s": "Verbindungstest in ImperumTV:",
+    "code": "2336102"
+  },
+  "caption": "Ruckelt das Bild? So findest du in 15 Sekunden raus, ob’s am WLAN oder am Anbieter liegt 📶",
+  "hashtags": "#firetvstick #wlan #internet #techtipps #streaming #firetv #fyp",
+  "music": "piano"
+}

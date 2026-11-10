@@ -1,0 +1,96 @@
+{
+  "id": "entwickleroptionen",
+  "title": "Entwickleroptionen fehlen? Der Trick",
+  "version": "",
+  "timer": 15,
+  "hook": {
+    "h": "Entwickler-<br>optionen<br>fehlen?",
+    "s": "Der versteckte Fire-TV-Trick – in 15 Sekunden.",
+    "art": {
+      "type": "menu",
+      "path": "Einstellungen › Mein Fire TV",
+      "rows": [
+        "Info",
+        "Neu starten",
+        "Auf Werkseinstellungen zurücksetzen"
+      ]
+    }
+  },
+  "scenes": [
+    {
+      "n": "SCHRITT 1",
+      "h": "Mein Fire TV<br>→ Info.",
+      "s": "Ganz normal über die Einstellungen.",
+      "art": {
+        "type": "menu",
+        "path": "Einstellungen › Mein Fire TV",
+        "rows": [
+          "Info",
+          "Neu starten",
+          "Auf Werkseinstellungen zurücksetzen"
+        ],
+        "hl": 0
+      }
+    },
+    {
+      "n": "SCHRITT 2",
+      "h": "7× auf den<br>Gerätenamen.",
+      "s": "Bis „Du bist jetzt Entwickler“ erscheint.",
+      "art": {
+        "type": "menu",
+        "path": "Mein Fire TV › Info",
+        "rows": [
+          "Fire TV Stick 4K Max",
+          "Software-Version",
+          "Netzwerk"
+        ],
+        "hl": 0,
+        "tap": 7
+      }
+    },
+    {
+      "n": "SCHRITT 3",
+      "h": "Zurück –<br>jetzt ist es da.",
+      "s": "Neuer Punkt: Entwickleroptionen.",
+      "art": {
+        "type": "menu",
+        "path": "Einstellungen › Mein Fire TV",
+        "rows": [
+          "Info",
+          "Entwickleroptionen",
+          "Neu starten"
+        ],
+        "hl": 1
+      }
+    },
+    {
+      "n": "SCHRITT 4",
+      "h": "Apps unbekannter<br>Herkunft: AN.",
+      "s": "Für Downloader einschalten – fertig.",
+      "art": {
+        "type": "menu",
+        "path": "Entwickleroptionen › Apps unbekannter Herkunft",
+        "rows": [
+          [
+            "Downloader",
+            "AN",
+            "AUS"
+          ],
+          [
+            "Silk-Browser",
+            "AUS"
+          ]
+        ],
+        "hl": 0
+      }
+    }
+  ],
+  "end": {
+    "h": "Speichern für<br>den nächsten Stick.",
+    "s": "Danach mit Downloader ImperumTV laden:",
+    "code": "2336102"
+  },
+  "caption": "Entwickleroptionen auf dem Fire TV versteckt? 7× auf den Gerätenamen tippen 🤫 Speicher dir das für später!",
+  "hashtags": "#firetvstick #firetv #firetvtipps #techtipps #lifehack #amazon #fyp",
+  "music": "trap"
+}

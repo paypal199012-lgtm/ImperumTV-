@@ -1,0 +1,98 @@
+{
+  "id": "downloader-20-sek",
+  "title": "Ohne PC, ohne Kabel – in 20 Sekunden",
+  "version": "",
+  "timer": 20,
+  "hook": {
+    "h": "Ohne PC.<br>Ohne Kabel.<br>In 20 Sekunden.",
+    "s": "So kommt ImperumTV auf deinen Fire TV.",
+    "art": {
+      "type": "logo"
+    }
+  },
+  "scenes": [
+    {
+      "n": "SCHRITT 1",
+      "h": "Downloader<br>holen.",
+      "s": "Kostenlos im Amazon-Appstore.",
+      "art": {
+        "type": "menu",
+        "path": "Fire TV › Suche › Downloader",
+        "rows": [
+          [
+            "Downloader",
+            "Holen ✓",
+            "Holen"
+          ],
+          [
+            "App-Info"
+          ]
+        ],
+        "hl": 0
+      }
+    },
+    {
+      "n": "SCHRITT 2",
+      "h": "Code eintippen.",
+      "s": "Der Download startet sofort.",
+      "art": {
+        "type": "big",
+        "text": "2336102",
+        "small": "Downloader-Code"
+      }
+    },
+    {
+      "n": "SCHRITT 3",
+      "h": "Installieren<br>& öffnen.",
+      "s": "Die App zeigt dir MAC-Adresse und Schlüssel.",
+      "art": {
+        "type": "menu",
+        "path": "ImperumTV › Wiedergabelisten",
+        "rows": [
+          [
+            "MAC-Adresse",
+            "1a:2b:3c:4d:5e:6f"
+          ],
+          [
+            "Geräte-Schlüssel",
+            "482 913"
+          ]
+        ],
+        "hl": 0
+      }
+    },
+    {
+      "n": "FERTIG",
+      "h": "Wiedergabeliste<br>eintragen.",
+      "s": "Auf imperumtv.xyz – sie erscheint von selbst.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "MAC + Schlüssel eingeben",
+            "v": "imperumtv.xyz",
+            "ok": true
+          },
+          {
+            "t": "Zugangsdaten vom Anbieter",
+            "v": "Login oder M3U-Link",
+            "ok": true
+          },
+          {
+            "t": "Sender erscheinen",
+            "v": "sortiert, mit Programm",
+            "ok": true
+          }
+        ]
+      }
+    }
+  ],
+  "end": {
+    "h": "Speichern &<br>gleich ausprobieren.",
+    "s": "7 Tage kostenlos testen.",
+    "code": "2336102"
+  },
+  "caption": "Fire TV in 20 Sekunden startklar ⏱️ Downloader-Code 2336102 – ohne PC, ohne Kabel. Speicher dir das!",
+  "hashtags": "#firetvstick #firetv #downloader #techtipps #streaming #smarttv #fyp",
+  "music": "house"
+}

@@ -1,0 +1,68 @@
+{
+  "id": "fernbedienung-tricks",
+  "title": "3 Tricks für die Fire-TV-Fernbedienung",
+  "version": "",
+  "hook": {
+    "h": "3 Tricks für deine<br>Fire-TV-Fernbedienung.",
+    "s": "Nummer 2 kennt fast keiner.",
+    "art": {
+      "type": "logo"
+    }
+  },
+  "scenes": [
+    {
+      "n": "TRICK 1",
+      "h": "Home gedrückt<br>halten.",
+      "s": "Öffnet das Schnellmenü.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Ruhemodus",
+            "icon": "☾"
+          },
+          {
+            "t": "Apps",
+            "icon": "▦"
+          },
+          {
+            "t": "Spiegeln",
+            "icon": "⇄"
+          },
+          {
+            "t": "Einstellungen",
+            "icon": "⚙"
+          }
+        ]
+      }
+    },
+    {
+      "n": "TRICK 2",
+      "h": "Mitte + Play/Pause<br>5 Sekunden halten.",
+      "s": "Startet den Fire TV neu – ohne Menü.",
+      "art": {
+        "type": "big",
+        "text": "5 Sek.",
+        "small": "Auswahl + ▶❚❚ = Neustart"
+      }
+    },
+    {
+      "n": "TRICK 3",
+      "h": "Home<br>10 Sekunden halten.",
+      "s": "Koppelt eine neue Fernbedienung.",
+      "art": {
+        "type": "big",
+        "text": "10 Sek.",
+        "small": "Fernbedienung koppeln"
+      }
+    }
+  ],
+  "end": {
+    "h": "Speichern &<br>weitersagen.",
+    "s": "Und die passende App für deine Wiedergabeliste:",
+    "code": "2336102"
+  },
+  "caption": "3 Fire-TV-Tricks, die fast keiner kennt 🎛️ Welcher war neu für dich?",
+  "hashtags": "#firetvstick #firetv #lifehack #techtipps #fernbedienung #amazon #fyp",
+  "music": "synthwave"
+}

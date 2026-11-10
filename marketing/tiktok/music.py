@@ -12,6 +12,11 @@ Stile (alle passen auf das Raster: Intro 2,6 s, jede Szene 3,6 s, Abschluss 3 s)
   tech     – modern, 133 BPM, pumpender Bass, Synth-Stabs
   funk     – lässig, 100 BPM, synkopierter Bass, Clavinet-Zupfer
   ambient  – ruhig, schwebende Flächen, Klavier-Arpeggio, kaum Schlagzeug
+  house    – 133 BPM, durchgehende Bass-Drum, Offbeat-Bass, Orgel-Akkorde
+  trap     – halbe Zeit, tiefer 808-Bass, schnelle Hi-Hat-Rollen, dunkle Glocke
+  synthwave– 133 BPM, 80er-Synths, Achtel-Bass, Gated-Snare, Arpeggio
+  piano    – ernst, Klavier-Akkorde, leiser Beat, Moll
+  garage   – 2-Step, verschobene Bass-Drum, kurze Orgel-Stabs, Swing-Hi-Hats
 Ohne Stil wird er aus dem Startwert (z. B. der Video-ID) gewählt.
 """
 import sys, zlib
@@ -21,7 +26,7 @@ out, n_scenes = sys.argv[1], int(sys.argv[2])
 style = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ''
 seed_txt = sys.argv[4] if len(sys.argv) > 4 else style
 seed = zlib.crc32(seed_txt.encode()) & 0xffffffff
-STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient']
+STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage']
 if style not in STYLES:
     style = STYLES[seed % len(STYLES)]
 
@@ -203,7 +208,7 @@ elif style == 'ambient':                  # ruhig, schwebend
     m.add(lp(chord(notes(prog[0]), END, 0.05, 1800), 1800), e0)
     m.add(epiano(notes(prog[0]), END, 0.08), e0)
 
-else:                                     # tech: 133 BPM, pumpender Bass
+elif style == 'tech':                     # 133 BPM, pumpender Bass
     B = 0.45; prog = MINOR2
     intro(B, rise=True)
     transitions(0.2)
@@ -218,6 +223,88 @@ else:                                     # tech: 133 BPM, pumpender Bass
             m.add(lp(tone(notes(ch)[0] / 2, B * 0.45, 'saw', a=0.06, d=0.2, gain=0.42), 600), tt + B * 0.5)
             if k in (0, 3, 6): m.add(lp(chord(notes(ch), 0.18, 0.08, 5000), 5000), tt + (B * 0.75 if k == 3 else 0), 1, 0.2)
     outro(prog[0], B)
+
+elif style == 'house':                    # 133 BPM, Four-on-the-floor, Offbeat-Bass
+    B = 0.45; prog = MINOR
+    intro(B)
+    m.add(lp(chord(notes(prog[0]), HOOK, 0.04, 800), 800), 0)
+    transitions(0.18)
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = prog[sc % 4]
+        for k in range(8):
+            tt = s0 + k * B
+            m.add(kick(), tt, 1.0)
+            m.add(hat(op=True, g=0.2), tt + B / 2, 1, 0.3)
+            if k % 2: m.add(clap(), tt, 0.55)
+            m.add(lp(tone(notes(ch)[0] / 2, B * 0.4, 'sq', a=0.004, d=0.15, gain=0.3), 450), tt + B / 2)
+            if k % 2 == 0: m.add(lp(chord(notes(ch), B * 0.35, 0.06, 2200, 'sq'), 2200), tt + B * 0.75, 1, -0.2)
+    outro(prog[0], B)
+
+elif style == 'trap':                     # halbe Zeit, 808, Hi-Hat-Rollen
+    B = 0.45; prog = MINOR2
+    m.add(lp(chord(notes(prog[0]), HOOK, 0.035, 900), 900), 0); m.add(riser(2.0, 0.28), 0.5)
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = prog[sc % 4]
+        m.add(whoosh(0.4, True, 0.18), s0 - 0.38)
+        m.add(lp(tone(notes(ch)[0] / 4, SCENE * 0.9, 'sine', a=0.005, d=1.4, gain=0.7), 180), s0)       # 808
+        m.add(lp(tone(notes(ch)[0] / 4, B * 2, 'sine', a=0.005, d=0.6, gain=0.5), 180), s0 + 5 * B)
+        m.add(kick(True), s0, 0.9); m.add(kick(), s0 + 5 * B, 0.8)
+        m.add(snare(0.9), s0 + 2 * B); m.add(snare(0.9), s0 + 6 * B)
+        for q in range(16):
+            if q in (11, 15):
+                for r in range(3): m.add(hat(g=0.12), s0 + q * B / 2 + r * B / 6, 1, 0.3)
+            else: m.add(hat(g=0.15), s0 + q * B / 2, 1, 0.3)
+        for i, d in enumerate([0, 2, 1, 2]): m.add(ding(notes(ch)[d] * 2, 0.07), s0 + i * B * 2, 1, -0.25)
+    outro(prog[0], B)
+
+elif style == 'synthwave':                # 133 BPM, 80er
+    B = 0.45; prog = [['A3', 'C4', 'E4'], ['F3', 'A3', 'C4'], ['C4', 'E4', 'G4'], ['G3', 'B3', 'D4']]
+    intro(B); m.add(lp(brass(notes(prog[0]), HOOK, 0.03), 1200), 0)
+    transitions(0.2)
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = prog[sc % 4]
+        m.add(lp(brass(notes(ch), SCENE * 0.95, 0.035), 1400), s0, 1, 0.1)
+        for k in range(8):
+            tt = s0 + k * B
+            if k % 2 == 0: m.add(kick(), tt, 1.0)
+            if k % 4 == 2: m.add(snare(1.0), tt); m.add(crash(0.06), tt)
+            m.add(hat(g=0.14), tt + B / 2, 1, 0.3)
+            for h in (0, B / 2): m.add(lp(tone(notes(ch)[0] / 2, B / 2 * 0.85, 'saw', a=0.003, d=0.1, gain=0.3), 900), tt + h)
+            for q in range(2): m.add(lp(tone(notes(ch)[(k * 2 + q) % 3] * 2, B / 2 * 0.8, 'sq', a=0.003, d=0.12, gain=0.05), 3500), tt + q * B / 2, 1, -0.3 if q else 0.3)
+    outro(prog[0], B)
+
+elif style == 'piano':                    # ernst, Klavier, 100 BPM
+    B = 0.6; prog = MINOR2
+    def piano(nn, dur, g=0.12):
+        return sum(tone(x, dur, 'sine', a=0.003, d=dur * 0.45, gain=g) + tone(x * 2, dur, 'sine', a=0.003, d=dur * 0.2, gain=g * 0.35) + tone(x * 3, dur, 'sine', a=0.003, d=dur * 0.1, gain=g * 0.12) for x in nn)
+    m.add(piano(notes(prog[0]), HOOK, 0.1), 0.1)
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = prog[sc % 4]
+        m.add(piano([notes(ch)[0] / 2] + notes(ch), SCENE, 0.09), s0)
+        m.add(lp(tone(notes(ch)[0] / 2, SCENE, 'sine', a=0.2, gain=0.25), 250), s0)
+        for k in range(6):
+            tt = s0 + k * B
+            if k in (0, 3): m.add(lp(kick(soft=True), 400), tt, 0.8)
+            if k in (2, 5) and sc >= 1: m.add(lp(snare(0.6), 4000), tt)
+            if k: m.add(piano([notes(ch)[[2, 1, 2, 0, 1][k - 1]] * 2], B * 1.5, 0.07), tt, 1, 0.25)
+    e0 = HOOK + n_scenes * SCENE
+    m.add(piano([notes(prog[0])[0] / 2] + notes(prog[0]), END, 0.1), e0)
+
+else:                                     # garage: 2-Step mit Swing
+    B = 0.45; prog = [['D3', 'F3', 'A3', 'C4'], ['G3', 'B3', 'D4', 'F4'], ['C4', 'E4', 'G4', 'B4'], ['A3', 'C4', 'E4', 'G4']]
+    intro(B, rise=False); m.add(riser(1.8, 0.24), 0.7)
+    transitions(0.16)
+    sw = B / 2 * 0.16
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = prog[sc % 4]
+        for bar in range(2):
+            b0 = s0 + bar * 4 * B
+            for pos in (0, 1.75, 2.5): m.add(kick(), b0 + pos * B, 0.9)
+            for pos in (1, 3): m.add(snare(0.8), b0 + pos * B)
+            for q in range(8): m.add(hat(g=0.13 if q % 2 else 0.17), b0 + q * B / 2 + (sw if q % 2 else 0), 1, 0.3)
+            for pos in (0.5, 1.75, 3.25): m.add(lp(chord(notes(ch), 0.16, 0.07, 2600, 'sq'), 2600), b0 + pos * B, 1, -0.2)
+            for pos, g in ((0, 1), (1.5, 0.7), (2.5, 0.9)): m.add(lp(tone(notes(ch)[0] / 2, B * 0.6, 'sine', a=0.004, d=0.3, gain=0.45 * g), 250), b0 + pos * B)
+    outro(prog[2][:3], B)
 
 m.save(out, fade_from=D - 1.3)
 print(style, round(D, 2))
