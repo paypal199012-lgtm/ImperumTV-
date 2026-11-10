@@ -70,7 +70,7 @@
     {
       "n": "FILME",
       "h": "Filme mit Postern.",
-      "s": "Sortiert nach Neu, Jahr und Genre.",
+      "s": "Sortiert nach Neu und Genre.",
       "art": {
         "type": "clip",
         "src": "clips/app-filme.mp4",
