@@ -2576,14 +2576,49 @@
      * Neue Nachricht vom Support → Hinweis (beim Schauen nur kurz unten, sonst als Fenster mit „Antworten“).
      */
     var Chat = {
-        msgs: [], unread: 0, busy: false, timer: null,
+        msgs: [], unread: 0, busy: false, timer: null, lastPoll: 0, fastUntil: 0, ws: null, wsTry: 0,
         available: function () { return Device.validMac(Device.mac) && Device.validKey(Device.key); },
         start: function () {
             var self = this;
             if (!this.available() || this.timer) return;
             this.msgs = Storage.get('chatMsgs', []) || [];
-            this.timer = setInterval(function () { self.poll(false); }, 60000);
-            setTimeout(function () { self.poll(false); }, 15000);
+            // Normal alle 30 Sekunden nachsehen; während Fernhilfe oder kurz nach einer Nachricht alle paar Sekunden
+            this.timer = setInterval(function () {
+                var fast = (typeof Help !== 'undefined' && Help.on) ? 5000 : Date.now() < self.fastUntil ? 8000 : 30000;
+                if (Date.now() - self.lastPoll >= fast) self.poll(false);
+            }, 4000);
+            this.lastPoll = Date.now() - 20000;      // erster Abruf nach ca. 10 Sekunden
+            this.live();
+        },
+        /** Gespräch läuft: 5 Minuten lang schnell nachsehen */
+        hurry: function () { this.fastUntil = Date.now() + 5 * 60000; },
+        /** Sofort-Hinweis vom Server (Supabase Realtime): kommt eine Nachricht vom Support, sofort abholen */
+        live: function () {
+            var self = this;
+            if (typeof WebSocket === 'undefined' || this.ws || !this.available()) return;
+            var topic = 'realtime:imp-' + String(Device.mac).toLowerCase().replace(/[^0-9a-f]/g, '') + '-' + String(Device.key).trim();
+            var ws, beat = null, ref = 1;
+            try {
+                ws = new WebSocket(REMOTE.url.replace(/^http/, 'ws').replace(/\/+$/, '') + '/realtime/v1/websocket?apikey=' + encodeURIComponent(REMOTE.key) + '&vsn=1.0.0');
+            } catch (e) { return; }
+            this.ws = ws;
+            function sendMsg(o) { try { ws.send(JSON.stringify(o)); } catch (e) { /* egal */ } }
+            ws.onopen = function () {
+                self.wsTry = 0;
+                sendMsg({ topic: topic, event: 'phx_join', payload: { config: { broadcast: { self: false }, private: false } }, ref: String(ref++) });
+                beat = setInterval(function () { sendMsg({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: String(ref++) }); }, 25000);
+            };
+            ws.onmessage = function (e) {
+                var m = null;
+                try { m = JSON.parse(e.data); } catch (x) { return; }
+                if (m && m.topic === topic && m.event === 'broadcast') { self.hurry(); self.poll(false); }
+            };
+            ws.onclose = function () {
+                clearInterval(beat); self.ws = null;
+                var wait = Math.min(300000, 15000 * Math.pow(2, Math.min(self.wsTry++, 5)));
+                setTimeout(function () { self.live(); }, wait);
+            };
+            ws.onerror = function () { try { ws.close(); } catch (x) { /* egal */ } };
         },
         lastId: function () { return this.msgs.length ? this.msgs[this.msgs.length - 1].id : 0; },
         merge: function (list) {
@@ -2598,13 +2633,14 @@
         poll: function (markRead) {
             var self = this;
             if (this.busy || !this.available()) return Promise.resolve();
-            this.busy = true;
+            this.busy = true; this.lastPoll = Date.now();
             return Remote.rpc('device_chat_get', { p_mac: Device.mac, p_key: Device.key, p_after: markRead ? 0 : this.lastId(), p_read: !!markRead }).then(function (r) {
                 self.busy = false;
                 if (!r || r.ok === false) return;
                 var added = self.merge(r.msgs);
                 self.unread = r.unread || 0;
                 var fromSupport = added.filter(function (m) { return m.a && !m.r; });
+                if (fromSupport.length) self.hurry();
                 if (fromSupport.length && !markRead) self.notify(fromSupport[fromSupport.length - 1]);
             }, function () { self.busy = false; });
         },
@@ -2672,7 +2708,7 @@
                 if (!t) { toast('Bitte erst etwas schreiben.', 2500); return; }
                 Modal.close();
                 Remote.rpc('device_chat_send', { p_mac: Device.mac, p_key: Device.key, p_text: t }).then(function (r) {
-                    if (r && r.ok) { toast('Nachricht gesendet ✓', 3000); self.poll(false); }
+                    if (r && r.ok) { toast('Nachricht gesendet ✓', 3000); self.hurry(); self.poll(false); }
                     else toast('Nicht gesendet: ' + ((r && r.error) || 'unbekannter Fehler'), 5000);
                 }, function () { toast('Keine Verbindung – Nachricht nicht gesendet.', 5000); });
             }, 'dialog');
