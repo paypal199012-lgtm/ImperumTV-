@@ -23,7 +23,8 @@ enum Theme {
         ThemeDef(id: "pink", name: "Pink", hue: 322, sat: 1.15, light: 1, logoHue: -95, logoSat: 1.6, gray: false),
         ThemeDef(id: "violett", name: "Violett", hue: 268, sat: 0.95, light: 1, logoHue: 225, logoSat: 1.2, gray: false),
         ThemeDef(id: "tuerkis", name: "Türkis", hue: 178, sat: 1.0, light: 1, logoHue: 135, logoSat: 1.3, gray: false),
-        ThemeDef(id: "kobalt", name: "Kobalt", hue: 230, sat: 1.35, light: 1, logoHue: 195, logoSat: 1.8, gray: false)
+        ThemeDef(id: "kobalt", name: "Kobalt", hue: 230, sat: 1.35, light: 1, logoHue: 195, logoSat: 1.8, gray: false),
+        ThemeDef(id: "neongruen", name: "Neongrün", hue: 118, sat: 1.45, light: 1, logoHue: 80, logoSat: 2.0, gray: false)
     ]
 
     static var currentId: String {
