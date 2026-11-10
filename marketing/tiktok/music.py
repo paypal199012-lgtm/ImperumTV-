@@ -17,6 +17,7 @@ Stile (alle passen auf das Raster: Intro 2,6 s, jede Szene 3,6 s, Abschluss 3 s)
   synthwave– 133 BPM, 80er-Synths, Achtel-Bass, Gated-Snare, Arpeggio
   piano    – ernst, Klavier-Akkorde, leiser Beat, Moll
   garage   – 2-Step, verschobene Bass-Drum, kurze Orgel-Stabs, Swing-Hi-Hats
+  cinematic– Streicher-Ostinato in Sechzehnteln, tiefe Schläge, steigt mit jeder Szene an
 Ohne Stil wird er aus dem Startwert (z. B. der Video-ID) gewählt.
 """
 import sys, zlib
@@ -26,7 +27,7 @@ out, n_scenes = sys.argv[1], int(sys.argv[2])
 style = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ''
 seed_txt = sys.argv[4] if len(sys.argv) > 4 else style
 seed = zlib.crc32(seed_txt.encode()) & 0xffffffff
-STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage']
+STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic']
 if style not in STYLES:
     style = STYLES[seed % len(STYLES)]
 
@@ -289,6 +290,25 @@ elif style == 'piano':                    # ernst, Klavier, 100 BPM
             if k: m.add(piano([notes(ch)[[2, 1, 2, 0, 1][k - 1]] * 2], B * 1.5, 0.07), tt, 1, 0.25)
     e0 = HOOK + n_scenes * SCENE
     m.add(piano([notes(prog[0])[0] / 2] + notes(prog[0]), END, 0.1), e0)
+
+elif style == 'cinematic':                # 133 BPM, Streicher-Ostinato, wird nach und nach voller
+    B = 0.45; prog = [['D3', 'F3', 'A3'], ['A2', 'C3', 'E3'], ['F3', 'A3', 'C4'], ['C3', 'E3', 'G3']]
+    m.add(lp(chord(notes(prog[0]), HOOK, 0.04, 900), 900), 0); m.add(riser(2.2, 0.3), 0.3)
+    for q in range(int(HOOK / (B / 2))): m.add(lp(tone(notes(prog[0])[q % 2 * 2] , B / 2 * 0.7, 'saw', a=0.004, d=0.08, gain=0.07), 1800), q * B / 2, 1, -0.2)
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = prog[sc % 4]; lvl = min(1.0, 0.55 + sc * 0.06)
+        m.add(tom(55, 0.9), s0); m.add(crash(0.12 + 0.1 * lvl), s0); m.add(whoosh(0.4, True, 0.15), s0 - 0.38)
+        m.add(lp(chord(notes(ch) + [notes(ch)[0] * 2], SCENE, 0.035 * lvl, 1400), 1400), s0, 1, 0.15)
+        m.add(lp(tone(notes(ch)[0] / 2, SCENE, 'saw', a=0.2, gain=0.22), 260), s0)
+        for q in range(16):
+            nn = notes(ch)[[0, 0, 2, 0, 1, 0, 2, 1][q % 8]] * 2
+            m.add(lp(tone(nn, B / 2 * 0.65, 'saw', a=0.004, d=0.07, gain=0.075 * lvl), 2600), s0 + q * B / 2, 1, 0.3 if q % 2 else -0.3)
+        for k in range(8):
+            tt = s0 + k * B
+            if k % 4 == 0: m.add(kick(True), tt, 0.8 * lvl)
+            if sc >= 2 and k % 4 == 2: m.add(snare(0.6 * lvl), tt)
+            if sc >= 4: m.add(hat(g=0.1), tt + B / 2, 1, 0.3)
+    outro(prog[0], B)
 
 else:                                     # garage: 2-Step mit Swing
     B = 0.45; prog = [['D3', 'F3', 'A3', 'C4'], ['G3', 'B3', 'D4', 'F4'], ['C4', 'E4', 'G4', 'B4'], ['A3', 'C4', 'E4', 'G4']]

@@ -1,0 +1,134 @@
+{
+  "id": "app-tour",
+  "title": "So ist ImperumTV aufgebaut (App-Tour)",
+  "version": "",
+  "hook": {
+    "h": "So ist ImperumTV<br>aufgebaut.",
+    "s": "Die ganze App in 40 Sekunden.",
+    "art": {
+      "type": "clip",
+      "src": "clips/app-home.mp4",
+      "from": 0
+    }
+  },
+  "scenes": [
+    {
+      "n": "START",
+      "h": "Alles auf<br>einen Blick.",
+      "s": "Live TV, Programm, Filme, Serien – große Kacheln.",
+      "art": {
+        "type": "clip",
+        "src": "clips/app-home.mp4",
+        "from": 2.6,
+        "speed": 1
+      }
+    },
+    {
+      "n": "LIVE TV",
+      "h": "Sender nach<br>Gruppen.",
+      "s": "Links Gruppen, Mitte Sender, rechts die Vorschau.",
+      "art": {
+        "type": "clip",
+        "src": "clips/app-live.mp4",
+        "from": 0,
+        "speed": 1.2
+      }
+    },
+    {
+      "n": "LIVE TV",
+      "h": "Vorschau startet<br>sofort.",
+      "s": "Mit Programm: was läuft jetzt, was kommt danach.",
+      "art": {
+        "type": "clip",
+        "src": "clips/app-live.mp4",
+        "from": 4.32,
+        "speed": 1.2
+      }
+    },
+    {
+      "n": "PROGRAMM",
+      "h": "Der TV-Guide.",
+      "s": "Alle Sender, die nächsten Stunden auf einen Blick.",
+      "art": {
+        "type": "clip",
+        "src": "clips/app-epg.mp4",
+        "from": 0.5,
+        "speed": 1.1
+      }
+    },
+    {
+      "n": "PROGRAMM",
+      "h": "Oben läuft das<br>Bild weiter.",
+      "s": "Sendung auswählen – und erinnern lassen.",
+      "art": {
+        "type": "clip",
+        "src": "clips/app-epg.mp4",
+        "from": 4.46,
+        "speed": 1.1
+      }
+    },
+    {
+      "n": "FILME",
+      "h": "Filme mit Postern.",
+      "s": "Sortiert nach Neu, Jahr und Genre.",
+      "art": {
+        "type": "clip",
+        "src": "clips/app-filme.mp4",
+        "from": 0.3,
+        "speed": 1.1
+      }
+    },
+    {
+      "n": "FILME",
+      "h": "Ein Klick:<br>alle Infos.",
+      "s": "Handlung, Bewertung, Abspielen, Favorit.",
+      "art": {
+        "type": "clip",
+        "src": "clips/app-filme.mp4",
+        "from": 4.26,
+        "speed": 1.1
+      }
+    },
+    {
+      "n": "SERIEN",
+      "h": "Serien mit<br>Staffeln.",
+      "s": "Folgen als Kacheln – mit Fortschritt.",
+      "art": {
+        "type": "clip",
+        "src": "clips/app-serien.mp4",
+        "from": 2.1,
+        "speed": 1.0
+      }
+    },
+    {
+      "n": "SERIEN",
+      "h": "Weiß, wo du<br>warst.",
+      "s": "Die nächste Folge startet von selbst.",
+      "art": {
+        "type": "clip",
+        "src": "clips/app-serien.mp4",
+        "from": 5.1,
+        "speed": 1.0
+      }
+    },
+    {
+      "n": "EINSTELLUNGEN",
+      "h": "Alles einstellbar.",
+      "s": "Kinderschutz, Ersatzsender, Fernhilfe, Support-Chat.",
+      "art": {
+        "type": "clip",
+        "src": "clips/app-settings.mp4",
+        "from": 2.0,
+        "speed": 1.2
+      }
+    }
+  ],
+  "end": {
+    "h": "Jetzt selbst<br>ausprobieren.",
+    "s": "7 Tage kostenlos testen.",
+    "code": "2336102"
+  },
+  "caption": "So sieht ImperumTV von innen aus 📺 Live TV, TV-Guide, Filme, Serien – alles an einem Ort. Läuft auf Fire TV, Android, iPhone und PC.",
+  "hashtags": "#firetvstick #iptvplayer #androidtv #smarttv #streaming #techtipps #fyp",
+  "music": "cinematic"
+}

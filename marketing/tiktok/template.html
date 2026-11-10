@@ -54,6 +54,7 @@
 .mrow .mv{margin-left:auto;font-size:28px;color:var(--mut);font-weight:700}
 .mrow.hl{background:rgba(217,176,102,.14);border-color:var(--gold);color:#fff}
 .mrow.hl .mv{color:var(--ok)}
+.clipbox{position:absolute;left:-60px;top:40px;width:1080px;height:608px;background:#000;box-shadow:0 0 0 3px rgba(217,176,102,.55),0 40px 90px rgba(0,0,0,.6)}
 .tapn{position:absolute;right:40px;top:30px;background:var(--gold);color:#17181c;font-weight:800;font-size:44px;border-radius:40px;padding:8px 26px;opacity:0}
 </style></head><body><div id="glow"></div><div id="root"></div>
 <div id="end"><img src="logo.png" alt=""><h2 id="eh"></h2><div class="s" id="es"></div><div class="chips"><span>Fire TV</span><span>Android</span><span>iPhone</span><span>PC</span></div><div class="cta">🌐 imperumtv.xyz</div><div class="cta2">Jetzt kostenlos laden</div><small>ImperumTV enthält keine Sender. Du nutzt deine eigene Wiedergabeliste.</small></div>
@@ -95,6 +96,7 @@ function art(a) {
   if (a.type === 'menu') return '<div class="tv"><div class="menu"><div class="mp">' + (a.path || '').split('›').map((x, i, all) => i === all.length - 1 ? '<b>' + esc(x.trim()) + '</b>' : esc(x.trim())).join(' › ') + '</div>' +
     (a.rows || []).map((r, i) => { r = Array.isArray(r) ? r : [r]; return '<div class="mrow" data-m="' + i + '">' + esc(r[0]) + (r[1] != null ? '<span class="mv" data-v="' + esc(r[1]) + '" data-v0="' + esc(r[2] != null ? r[2] : r[1]) + '">' + esc(r[2] != null ? r[2] : r[1]) + '</span>' : '') + '</div>'; }).join('') +
     '</div>' + (a.tap ? '<div class="tapn" data-tap="' + a.tap + '"></div>' : '') + '</div>';
+  if (a.type === 'clip') return '<div class="clipbox"></div>';   // Bild kommt beim Bauen per ffmpeg hinein (build.js)
   if (a.type === 'logo') return '<div class="tv" style="background:radial-gradient(600px 300px at 50% 50%,#2a2418,#08080a)"><img src="logo.png" alt="" style="position:absolute;left:50%;top:50%;width:640px;transform:translate(-50%,-50%)"></div>';
   if (a.type === 'big') return '<div class="big">' + esc(a.text) + (a.small ? '<small>' + esc(a.small) + '</small>' : '') + '</div>';
   return '';
