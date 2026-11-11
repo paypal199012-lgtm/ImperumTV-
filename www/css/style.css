@@ -1948,3 +1948,6 @@ body.oldstick .circle.focused::before { -webkit-animation: none; animation: none
 body.oldstick #app.anim-in .row, body.oldstick #app.anim-in .cat, body.oldstick #app.anim-in .poster, body.oldstick #app.anim-in .set-row,
 body.oldstick #app.anim-in .episode, body.oldstick #app.anim-in .pl-card { -webkit-animation: none; animation: none; }
 body.oldstick .circle.focused .icon, body.oldstick .tile.focused .icon { -webkit-animation: none; animation: none; }
+
+/* Effekte dürfen nie über die Bühne hinausragen */
+#app { overflow: hidden; }

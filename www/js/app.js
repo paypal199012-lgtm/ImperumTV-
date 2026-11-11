@@ -12735,6 +12735,34 @@
     }
 
     // Nur für automatische Tests im Browser
+    // Die Oberfläche darf nie seitlich/vertikal verschoben stehen bleiben (manche Sticks scrollen Seite, Bühne oder #app
+    // von selbst, z. B. wenn ein Effekt kurz über den Rand ragt) – sofort zurücksetzen
+    (function () {
+        var told = false, w0 = window.innerWidth, h0 = window.innerHeight;
+        function tell(what) {
+            if (told) return; told = true;
+            try {
+                var st = document.getElementById('stage');
+                Report.send('fehler', 'Ansicht verschoben (' + what + ')\nFenster: ' + window.innerWidth + '×' + window.innerHeight + ' (am Anfang ' + w0 + '×' + h0 + ')' +
+                    '\nSeite: ' + window.pageXOffset + '/' + window.pageYOffset + ' · Bühne: ' + (st ? st.scrollLeft + '/' + st.scrollTop + ' · ' + st.style.left + ' ' + st.style.transform : '?') +
+                    '\nBildschirm: ' + ((Nav.top() && Nav.top().constructor && Nav.top().constructor.name) || '?'));
+            } catch (e) { /* egal */ }
+        }
+        function fix(el, name) { if (el && (el.scrollLeft || el.scrollTop)) { tell(name + ' ' + el.scrollLeft + '/' + el.scrollTop); el.scrollLeft = 0; el.scrollTop = 0; } }
+        window.addEventListener('resize', function () { if (Math.abs(window.innerWidth - w0) > 4 && Math.abs(window.innerHeight - h0) < 4) tell('Fensterbreite geändert'); });
+        function fixAll() {
+            try {
+                if (window.pageXOffset || window.pageYOffset) { tell('Seite gescrollt'); window.scrollTo(0, 0); }
+                fix(document.documentElement, 'html'); fix(document.body, 'body'); fix(document.getElementById('stage'), 'stage'); fix(document.getElementById('app'), 'app');
+            } catch (e) { /* egal */ }
+        }
+        document.addEventListener('scroll', function (e) {
+            var t = e.target;
+            if (t === document || t === document.documentElement || t === document.body || (t && (t.id === 'stage' || t.id === 'app'))) fixAll();
+        }, true);
+        window.addEventListener('scroll', fixAll);
+        document.addEventListener('keyup', fixAll, true);
+    })();
     // Druck-Feedback (Animation): markierter Eintrag federt bei OK kurz ein
     document.addEventListener('keydown', function (e) {
         if ((e.keyCode || e.which) !== 13) return;
