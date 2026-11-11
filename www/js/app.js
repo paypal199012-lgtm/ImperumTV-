@@ -4831,6 +4831,11 @@
             }
             app.insertBefore(sp, app.firstChild);
         },
+        /** Alte Übergangs-Klassen weg, bevor neu gezeichnet wird (sonst misst der neue Bildschirm verschobene Kästen) */
+        animReset: function (app) {
+            clearTimeout(this.animT);
+            app.classList.remove('anim-in', 'anim-back', 'anim-home');
+        },
         /** Kurzer, weicher Übergang beim Bildschirmwechsel (nicht beim Player, nicht bei „Leichte Darstellung“) */
         animate: function (screen) {
             var a = this.anim; this.anim = null;
@@ -4858,6 +4863,7 @@
             setTimeout(function () { IosBack.update(); }, 0);
             screen._dom = null;
             var app = $('#app');
+            Nav.animReset(app);
             app.innerHTML = '';
             $('#toast').classList.add('hidden');   // Meldungen vom vorherigen Bildschirm ausblenden
             document.body.classList.remove('preview-mode', 'video-mode', 'osd');
@@ -4938,6 +4944,7 @@
         revive: function (screen) {
             var app = $('#app'), frag = screen._dom, saved = screen._scrolls;
             screen._dom = null;
+            Nav.animReset(app);
             app.innerHTML = '';
             $('#toast').classList.add('hidden');
             document.body.classList.remove('preview-mode', 'video-mode', 'osd');
@@ -7523,7 +7530,7 @@
             wrap.appendChild(h('div', 'sec-head', heads[i]));
             wrap.appendChild(row);
             return wrap;
-        }, 120);
+        }, 36);                                          // erst 36 Sender zeichnen (öffnet schneller), der Rest kommt beim Blättern
 
         // Gemerkten Sender wieder sichtbar machen
         if (this.selected) {

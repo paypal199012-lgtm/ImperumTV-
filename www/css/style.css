@@ -1821,10 +1821,10 @@ body.touch .chat-list { -webkit-overflow-scrolling: touch; }
 @keyframes glow { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 
 /* Bildschirmwechsel: Inhalt (nicht der Hintergrund) gleitet in Ebenen herein */
-#app.anim-in > *, #app.anim-in .col-cats, #app.anim-in .col-list, #app.anim-in .col-grid, #app.anim-in .col-info,
+#app.anim-in .col-cats, #app.anim-in .col-list, #app.anim-in .col-grid, #app.anim-in .col-info,
 #app.anim-in .detail .cover, #app.anim-in .detail .body {
     -webkit-animation: layerIn .36s cubic-bezier(.22,1,.36,1) both; animation: layerIn .36s cubic-bezier(.22,1,.36,1) both; }
-#app.anim-back > *, #app.anim-back .col-cats, #app.anim-back .col-list, #app.anim-back .col-grid, #app.anim-back .col-info {
+#app.anim-back .col-cats, #app.anim-back .col-list, #app.anim-back .col-grid, #app.anim-back .col-info {
     -webkit-animation: layerBack .34s cubic-bezier(.22,1,.36,1) both; animation: layerBack .34s cubic-bezier(.22,1,.36,1) both; }
 #app.anim-in .col-list, #app.anim-in .col-grid, #app.anim-in .detail .body { -webkit-animation-delay: .05s; animation-delay: .05s; }
 #app.anim-in .col-info { -webkit-animation-delay: .1s; animation-delay: .1s; }
@@ -1951,3 +1951,18 @@ body.oldstick .circle.focused .icon, body.oldstick .tile.focused .icon { -webkit
 
 /* Effekte dürfen nie über die Bühne hinausragen */
 #app { overflow: hidden; }
+
+/* Bildschirmwechsel: oberste Ebenen nur weich einblenden (ohne Verschieben) */
+#app.anim-in > *, #app.anim-back > * { -webkit-animation: fadeOnly .3s ease-out both; animation: fadeOnly .3s ease-out both; }
+#app.anim-in > .columns, #app.anim-back > .columns { -webkit-animation: none; animation: none; }
+@-webkit-keyframes fadeOnly { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOnly { from { opacity: 0; } to { opacity: 1; } }
+#app.anim-home > * { -webkit-animation: none; animation: none; }
+/* Goldener Balken statt Positions-Änderung (Zeilen bleiben, wo sie sind) */
+.row, .cat, .set-row { position: static; }
+.row::before, .cat::before, .set-row::before { display: none; }
+.row.focused, .cat.focused, .set-row.focused { box-shadow: inset 6px 0 0 #f4dc9e; }
+.live-b .row.focused, .live-b .cat.focused { box-shadow: inset 6px 0 0 #f4dc9e, 0 0 0 3px #f4dc9e !important; }
+#app { overflow: visible; }
+/* Alte Sticks: Bildschirmwechsel sofort (fühlt sich schneller an) */
+body.oldstick #app.anim-in *, body.oldstick #app.anim-back *, body.oldstick #app.anim-in > *, body.oldstick #app.anim-back > * { -webkit-animation: none !important; animation: none !important; }
