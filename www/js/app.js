@@ -1728,6 +1728,154 @@
         }
     };
 
+    /**
+     * Weiterschauen und „Gesehen“ auf allen Geräten mit denselben Zugangsdaten gleich halten (wie die Favoriten).
+     * Jeder Eintrag trägt seine Zeit, der neuere gewinnt; Entferntes wird als „gelöscht um …“ gemerkt,
+     * damit es nicht von einem anderen Gerät zurückkommt. Nur das Hauptprofil.
+     */
+    var StateSync = {
+        timer: null, busy: false, applying: false, lastAt: 0, seq: 0,
+        RES_MAX: 40, SEEN_MAX: 4000, DEL_MAX: 400,
+        ok: function () {
+            if (!Api.acc || Api.acc.demo || !Device.validMac(Device.mac) || !Device.validKey(Device.key)) return false;
+            try { if (Profiles.curId() !== 'p0') return false; } catch (e) { return false; }
+            return true;
+        },
+        pre: function () { return Resume.accKey() + '|'; },
+        meta: function () {
+            var m = Storage.get('syncMeta', null);
+            if (!m || typeof m !== 'object') m = {};
+            ['rdel', 'sdel', 'rev', 'dirty'].forEach(function (k) { if (!m[k] || typeof m[k] !== 'object') m[k] = {}; });
+            return m;
+        },
+        /** Etwas wurde hier entfernt (kind: 'rdel' = Weiterschauen, 'sdel' = Gesehen) */
+        drop: function (kind, key) {
+            if (this.applying) return;
+            try { var m = this.meta(); m[kind][this.pre() + key] = Date.now(); m.dirty[Resume.accKey()] = 1; Storage.set('syncMeta', m); } catch (e) { /* egal */ }
+            this.later(true);
+        },
+        /** Etwas wurde hier geändert: gleich abgleichen */
+        later: function (marked) {
+            var self = this;
+            if (this.applying) return;
+            this.seq++;
+            if (!marked) { try { var m = this.meta(), a = Resume.accKey(); if (!m.dirty[a]) { m.dirty[a] = 1; Storage.set('syncMeta', m); } } catch (e) { /* egal */ } }
+            clearTimeout(this.timer);
+            this.timer = setTimeout(function () { self.sync(); }, 8000);
+        },
+        /** Startseite, App wieder vorn: nachsehen, ob ein anderes Gerät etwas geändert hat (höchstens einmal pro Minute) */
+        soon: function () {
+            var self = this;
+            if (Date.now() - this.lastAt < 60000) return;
+            this.lastAt = Date.now();
+            setTimeout(function () { try { self.sync(); FavSync.sync(); } catch (e) { /* egal */ } }, 1500);
+        },
+        local: function () {
+            var pre = this.pre(), acc = Resume.accKey(), m = this.meta(), out = { res: {}, rdel: {}, seen: {}, sdel: {} }, k;
+            Resume.raw().forEach(function (e) {
+                if (e.acc !== acc || !e.key) return;
+                var c = {}; for (var x in e) if (e.hasOwnProperty(x) && x !== 'acc') c[x] = e[x];
+                if (!out.res[e.key] || (c.at || 0) > (out.res[e.key].at || 0)) out.res[e.key] = c;
+            });
+            var all = Seen.raw();
+            for (k in all) if (all.hasOwnProperty(k) && k.indexOf(pre) === 0) out.seen[k.slice(pre.length)] = all[k];
+            ['rdel', 'sdel'].forEach(function (d) { for (k in m[d]) if (m[d].hasOwnProperty(k) && k.indexOf(pre) === 0) out[d][k.slice(pre.length)] = m[d][k]; });
+            return out;
+        },
+        merge: function (L, R) {
+            var self = this, M = { res: {}, rdel: {}, seen: {}, sdel: {} };
+            function maxInto(dst, a, b) { [a || {}, b || {}].forEach(function (o) { for (var k in o) if (o.hasOwnProperty(k) && (!dst[k] || o[k] > dst[k])) dst[k] = o[k]; }); }
+            var rdel = {}, sdel = {};
+            maxInto(rdel, L.rdel, R.rdel); maxInto(sdel, L.sdel, R.sdel);
+            // Weiterschauen: neuerer Eintrag gewinnt, außer er wurde danach entfernt
+            var res = {}, k;
+            [L.res || {}, R.res || {}].forEach(function (o) { for (var key in o) if (o.hasOwnProperty(key) && o[key] && (!res[key] || (o[key].at || 0) > (res[key].at || 0))) res[key] = o[key]; });
+            var rk = Object.keys(res).filter(function (key) { return (res[key].at || 0) > (rdel[key] || 0); });
+            rk.sort(function (a, b) { return (res[b].at || 0) - (res[a].at || 0) || (a < b ? -1 : 1); });
+            rk.slice(0, this.RES_MAX).sort().forEach(function (key) { M.res[key] = res[key]; });
+            // Gesehen: neuerer Stand gewinnt; einmal zu Ende gesehen bleibt gesehen (bis man es von Hand zurücknimmt)
+            var seen = {};
+            [L.seen || {}, R.seen || {}].forEach(function (o) {
+                for (var id in o) {
+                    if (!o.hasOwnProperty(id) || !o[id]) continue;
+                    var a = seen[id], b = o[id];
+                    if (!a) { seen[id] = b; continue; }
+                    var win = (b.at || 0) > (a.at || 0) ? b : a, lose = win === a ? b : a;
+                    seen[id] = (lose.d && !win.d) ? { p: lose.p, d: 1, at: win.at } : win;
+                }
+            });
+            var sk = Object.keys(seen).filter(function (id) { return (seen[id].at || 0) > (sdel[id] || 0); });
+            if (sk.length > this.SEEN_MAX) { sk.sort(function (a, b) { return (seen[b].at || 0) - (seen[a].at || 0); }); sk = sk.slice(0, this.SEEN_MAX); }
+            sk.sort().forEach(function (id) { M.seen[id] = { p: seen[id].p || 0, d: seen[id].d ? 1 : 0, at: seen[id].at || 0 }; });
+            // „Gelöscht“-Merker nur, solange nichts Neueres da ist – und nur begrenzt viele
+            function keep(del, live, dst) {
+                var list = Object.keys(del).filter(function (key) { return !live[key]; });
+                list.sort(function (a, b) { return del[b] - del[a] || (a < b ? -1 : 1); });
+                list.slice(0, self.DEL_MAX).sort().forEach(function (key) { dst[key] = del[key]; });
+            }
+            keep(rdel, M.res, M.rdel); keep(sdel, M.seen, M.sdel);
+            return M;
+        },
+        /** Zusammengeführten Stand hier übernehmen. true = es hat sich etwas geändert */
+        apply: function (M) {
+            var pre = this.pre(), acc = Resume.accKey(), before = JSON.stringify(this.merge(this.local(), {})), k;
+            this.applying = true;
+            try {
+                var list = Resume.raw().filter(function (e) { return e.acc !== acc; });
+                for (k in M.res) if (M.res.hasOwnProperty(k)) { var e = { acc: acc }; for (var x in M.res[k]) if (M.res[k].hasOwnProperty(x)) e[x] = M.res[k][x]; list.push(e); }
+                list.sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
+                Resume.write(list);
+                var all = Seen.raw();
+                for (k in all) if (all.hasOwnProperty(k) && k.indexOf(pre) === 0) delete all[k];
+                for (k in M.seen) if (M.seen.hasOwnProperty(k)) all[pre + k] = M.seen[k];
+                Seen.cache = all; Storage.set('seen', all);
+                var m = this.meta();
+                ['rdel', 'sdel'].forEach(function (d) {
+                    for (k in m[d]) if (m[d].hasOwnProperty(k) && k.indexOf(pre) === 0) delete m[d][k];
+                    for (k in M[d]) if (M[d].hasOwnProperty(k)) m[d][pre + k] = M[d][k];
+                });
+                Storage.set('syncMeta', m);
+            } finally { this.applying = false; }
+            return before !== JSON.stringify(M);
+        },
+        setRev: function (acc, rev, clean) { var m = this.meta(); m.rev[acc] = rev; if (clean) delete m.dirty[acc]; Storage.set('syncMeta', m); },
+        refresh: function () {
+            var t = Nav.top();
+            if (!t || Modal.node || t instanceof PlayerScreen || (typeof LiveScreen !== 'undefined' && t instanceof LiveScreen)) return;
+            FavSync.refresh();
+        },
+        sync: function (tries) {
+            var self = this;
+            if (!this.ok() || this.busy) return;
+            if (Nav.top() instanceof PlayerScreen) return;        // nicht mitten im Film
+            this.busy = true; this.lastAt = Date.now();
+            var acc = Resume.accKey(), m = this.meta(), dirty = !!m.dirty[acc], seq = this.seq;
+            var have = typeof m.rev[acc] === 'number' ? m.rev[acc] : -1;
+            var base = { p_mac: Device.mac, p_key: Device.key, p_acc: FavSync.acc(), p_kind: 'state' };
+            function done() { self.busy = false; }
+            Remote.rpc('sync_get', { p_mac: base.p_mac, p_key: base.p_key, p_acc: base.p_acc, p_kind: 'state', p_have: have }).then(function (r) {
+                if (!r || r.ok === false || Resume.accKey() !== acc) { done(); return; }
+                var L = self.local(), M, put;
+                if (r.same) {
+                    if (!dirty) { done(); return; }
+                    M = self.merge(L, {}); put = true;                 // Server kennt unseren letzten Stand: nur hochladen
+                } else {
+                    var R = r.data && typeof r.data === 'object' ? r.data : {};
+                    M = self.merge(L, R);
+                    if (self.apply(M)) self.refresh();
+                    put = JSON.stringify(M) !== JSON.stringify(self.merge(R, {}));
+                    if (!put) { self.setRev(acc, r.rev || 0, self.seq === seq); done(); return; }
+                }
+                if (!Object.keys(M.res).length && !Object.keys(M.seen).length && !Object.keys(M.rdel).length && !Object.keys(M.sdel).length && !(r.rev > 0)) { self.setRev(acc, r.rev || 0, true); done(); return; }
+                return Remote.rpc('sync_put', { p_mac: base.p_mac, p_key: base.p_key, p_acc: base.p_acc, p_kind: 'state', p_data: M, p_rev: r.rev || 0 }).then(function (w) {
+                    done();
+                    if (w && w.ok) { self.setRev(acc, w.rev, self.seq === seq); return; }
+                    if (w && w.conflict && (tries || 0) < 3) setTimeout(function () { self.sync((tries || 0) + 1); }, 500);
+                }, done);
+            }, done);
+        }
+    };
+
     // =====================================================================
     // Weiterschauen: merkt sich bei Filmen und Serienfolgen, wo man aufgehört hat
     // =====================================================================
@@ -1757,6 +1905,7 @@
             }
             this.cache = all;
             Storage.set('seen', all);
+            try { StateSync.later(); } catch (eS) { /* egal */ }
         },
         /** Filme: eigener Schlüssel, damit sich Film- und Folgen-Nummern nicht in die Quere kommen */
         movieId: function (id) { return 'mv' + id; },
@@ -1768,6 +1917,7 @@
             delete all[this.key(this.movieId(id))];
             this.cache = all;
             Storage.set('seen', all);
+            try { StateSync.drop('sdel', this.movieId(id)); } catch (eS) { /* egal */ }
         },
         /** Folge von Hand als gesehen / ungesehen markieren */
         setEpisode: function (id, done) {
@@ -1776,6 +1926,7 @@
             delete all[this.key(id)];
             this.cache = all;
             Storage.set('seen', all);
+            try { StateSync.drop('sdel', id); } catch (eS) { /* egal */ }
         },
         dateText: function (e) {
             if (!e || !e.at) return '';
@@ -2039,7 +2190,7 @@
             if (!this.cache) { var l = Storage.get('resume', []); this.cache = Array.isArray(l) ? l : []; }
             return this.cache;
         },
-        write: function (list) { this.cache = list; Storage.set('resume', list); },
+        write: function (list) { this.cache = list; Storage.set('resume', list); try { StateSync.later(); } catch (eS) { /* egal */ } },
         /** Einträge der aktuellen Wiedergabeliste, neueste zuerst */
         all: function () {
             var acc = this.accKey();
@@ -2089,6 +2240,7 @@
         remove: function (key) {
             var acc = this.accKey();
             this.write(this.raw().filter(function (x) { return !(x.acc === acc && x.key === key); }));
+            try { StateSync.drop('rdel', key); } catch (eS) { /* egal */ }
         },
         /** Stand nach dem Schauen merken (eigener oder externer Player) */
         record: function (kind, items, index, pos, dur, ended) {
@@ -2739,6 +2891,9 @@
      */
     var WhatsNew = {
         LIST: [
+            { v: 324, items: [
+                ['🔄', 'Weiterschauen auf allen Geräten', 'Film am Fernseher angefangen? Am Handy geht es an derselben Stelle weiter. Weiterschauen, „Gesehen“ und Favoriten sind auf allen Geräten mit denselben Zugangsdaten gleich.']
+            ] },
             { v: 255, items: [
                 ['📊', 'Serien-Fortschritt', 'Bei Serien siehst du jetzt „Staffel 2: 5 von 10 gesehen“, fertige Staffeln bekommen einen Haken. Folge lange OK drücken: als gesehen oder ungesehen markieren.']
             ] },
@@ -6740,6 +6895,7 @@
             root.appendChild(h('div', 'trial-note', License.text() + ' · danach ' + REMOTE.price + ' einmalig unter Einstellungen → Wiedergabelisten aktivieren'));
         }
         if (!this.focusKey) this.focusKey = 'home-live';
+        try { StateSync.soon(); } catch (eSy) { /* egal */ }
     };
     HomeScreen.prototype.onRootBack = function () {
         askExit();
@@ -13355,7 +13511,7 @@
         window.__androidLifecycle = function (state) {
             if (state === 'hidden') { try { Metrics.save(''); Free.run(false); } catch (eF) { /* egal */ } }
             lifecycle(state === 'hidden');
-            if (state !== 'hidden') { Updater.recheck(); if (Clock.node && Clock.mode() !== 'off') Clock.tick(); }
+            if (state !== 'hidden') { try { StateSync.soon(); } catch (eSy) { /* egal */ } Updater.recheck(); if (Clock.node && Clock.mode() !== 'off') Clock.tick(); }
         };
 
         // Tasten, die die Android-App weiterreicht (Zurück, Medientasten, Farbtasten)
@@ -13474,7 +13630,7 @@
             start(saved);
             Remote.load().then(function () {
                 setTimeout(function () { Hello.send(true); }, 5000);
-                whenQuiet(function () { FavSync.sync(); }, 9000, 2000, 30000);
+                whenQuiet(function () { FavSync.sync(); StateSync.sync(); }, 9000, 2000, 30000);
                 setTimeout(function () { StickState.send(); }, 40000);
                 if (!License.active() && !saved.demo) { Nav.replace(new LockScreen()); return; }
                 var chosen = Remote.find(lastId);
@@ -13493,7 +13649,7 @@
         Remote.load().then(function () {
             loader(false);
             setTimeout(function () { Hello.send(true); }, 5000);
-            whenQuiet(function () { FavSync.sync(); }, 9000, 2000, 30000);
+            whenQuiet(function () { FavSync.sync(); StateSync.sync(); }, 9000, 2000, 30000);
             setTimeout(function () { StickState.send(); }, 40000);
             var chosen = lastId !== null ? Remote.find(lastId) : null;
             if (!License.active() && !(chosen && chosen.demo)) { Nav.replace(new LockScreen()); return; }
@@ -13518,6 +13674,7 @@
             Hello.send(true);
             StickState.send();
             FavSync.sync();
+            StateSync.sync();
             Updater.flags();
             Watch.refresh();
             Remote.load().then(null, function () { /* offline: gespeicherter Stand */ }).then(function () {
@@ -13586,7 +13743,7 @@
     }
     window.__pressFx = pressFx;                 // Android reicht Tasten direkt weiter (kein keydown)
     document.addEventListener('keydown', function (e) { if ((e.keyCode || e.which) === 13) pressFx(); }, true);
-    window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen, Lite: Lite, Glide: Glide, Busy: Busy, Metrics: Metrics, Free: Free, Api: Api, UpdateLock: UpdateLock };
+    window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen, Lite: Lite, Glide: Glide, Busy: Busy, Metrics: Metrics, Free: Free, Api: Api, UpdateLock: UpdateLock, StateSync: StateSync, FavSync: FavSync, Storage: Storage };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();

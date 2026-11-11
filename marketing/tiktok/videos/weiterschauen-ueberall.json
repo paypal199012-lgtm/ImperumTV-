@@ -1,0 +1,94 @@
+{
+  "id": "weiterschauen-ueberall",
+  "title": "Weiterschauen auf allen Geräten",
+  "version": "1.0.325",
+  "hook": {
+    "h": "Film am Fernseher<br>angefangen …",
+    "s": "… und im Bett am Handy weiterschauen?",
+    "art": {
+      "type": "tv",
+      "screen": "movie",
+      "badge": "Nachtzug · 0:47:12"
+    }
+  },
+  "scenes": [
+    {
+      "h": "Am Fernseher<br>aufgehört.",
+      "s": "ImperumTV merkt sich die Stelle.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Nachtzug",
+            "v": "Noch 52 Min.",
+            "icon": "▶"
+          },
+          {
+            "t": "Nordlicht · S2 F4",
+            "v": "Noch 18 Min.",
+            "icon": "▶"
+          },
+          {
+            "t": "Hafenstadt",
+            "v": "Noch 71 Min.",
+            "icon": "▶"
+          }
+        ]
+      }
+    },
+    {
+      "h": "Am Handy<br>weiter.",
+      "s": "Gleiche Zugangsdaten – gleiche Stelle.",
+      "art": {
+        "type": "phone",
+        "title": "Handy · Weiterschauen",
+        "ok": "Weiter bei 0:47:12",
+        "rows": [
+          [
+            "Nachtzug",
+            "Noch 52 Min."
+          ],
+          [
+            "Nordlicht · S2 F4",
+            "Noch 18 Min."
+          ],
+          [
+            "Hafenstadt",
+            "Noch 71 Min."
+          ]
+        ]
+      }
+    },
+    {
+      "h": "Gesehen<br>bleibt gesehen.",
+      "s": "Haken an Folgen und Filmen gelten überall.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Fire TV",
+            "v": "abgeglichen",
+            "ok": true
+          },
+          {
+            "t": "Handy",
+            "v": "abgeglichen",
+            "ok": true
+          },
+          {
+            "t": "PC",
+            "v": "abgeglichen",
+            "ok": true
+          }
+        ]
+      }
+    }
+  ],
+  "end": {
+    "h": "Ein Stand.<br>Auf allen Geräten.",
+    "s": "Weiterschauen, Gesehen und Favoriten."
+  },
+  "caption": "Film am Fernseher angefangen, am Handy an derselben Stelle weiter ▶️ Weiterschauen, Gesehen und Favoriten sind auf allen Geräten gleich.",
+  "hashtags": "#firetvstick #androidtv #smarttv #techtipps #apptipp #streaming #fyp",
+  "music": "disco"
+}
