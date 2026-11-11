@@ -999,7 +999,11 @@
         autoOn: function () { return Storage.rawGet('liteAuto', null) === 'on'; },
         weak: function () { return this.autoOn(); },
         active: function () { var md = this.mode(); return md === 'on' || (md === 'auto' && this.autoOn()); },
-        apply: function () { document.body.classList.toggle('lite', this.active()); },
+        apply: function () {
+            document.body.classList.toggle('lite', this.active());
+            var m = this.mem();
+            document.body.classList.toggle('oldstick', !this.active() && m > 0 && m < 1700);   // alte Sticks: nur leichte Animationen
+        },
         label: function () {
             var md = this.mode();
             return md === 'on' ? 'An' : md === 'off' ? 'Aus' : 'Automatisch · ' + (this.autoOn() ? 'an (Gerät zu langsam)' : 'aus');
@@ -4834,6 +4838,8 @@
             app.classList.toggle('is-home', typeof HomeScreen !== 'undefined' && screen instanceof HomeScreen);   // Dauer-Animationen nur auf der Startseite
             try { if (Lite.active() || screen instanceof PlayerScreen) return; } catch (e) { return; }
             this.sparks(screen, app);
+            app.scrollLeft = 0; app.scrollTop = 0;                    // nie seitlich verschoben stehen bleiben
+            if (app.parentNode) { app.parentNode.scrollLeft = 0; app.parentNode.scrollTop = 0; }
             if (!a) return;
             // Bildschirme mit Vorschaubild (Live TV, Programm): nicht bewegen – das Video und der Rahmen darum
             // werden nach der Position des Kastens gelegt und würden sonst verrutschen
