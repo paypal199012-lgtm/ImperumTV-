@@ -995,17 +995,66 @@
             return 0;
         },
         mode: function () { return Storage.get('liteMode', 'auto'); },
-        weak: function () { var m = this.mem(); return m > 0 && m < 1600; },
-        active: function () { var md = this.mode(); return md === 'on' || (md === 'auto' && this.weak()); },
+        /** Automatisch: erst mit Animationen versuchen; ruckelt es (gemessen beim Bedienen), schaltet die App selbst auf leicht */
+        autoOn: function () { return Storage.rawGet('liteAuto', null) === 'on'; },
+        weak: function () { return this.autoOn(); },
+        active: function () { var md = this.mode(); return md === 'on' || (md === 'auto' && this.autoOn()); },
         apply: function () { document.body.classList.toggle('lite', this.active()); },
         label: function () {
             var md = this.mode();
-            return md === 'on' ? 'An' : md === 'off' ? 'Aus' : 'Automatisch · ' + (this.weak() ? 'an' : 'aus');
+            return md === 'on' ? 'An' : md === 'off' ? 'Aus' : 'Automatisch · ' + (this.autoOn() ? 'an (Gerät zu langsam)' : 'aus');
         },
         next: function () {
             var md = this.mode();
-            Storage.set('liteMode', md === 'auto' ? 'on' : md === 'on' ? 'off' : 'auto');
+            var nx = md === 'auto' ? 'on' : md === 'on' ? 'off' : 'auto';
+            Storage.set('liteMode', nx);
+            if (nx === 'auto') { Storage.rawSet('liteAuto', null); this.watch(); }     // neu messen
             this.apply();
+        },
+        /** Einmalig: früher von Hand gesetztes „Aus/An“ zurück auf Automatisch (mit neuer Messung) */
+        migrate: function () {
+            if (Storage.rawGet('liteMig2', 0)) return;
+            Storage.rawSet('liteMig2', 1);
+            Storage.set('liteMode', 'auto');
+            Storage.rawSet('liteAuto', null);
+        },
+        /**
+         * Ruckel-Messung: beim Bedienen (Pfeiltasten/OK) für 1,5 s die Bildabstände messen.
+         * Viele langsame Bilder (über 50 ms) → Leichte Darstellung einschalten. Genug flüssige Bilder → fertig, Animationen bleiben.
+         */
+        watching: false,
+        watch: function () {
+            var self = this;
+            if (this.watching || this.mode() !== 'auto' || this.autoOn() || Storage.rawGet('liteAuto', null) === 'off') return;
+            if (typeof requestAnimationFrame !== 'function') return;
+            this.watching = true;
+            var frames = 0, slow = 0, until = 0, last = 0, running = false;
+            function tick(t) {
+                if (!self.watching) { running = false; return; }
+                if (last) {
+                    var d = t - last;
+                    if (d < 1000) { frames++; if (d > 50) slow++; }
+                }
+                last = t;
+                if (Date.now() < until) requestAnimationFrame(tick);
+                else { running = false; last = 0; check(); }
+            }
+            function check() {
+                if (frames >= 90 && slow / frames > 0.22) {
+                    self.watching = false; document.removeEventListener('keydown', onKey, true);
+                    Storage.rawSet('liteAuto', 'on'); self.apply();
+                    try { toast('Dieses Gerät ist für Animationen zu langsam – „Leichte Darstellung“ ist jetzt an. Ändern: Einstellungen.', 6000); } catch (e) { /* egal */ }
+                    try { Report.send('verzögerung', 'Leichte Darstellung automatisch an: ' + slow + ' von ' + frames + ' Bildern zu langsam'); } catch (e2) { /* egal */ }
+                } else if (frames >= 600) {
+                    self.watching = false; document.removeEventListener('keydown', onKey, true);
+                    Storage.rawSet('liteAuto', 'off');
+                }
+            }
+            function onKey() {
+                until = Date.now() + 1500;
+                if (!running) { running = true; requestAnimationFrame(tick); }
+            }
+            document.addEventListener('keydown', onKey, true);
         }
     };
 
@@ -4782,6 +4831,7 @@
         animate: function (screen) {
             var a = this.anim; this.anim = null;
             var app = $('#app');
+            app.classList.toggle('is-home', typeof HomeScreen !== 'undefined' && screen instanceof HomeScreen);   // Dauer-Animationen nur auf der Startseite
             try { if (Lite.active() || screen instanceof PlayerScreen) return; } catch (e) { return; }
             this.sparks(screen, app);
             if (!a) return;
@@ -12539,7 +12589,7 @@
         if (AB) document.body.classList.add('lowfx');
 
         try { if (Theme.cur() !== 'gold') Theme.apply(Theme.cur()); } catch (eT) { /* Farbthema ist nur Kosmetik */ }
-        try { Lite.apply(); } catch (eL) { /* nur Kosmetik */ }
+        try { Lite.migrate(); Lite.apply(); Lite.watch(); } catch (eL) { /* nur Kosmetik */ }
         try { VodWarm.start(); } catch (eV) { /* egal */ }
         try { Net.init(); } catch (eN) { /* egal */ }
         Device.load();
