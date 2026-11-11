@@ -800,36 +800,95 @@
         return on;
     }
 
-    /** Lange Listen nur stückweise aufbauen, damit der Fernseher flüssig bleibt */
-    function batchRender(container, items, make, size) {
-        var shown = 0;
+    /**
+     * Lange Listen nur stückweise aufbauen, damit der Fernseher flüssig bleibt.
+     * opt.from: nicht ganz oben anfangen, sondern bei diesem Eintrag (z. B. kurz vor dem gemerkten Sender tief in der Liste).
+     *   Der Platz der Einträge davor wird nur frei gehalten (geschätzt aus opt.pitch je Zeile und opt.extraH je Überschrift,
+     *   opt.extras = aufsteigende Nummern der Einträge mit Überschrift); gebaut werden sie erst, wenn man nach oben blättert.
+     *   Vorher wurden nach „Zurück“ alle Zeilen bis zum gemerkten Sender gebaut – bei Sender 1.400 über 14.000 Elemente.
+     */
+    function batchRender(container, items, make, size, opt) {
+        var from = opt && opt.from > 0 ? Math.min(opt.from, Math.max(0, items.length - 1)) : 0;
+        var first = from, shown = from, spacer = null;
+        var pitch = (opt && opt.pitch) || 90, extraH = (opt && opt.extraH) || 44, extras = (opt && opt.extras) || null;
+        function extraBefore(n) {
+            if (!extras) return 0;
+            var lo = 0, hi = extras.length;
+            while (lo < hi) { var mid = (lo + hi) >> 1; if (extras[mid] < n) lo = mid + 1; else hi = mid; }
+            return lo;
+        }
+        function est(n) { return n * pitch + extraBefore(n) * extraH; }
+        var sc = container;
+        while (sc && !(sc.classList && (sc.classList.contains('scroll') || sc.classList.contains('vscroll')))) sc = sc.parentElement;
+        function build(index) {
+            var node = make(items[index], index);
+            var prev = node._onFocus;
+            node._onFocus = function () {
+                if (prev) prev();
+                if (index >= shown - 8 && shown < items.length) more();
+                if (first > 0 && index <= first + 8) moreUp();
+            };
+            return node;
+        }
         function more() {
             var end = Math.min(items.length, shown + size);
-            for (var i = shown; i < end; i++) {
-                (function (index) {
-                    var node = make(items[index], index);
-                    var prev = node._onFocus;
-                    node._onFocus = function () {
-                        if (prev) prev();
-                        if (index >= shown - 8 && shown < items.length) more();
-                    };
-                    container.appendChild(node);
-                })(i);
-            }
+            for (var i = shown; i < end; i++) container.appendChild(build(i));
             shown = end;
+        }
+        /** Einträge oberhalb des Fensters nachbauen (der frei gehaltene Platz schrumpft entsprechend – nichts springt) */
+        function moreUp() {
+            if (first <= 0 || !spacer) return;
+            var start = Math.max(0, first - size), frag = document.createDocumentFragment();
+            for (var i = start; i < first; i++) frag.appendChild(build(i));
+            var before = container.scrollHeight;
+            container.insertBefore(frag, spacer.nextSibling);
+            first = start;
+            spacer.style.height = est(first) + 'px';
+            var diff = container.scrollHeight - before;          // Rest der Schätzung ausgleichen
+            if (diff && sc) sc.scrollTop += diff;
+        }
+        if (from > 0) {
+            spacer = h('div', 'batch-gap');
+            spacer.style.height = est(from) + 'px';
+            container.appendChild(spacer);
         }
         more();
         // Für „Zurück“: Nav kann weitere Einträge nachladen, bis der gemerkte Eintrag wieder da ist
         container.classList.add('batch');
         container._batchMore = function () { if (shown >= items.length) return false; more(); return true; };
         // Maus/Finger: beim Scrollen nachladen (ohne Fokus würde sonst nach dem ersten Stapel Schluss sein)
-        var sc = container;
-        while (sc && !(sc.classList && (sc.classList.contains('scroll') || sc.classList.contains('vscroll')))) sc = sc.parentElement;
         if (sc) sc.addEventListener('scroll', function () {
             if (shown < items.length && sc.scrollTop + sc.clientHeight > sc.scrollHeight - 1500) more();
+            for (var g = 0; first > 0 && g < 40 && sc.scrollTop < est(first) + 900; g++) moreUp();
         });
         return {
-            ensure: function (index) { while (shown <= index && shown < items.length) more(); }
+            /** Eintrag index sicher aufbauen. near = nur, wenn er höchstens so viele Einträge vom Fenster entfernt ist */
+            ensure: function (index, near) {
+                if (near && (index < first - near || index > shown + near)) return;
+                while (shown <= index && shown < items.length) more();
+                while (first > index && first > 0) moreUp();
+            },
+            /** Nach dem Einhängen ins Dokument: echte Zeilenhöhen messen und den frei gehaltenen Platz genau setzen */
+            fix: function () {
+                if (!spacer) return;
+                try {
+                    var kids = container.children, p0 = 0, e0 = 0;
+                    for (var i = 1; i + 1 < kids.length && !(p0 && e0); i++) {
+                        var a = kids[i], n = kids[i + 1], plainA = a.classList.contains('focusable'), plainN = n.classList.contains('focusable');
+                        if (!p0 && plainA && plainN) p0 = n.offsetTop - a.offsetTop;
+                        // Eintrag mit Überschrift: was er mehr braucht als eine normale Zeile (Abstände davor und danach eingerechnet)
+                        if (!e0 && p0 && plainA && !plainN && kids[i + 2]) e0 = (kids[i + 2].offsetTop - a.offsetTop) - 2 * p0;
+                    }
+                    if (p0 > 20) pitch = p0;
+                    if (e0 > 0) extraH = e0;
+                    spacer.style.height = est(first) + 'px';
+                } catch (e) { /* Schätzung bleibt */ }
+            },
+            /** Eintrag index ins Bild holen (wenn der Fokus woanders liegt, soll die Liste nicht auf der leeren Fläche stehen) */
+            reveal: function (index) {
+                if (!sc || !spacer) return;
+                sc.scrollTop = Math.max(0, est(index) - 2 * pitch);
+            }
         };
     }
 
@@ -3229,6 +3288,15 @@
                 var c = item.cat || '', cm = this.catCache[c];
                 if (cm === undefined) cm = this.catCache[c] = genreMask(c);
                 item._gm = (item.g || 0) | cm | (this.load()[this.idKey(item.type, item.id)] || 0);
+            }
+            return item._gm;
+        },
+        /** Wie of(), für Schleifen über Tausende Einträge: die gelernten Genres einmal holen (learned = Genre.load()) */
+        ofL: function (item, learned) {
+            if (item._gm === undefined) {
+                var c = item.cat || '', cm = this.catCache[c];
+                if (cm === undefined) cm = this.catCache[c] = genreMask(c);
+                item._gm = (item.g || 0) | cm | (learned[(item.type === 'movie' ? 'm' : 's') + item.id] || 0);
             }
             return item._gm;
         },
@@ -7554,7 +7622,11 @@
             var self = this;
             if (this.layoutDone) return;
             var list = this._probes || (this._probes = this.probes());
-            if (i >= list.length) { this.layoutDone = true; this._probes = null; return; }
+            if (i >= list.length) {
+                this.layoutDone = true; this._probes = null;
+                try { VodWarm.early('movies', function () { VodWarm.early('series'); }); } catch (eV) { /* nur Vorbereitung */ }
+                return;
+            }
             whenQuiet(function () {
                 try {
                     var stage = $('#stage');
@@ -7845,12 +7917,12 @@
         this.list = list;
         // „Jetzt läuft“ (mit Beginn/Ende) nur für die Sender holen, die gerade gezeichnet werden – in Stücken von 120.
         // Vorher wurde bei jedem Öffnen das Programm ALLER Sender der Liste abgefragt (bei „Alle“ viele Tausend).
-        var nowMap = {}, nowUpTo = 0, nowList = this.list;
+        var nowMap = {}, nowBlk = {}, nowList = this.list;
         function nowOf(i) {
-            if (i >= nowUpTo) {
-                var end = Math.min(nowList.length, Math.max(i + 1, nowUpTo + 120));
-                try { var part = Epg.nowFull(nowList.slice(nowUpTo, end)); for (var nk in part) if (part.hasOwnProperty(nk)) nowMap[nk] = part[nk]; } catch (eN) { /* ohne Programm */ }
-                nowUpTo = end;
+            var blk = Math.floor(i / 120);
+            if (!nowBlk[blk]) {
+                nowBlk[blk] = 1;
+                try { var part = Epg.nowFull(nowList.slice(blk * 120, blk * 120 + 120)); for (var nk in part) if (part.hasOwnProperty(nk)) nowMap[nk] = part[nk]; } catch (eN) { /* ohne Programm */ }
             }
             var ek = nowList[i] && nowList[i].epg;
             return ek ? nowMap[ek] : null;
@@ -7859,6 +7931,18 @@
         if (!this.list.length) {
             scroll.appendChild(h('div', 'empty-note', this.query ? 'Kein Sender gefunden für „' + this.query + '“.' : this.catIndex === 1 ? 'Noch keine Favoriten. Drücke bei einem Sender die gelbe Taste.' : 'Keine Sender in dieser Kategorie. Dein Anbieter hat hier gerade keine Sender – bei PPV- und Event-Kategorien kommen sie meist erst kurz vor dem Spiel.'));
         }
+        // Gemerkter Sender (Fokus oder laufende Vorschau) tief in der Liste: nur ein Fenster drumherum aufbauen
+        var anchor = -1, selAt = -1, fkId = this.focusKey && /^ch-/.test(this.focusKey) ? this.focusKey.slice(3) : null;
+        for (var ai = 0; ai < this.list.length; ai++) {
+            var aid = this.list[ai].id;
+            if (fkId !== null && String(aid) === fkId) { anchor = ai; break; }
+            if (selAt < 0 && this.selected && aid === this.selected.id) selAt = ai;
+        }
+        if (anchor < 0) anchor = selAt;
+        var winFrom = anchor > 80 ? anchor - 30 : 0;
+        var headIdx = [];
+        for (var hk in heads) if (heads.hasOwnProperty(hk)) headIdx.push(+hk);
+        headIdx.sort(function (x, y) { return x - y; });
         var batch = batchRender(scroll, this.list, function (ch, i) {
             var row = h('div', 'row lv' + (self.selected && self.selected.id === ch.id ? ' active' : ''));
             row.appendChild(h('div', 'num', String(ch.num)));
@@ -7918,11 +8002,12 @@
             wrap.appendChild(h('div', 'sec-head', heads[i]));
             wrap.appendChild(row);
             return wrap;
-        }, 36);                                          // erst 36 Sender zeichnen (öffnet schneller), der Rest kommt beim Blättern
+        }, 36, { from: winFrom, extras: headIdx });      // erst 36 Sender zeichnen (öffnet schneller), der Rest kommt beim Blättern
+        this.listBatch = batch; this.listAnchor = winFrom > 0 ? anchor : -1;
 
-        // Gemerkten Sender wieder sichtbar machen
+        // Gemerkten Sender wieder sichtbar machen (nur wenn er in der Nähe des Fensters liegt – sonst würden wieder Hunderte Zeilen gebaut)
         if (this.selected) {
-            for (var i = 0; i < this.list.length; i++) if (this.list[i].id === this.selected.id) { batch.ensure(i); break; }
+            for (var i = 0; i < this.list.length; i++) if (this.list[i].id === this.selected.id) { batch.ensure(i, 200); break; }
         }
         lap('Zeilen');
 
@@ -7982,6 +8067,8 @@
             acts.style.top = (ph + 128) + 'px';
         }
         // Hintergrund sofort legen (sonst blitzt beim Öffnen kurz Schwarz durch), danach zur Sicherheit noch einmal
+        // Fenster tief in der Liste: Platz der nicht gebauten Zeilen genau setzen und den gemerkten Sender ins Bild holen
+        if (this.listAnchor >= 0) { try { batch.fix(); batch.reveal(this.listAnchor); } catch (eW) { /* egal */ } }
         try { self.placeBg(); } catch (eBg) { /* gleich noch einmal */ }
         setTimeout(function () { self.placeBg(); }, 0);
         lap('Anordnen');
@@ -8368,8 +8455,9 @@
         if (!g || g.items !== this.allItems() || g.len !== items.length || (g.at < (Genre.changedAt || 0) && Date.now() - g.at > 60000)) {
             var per = new Array(GENRE_NAMES.length);
             for (var k = 0; k < per.length; k++) per[k] = 0;
+            var learned = Genre.load();
             for (var i = 0; i < items.length; i++) {
-                var m = Genre.of(items[i]);
+                var m = Genre.ofL(items[i], learned);
                 if (!m) continue;
                 for (var b = 0; b < per.length; b++) if (m & (1 << b)) per[b]++;
             }
@@ -8434,17 +8522,48 @@
                 var sig = list.length + '|' + Parental.sig();
                 if (this.done[k] === list && this.doneSig[k] === sig) continue;
                 this.done[k] = list; this.doneSig[k] = sig;
-                try {
-                    Busy.mark('Filme/Serien vorbereiten');
-                    var sc = new MoviesScreen(k);
-                    sc.openAt = 0;
-                    sc.categories(); sc.catCounts(); sc.newItems();
-                    if (sc.sortId() === 'az') sc.items().forEach(sortKey);
-                } catch (e) { /* nur Vorbereitung */ }
+                this.run(k);
                 return;                       // eine Liste pro Durchgang (kurze Arbeitsstücke)
             }
         },
         doneSig: {},
+        /** Kategorien, Anzahlen und „Zuletzt hinzugefügt“ einer Liste vorbereiten */
+        run: function (k) {
+            try {
+                Busy.mark('Filme/Serien vorbereiten');
+                var sc = new MoviesScreen(k);
+                sc.openAt = 0;
+                sc.categories(); sc.catCounts(); sc.newItems();
+                if (sc.sortId() === 'az') sc.items().forEach(sortKey);
+            } catch (e) { /* nur Vorbereitung */ }
+        },
+        /**
+         * Gleich nach dem Start (statt erst nach Sekunden Ruhe): erst die Genres aller Einträge in kleinen Stücken,
+         * dann Kategorien und Anzahlen – so ist auch das erste Öffnen von Filme/Serien schnell.
+         */
+        early: function (k, done) {
+            var self = this, tries = 0;
+            (function wait() {
+                var loaded = k === 'movies' ? Data.moviesLoaded : Data.seriesLoaded, list = k === 'movies' ? Data.movies : Data.series;
+                if (!loaded || !list || !list.length) { if (tries++ < 240) setTimeout(wait, 500); else if (done) done(); return; }
+                var sig = list.length + '|' + Parental.sig();
+                if (self.done[k] === list && self.doneSig[k] === sig) { if (done) done(); return; }
+                var i = 0, learned = Genre.load();
+                (function step() {
+                    if ((k === 'movies' ? Data.movies : Data.series) !== list) { if (done) done(); return; }
+                    var end = Math.min(list.length, i + 400);
+                    try { for (; i < end; i++) Genre.ofL(list[i], learned); } catch (e) { i = end; }
+                    if (i < list.length) { setTimeout(step, 8); return; }
+                    whenQuiet(function () {
+                        if ((k === 'movies' ? Data.movies : Data.series) === list && !(Nav.top() instanceof MoviesScreen)) {
+                            self.done[k] = list; self.doneSig[k] = sig;
+                            self.run(k);
+                        }
+                        if (done) done();
+                    }, 0, 300, 5000);
+                })();
+            })();
+        },
         start: function () { if (!this.timer) { var self = this; this.timer = setInterval(function () { self.tick(); }, 15000); } }
     };
     MoviesScreen.prototype.applySearch = applySearch;
@@ -8622,6 +8741,7 @@
         this.scrollBox = scroll;
         if (!this.focusKey) this.focusKey = list.length ? fav + '-' + list[0].id : 'cat-0';
         lap('Poster');
+        this._laps = tm.parts.join(' · ');
         // Messung: dauert das erste Öffnen über 2,5 s, geht ein Bericht an den Admin (zeigt, welcher Teil bremst)
         if (this.openAt) {
             var at = this.openAt, me = this, partsTxt = tm.parts.join(' · ');
@@ -13229,7 +13349,7 @@
     }
     window.__pressFx = pressFx;                 // Android reicht Tasten direkt weiter (kein keydown)
     document.addEventListener('keydown', function (e) { if ((e.keyCode || e.which) === 13) pressFx(); }, true);
-    window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen, Lite: Lite, Glide: Glide };
+    window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen, Lite: Lite, Glide: Glide, Busy: Busy };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();
