@@ -2023,3 +2023,9 @@ body.lowfx:not(.oldstick):not(.lite) .poster.focused { -webkit-transform: scale(
 #app.anim-in .episode:nth-child(n+9):nth-child(-n+14) { -webkit-animation: itemIn .38s cubic-bezier(.22,1,.36,1) .33s both; animation: itemIn .38s cubic-bezier(.22,1,.36,1) .33s both; }
 body.oldstick #app.anim-in *, body.lite #app.anim-in * { -webkit-animation: none !important; animation: none !important; }
 
+
+/* Pflicht-Update: Sperrbildschirm über allem (auch über dem Ladebildschirm) */
+#uplock { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: #0e1014; z-index: 80; }
+#uplock .modal-text { white-space: normal; line-height: 1.4; }
+.uplock-state { min-height: 36px; margin-top: 18px; font-size: 26px; color: #fff; }
+#uplock .button.focused { transform: none; }

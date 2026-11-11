@@ -6197,6 +6197,79 @@
     // Updates aus der App heraus (nur Android): neue APK von GitHub laden und installieren
     // =====================================================================
 
+    /**
+     * Pflicht-Update: Sperrbildschirm über der ganzen App. Lässt sich nicht schließen, die Wiedergabe stoppt.
+     * Die App ist erst nach dem Update wieder benutzbar (Admin → „Android-Update ist Pflicht“ oder „Update erzwingen“).
+     */
+    var UpdateLock = {
+        on: false, node: null, idx: 0, btns: [], busy: false,
+        show: function () {
+            if (this.on || !Updater.latest) return;
+            this.on = true;
+            try { Modal.close(); } catch (e0) { /* egal */ }
+            try { Player.stop(); } catch (e1) { /* egal */ }
+            try { clearInterval(Updater.waiter); } catch (e2) { /* egal */ }
+            var l = Updater.latest, self = this;
+            var wrap = h('div', null); wrap.id = 'uplock';
+            var box = h('div', 'modal-box');
+            box.appendChild(h('div', 'modal-title', 'Update nötig'));
+            box.appendChild(h('div', 'modal-text', 'ImperumTV braucht die neue Version ' + Updater.versionText(l.version) +
+                (l.size ? ' (' + Math.round(l.size / 1e6) + ' MB)' : '') + '. Du hast ' + Updater.versionText(Updater.current()) +
+                '. Ohne das Update lässt sich die App nicht weiter benutzen. Deine Listen und Einstellungen bleiben erhalten.'));
+            this.state = h('div', 'uplock-state', '');
+            box.appendChild(this.state);
+            this.row = h('div', 'modal-buttons');
+            box.appendChild(this.row);
+            wrap.appendChild(box);
+            $('#stage').appendChild(wrap);
+            this.node = wrap;
+            this.buttons();
+            try { Report.send('pflicht-update', 'Sperre gezeigt: ' + Updater.versionText(Updater.current()) + ' → ' + Updater.versionText(l.version)); } catch (e3) { /* egal */ }
+        },
+        /** Knöpfe neu aufbauen (zweiter Knopf nur, wenn die Installation auf dem Gerät noch nicht erlaubt ist) */
+        buttons: function () {
+            var self = this, list = [{ label: 'Jetzt aktualisieren', run: function () { self.start(); } }];
+            var blocked = false;
+            try { blocked = !!(AB.canInstall && !AB.canInstall()); } catch (e) { /* egal */ }
+            if (blocked && AB.openInstallSettings) list.push({ label: 'Installation erlauben', run: function () { AB.openInstallSettings(); } });
+            this.btns = list; this.row.innerHTML = '';
+            if (this.idx >= list.length) this.idx = 0;
+            list.forEach(function (b, i) {
+                var n = h('div', 'button' + (i === 0 ? ' primary' : ''), b.label);
+                n.addEventListener('click', function () { self.idx = i; self.paint(); b.run(); });
+                b.node = n; self.row.appendChild(n);
+            });
+            if (blocked && !this.busy) this.say('Erlaube einmal „Apps aus dieser Quelle installieren“ für ImperumTV, danach „Jetzt aktualisieren“ wählen.');
+            this.paint();
+        },
+        paint: function () { var self = this; this.btns.forEach(function (b, i) { b.node.classList.toggle('focused', i === self.idx); }); },
+        say: function (t) { if (this.state) this.state.textContent = t || ''; },
+        start: function () {
+            if (this.busy || !Updater.latest) return;
+            this.busy = true;
+            this.say('Update wird geladen … 0 %');
+            var self = this;
+            clearTimeout(this.guard);
+            this.guard = setTimeout(function () { self.busy = false; }, 120000);   // hängt der Download: erneut versuchen dürfen
+            try { AB.downloadUpdate(Updater.latest.url); } catch (e) { this.busy = false; this.say('Update konnte nicht gestartet werden. Bitte noch einmal versuchen.'); }
+        },
+        /** Meldungen vom Gerät (Fortschritt, Installation, Fehler) */
+        update: function (state, pct, msg) {
+            if (state === 'progress') { this.busy = true; this.say('Update wird geladen … ' + pct + ' %'); return; }
+            this.busy = false; clearTimeout(this.guard);
+            if (state === 'installing') this.say('Tippe jetzt auf „Installieren“. Danach startet ImperumTV neu.');
+            else if (state === 'nosettings') this.say('Bitte in den Einstellungen des Geräts „Apps unbekannter Herkunft“ für ImperumTV erlauben, dann noch einmal versuchen.');
+            else this.say('Update fehlgeschlagen' + (msg ? ': ' + msg : '') + '. Bitte noch einmal versuchen. Hilft das nicht: ' + REMOTE.website.replace(/^https?:\/\//, '') + 'apk');
+            this.buttons();
+        },
+        key: function (k) {
+            if (k === KEY.LEFT || k === KEY.UP) { this.idx = Math.max(0, this.idx - 1); this.paint(); }
+            else if (k === KEY.RIGHT || k === KEY.DOWN) { this.idx = Math.min(this.btns.length - 1, this.idx + 1); this.paint(); }
+            else if (k === KEY.ENTER) { var b = this.btns[this.idx]; if (b) b.run(); }
+            // alle anderen Tasten (auch Zurück): keine Wirkung
+        }
+    };
+
     var Updater = {
         latest: null,
         checked: false,
@@ -6219,7 +6292,7 @@
                 }
                 self.forced = true;
                 self.dismissed = 0;
-                self.check(false);
+                if (self.latest) UpdateLock.show(); else self.check(false);
             }, function () { /* Datenbank ohne diese Funktion oder offline: egal */ });
         },
         /** Gleich beim App-Start nachsehen (läuft parallel zum Laden der Listen) */
@@ -6251,8 +6324,8 @@
             var self = this, l = this.latest, cur = this.current();
             if (!l) return;
             var mb = l.size ? ' (' + Math.round(l.size / 1e6) + ' MB)' : '';
+            if (this.forced) { UpdateLock.show(); return; }
             if (this.forced) {
-                // Vom Admin erzwungen: nur „Jetzt aktualisieren“; schließt jemand das Fenster, kommt es bald wieder
                 Modal.open('Update nötig', 'Für dieses Gerät ist ein Update nötig: Version ' + self.versionText(l.version) + mb + '. Du hast ' + self.versionText(cur) + '.', [
                     { label: 'Jetzt aktualisieren', primary: true, action: function () { self.install(); } }
                 ]);
@@ -6283,7 +6356,8 @@
                     return;
                 }
                 self.latest = { version: latest, url: apkUrl, size: size || 0 };
-                if (manual) self.offer();
+                if (self.forced) UpdateLock.show();   // Pflicht-Update: sofort sperren, auch mitten im Schauen
+                else if (manual) self.offer();
                 else self.offerWhenIdle();           // automatisch: warten, bis Ladebildschirm/Video weg sind
             }
             function failed(why) {
@@ -6327,6 +6401,7 @@
         }
     };
     window.__androidUpdate = function (state, pct, msg) {
+        if (UpdateLock.on) { UpdateLock.update(state, pct, msg); return; }
         if (state === 'progress') { Loader.progress(pct, 'Update wird geladen … ' + pct + ' %'); return; }
         Loader.hide();
         if (state === 'installing') toast('Tippe jetzt auf „Installieren“. Deine Listen und Einstellungen bleiben erhalten.', 8000);
@@ -13135,6 +13210,8 @@
         var k = e.keyCode;
         Glide.rep = !!e.repeat;
         if (k === 461) k = KEY.BACK;          // Zurück-Taste der LG-Fernbedienung
+        // Pflicht-Update: Sperrbildschirm nimmt alle Tasten
+        if (UpdateLock.on) { if (!e.repeat) UpdateLock.key(k); if (e.preventDefault) e.preventDefault(); return; }
         // Pfeiltaste gedrückt halten: höchstens alle 90 ms einen Schritt, sonst stauen sich die Tasten und es ruckelt
         if (e.repeat && (k === KEY.UP || k === KEY.DOWN || k === KEY.LEFT || k === KEY.RIGHT)) {
             var t = Date.now();
@@ -13516,7 +13593,7 @@
     }
     window.__pressFx = pressFx;                 // Android reicht Tasten direkt weiter (kein keydown)
     document.addEventListener('keydown', function (e) { if ((e.keyCode || e.which) === 13) pressFx(); }, true);
-    window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen, Lite: Lite, Glide: Glide, Busy: Busy, Metrics: Metrics, Free: Free, Api: Api };
+    window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen, Lite: Lite, Glide: Glide, Busy: Busy, Metrics: Metrics, Free: Free, Api: Api, UpdateLock: UpdateLock };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();
