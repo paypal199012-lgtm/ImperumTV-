@@ -1864,6 +1864,9 @@ body.touch .chat-list { -webkit-overflow-scrolling: touch; }
 #app.anim-home .tile:nth-child(2) { -webkit-animation-delay: .52s; animation-delay: .52s; }
 #app.anim-home .tile:nth-child(3) { -webkit-animation-delay: .58s; animation-delay: .58s; }
 #app.anim-home .tile:nth-child(4) { -webkit-animation-delay: .64s; animation-delay: .64s; }
+#app.anim-home .tile:nth-child(5) { -webkit-animation-delay: .70s; animation-delay: .70s; }
+#app.anim-home .tile:nth-child(6) { -webkit-animation-delay: .76s; animation-delay: .76s; }
+#app.anim-home .tile:nth-child(n+7) { -webkit-animation-delay: .82s; animation-delay: .82s; }
 @-webkit-keyframes logoIn { from { opacity: 0; -webkit-transform: translateY(-30px) scale(.92); } to { opacity: 1; -webkit-transform: none; } }
 @keyframes logoIn { from { opacity: 0; transform: translateY(-30px) scale(.92); } to { opacity: 1; transform: none; } }
 @-webkit-keyframes popIn { from { opacity: 0; -webkit-transform: translate3d(0, 40px, 0) scale(.75); } to { opacity: 1; -webkit-transform: none; } }

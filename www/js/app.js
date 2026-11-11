@@ -6325,13 +6325,6 @@
             if (!l) return;
             var mb = l.size ? ' (' + Math.round(l.size / 1e6) + ' MB)' : '';
             if (this.forced) { UpdateLock.show(); return; }
-            if (this.forced) {
-                Modal.open('Update nötig', 'Für dieses Gerät ist ein Update nötig: Version ' + self.versionText(l.version) + mb + '. Du hast ' + self.versionText(cur) + '.', [
-                    { label: 'Jetzt aktualisieren', primary: true, action: function () { self.install(); } }
-                ]);
-                setTimeout(function () { if (self.forced && !Modal.node) self.offerWhenIdle(); }, 120000);
-                return;
-            }
             Modal.open('Update verfügbar', 'Version ' + self.versionText(l.version) + ' ist da' + mb + '. Du hast ' + self.versionText(cur) + '.', [
                 { label: 'Jetzt aktualisieren', primary: true, action: function () { self.install(); } },
                 { label: 'Später', action: function () { self.dismissed = l.version; } }
