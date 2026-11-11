@@ -524,7 +524,10 @@
     /** Listen weich weiterschieben statt springen – nur wo die Liste eine eigene Ebene hat (Android) und nicht bei „Leichte Darstellung“ */
     var Glide = {
         on: false, ok: null, rep: false,
+        // Vorerst aus: auf echten Sticks lief schnelles Blättern damit unruhig (1.0.313). Listen springen wieder wie zuvor.
+        ENABLED: false,
         can: function () {
+            if (!this.ENABLED) return false;
             if (this.ok === null) {
                 var ok = false;
                 try { ok = !!AB && !(AB && AB.deviceMacKey) && 'scrollBehavior' in document.documentElement.style && typeof Element.prototype.scrollTo === 'function'; } catch (e) { ok = false; }

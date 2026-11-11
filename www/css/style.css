@@ -1970,8 +1970,9 @@ body.oldstick #app.anim-in *, body.oldstick #app.anim-back *, body.oldstick #app
    Der Grafikchip schiebt die fertig gezeichnete Liste weiter, statt sie bei jedem Schritt neu zu zeichnen
    (macht Blättern in Sendern, Filmen und Serien auf schwachen Sticks deutlich leichter). Balken bleiben unsichtbar.
    Handys/Tablets (Bedienung per Finger) scrollen ohnehin schon so – dort ändert sich nichts. */
+/* Vorerst wieder aus (1.0.314): schnelles Blättern lief damit auf echten Sticks unruhig – Listen verhalten sich wie vor 1.0.313.
 body.lowfx:not(.touch) .scroll, body.lowfx:not(.touch) .detail .body.vscroll { overflow-y: auto; scrollbar-width: none; }
-body.lowfx:not(.touch) .scroll::-webkit-scrollbar, body.lowfx:not(.touch) .vscroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
+body.lowfx:not(.touch) .scroll::-webkit-scrollbar, body.lowfx:not(.touch) .vscroll::-webkit-scrollbar { display: none; width: 0; height: 0; } */
 
 /* ---------- Einfache Animationen (ältere Sticks) ----------
    Beim Bildschirmwechsel blenden nur die wenigen großen Bereiche weich ein und gleiten ein kleines Stück.
