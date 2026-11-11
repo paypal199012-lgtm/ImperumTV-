@@ -358,8 +358,8 @@
         function done(skipped) {
             if (finished) return;
             finished = true;
-            setTimeout(function () { Epg.sync(false); }, skipped ? 15000 : 6000);   // Programm erst nach den Listen
-            setTimeout(function () { NewEps.check(); }, skipped ? 25000 : 12000);   // neue Folgen bei verfolgten Serien
+            whenQuiet(function () { Epg.sync(false); }, skipped ? 15000 : 6000, 3000, 60000);   // Programm erst nach den Listen, wenn gerade niemand bedient
+            whenQuiet(function () { NewEps.check(); }, skipped ? 25000 : 15000, 4000, 120000);   // neue Folgen bei verfolgten Serien
             if (skipped) { Sync.hide(); onOk(); return; }
             Sync.finish(mvOk && srOk ? 'Alles aktuell' : 'Live TV ist bereit', onOk, 1100);
         }
@@ -988,6 +988,21 @@
      * Leichte Darstellung: Auf schwachen Geräten (unter ca. 1,6 GB Arbeitsspeicher, z. B. Fire TV Stick 4K / Lite)
      * ohne Schatten und Übergangs-Effekte zeichnen. Anordnung, Farben und Größen bleiben gleich.
      */
+    /**
+     * Hintergrundarbeit erst, wenn gerade niemand bedient (kein Tastendruck seit quietMs) –
+     * frühestens nach minMs, spätestens nach maxMs (damit Abgleiche nicht zu lange liegen bleiben).
+     */
+    function whenQuiet(fn, minMs, quietMs, maxMs) {
+        var t0 = Date.now();
+        function check() {
+            var waited = Date.now() - t0, idle = Date.now() - ((typeof Nav !== 'undefined' && Nav.userAt) || 0);
+            if (waited >= maxMs || idle >= quietMs) { try { fn(); } catch (e) { /* egal */ } return; }
+            setTimeout(check, 500);
+        }
+        setTimeout(check, minMs || 0);
+    }
+    function quietly(minMs, quietMs, maxMs) { return new Promise(function (res) { whenQuiet(res, minMs, quietMs, maxMs); }); }
+
     var Lite = {
         mem: function () {
             try { if (AB && AB.totalMemMb) { var m = +AB.totalMemMb(); if (m > 0) return m; } } catch (e) { /* egal */ }
@@ -4202,11 +4217,14 @@
                 self.epgCache = {};
                 Storage.set('account', r.acc);
                 if (safeMode()) return;
-                return Api.list('get_vod_streams', 'movie', Api.call('get_vod_categories')).then(function (mv) {
+                return quietly(1500, 2500, 45000).then(function () {
+                    if (gen !== self.gen) return null;
+                    return Api.list('get_vod_streams', 'movie', Api.call('get_vod_categories'));
+                }).then(function (mv) {
                     if (gen === self.gen && mv && mv.length) { self.movies = mv; self.moviesLoaded = true; }
                 }, function () { /* gespeicherte Filme bleiben */ }).then(function () {
                     if (gen !== self.gen) return;
-                    return Api.list('get_series', 'series', Api.call('get_series_categories')).then(function (sr) {
+                    return quietly(0, 2500, 45000).then(function () { return Api.list('get_series', 'series', Api.call('get_series_categories')); }).then(function (sr) {
                         if (gen === self.gen && sr && sr.length) { self.series = sr; self.seriesLoaded = true; }
                     }, function () { /* gespeicherte Serien bleiben */ });
                 }).then(function () {
@@ -12501,7 +12519,7 @@
         Player.init();
         Updater.autoCheck();                               // gleich beim Start nach neuer Version suchen
         applyStallWait();
-        setTimeout(function () { GenreScan.start(); }, 15000);
+        setTimeout(function () { GenreScan.start(); }, 30000);
         // Sendernamen vorberechnen, sobald die Liste da ist (Live TV öffnet dann schneller)
         (function warmLater(n) { setTimeout(function () { try { if (Data.channels && Data.channels.length) Merge.warm(); else if (n < 20) warmLater(n + 1); } catch (e) { /* egal */ } }, 3000); })(0);
         setTimeout(function () { try { Backup.startup(); } catch (e) { /* egal */ } }, 25000);   // Sicherung: übertragene prüfen, täglich sichern   // Genres im Hintergrund sammeln (nur wenn nichts läuft)
@@ -12639,8 +12657,8 @@
                 Updater.autoCheck();
             });
             Data.refreshQuiet(acc, pending || Data.fetchLive(acc, null)).then(function () {
-                setTimeout(function () { Epg.sync(false); }, 6000);
-                setTimeout(function () { NewEps.check(); }, 12000);
+                whenQuiet(function () { Epg.sync(false); }, 6000, 3000, 60000);
+                whenQuiet(function () { NewEps.check(); }, 15000, 4000, 120000);
             }, function (e) {
                 var msg = e && e.message || String(e);
                 // Zugang abgelehnt oder abgelaufen: wie bisher zur Auswahl der Listen; sonst (offline) mit den gespeicherten Listen weiter
@@ -12673,7 +12691,7 @@
             start(saved);
             Remote.load().then(function () {
                 setTimeout(function () { Hello.send(true); }, 5000);
-                setTimeout(function () { FavSync.sync(); }, 9000);
+                whenQuiet(function () { FavSync.sync(); }, 9000, 2000, 30000);
                 setTimeout(function () { StickState.send(); }, 40000);
                 if (!License.active() && !saved.demo) { Nav.replace(new LockScreen()); return; }
                 var chosen = Remote.find(lastId);
@@ -12687,7 +12705,7 @@
         Remote.load().then(function () {
             loader(false);
             setTimeout(function () { Hello.send(true); }, 5000);
-            setTimeout(function () { FavSync.sync(); }, 9000);
+            whenQuiet(function () { FavSync.sync(); }, 9000, 2000, 30000);
             setTimeout(function () { StickState.send(); }, 40000);
             var chosen = lastId !== null ? Remote.find(lastId) : null;
             if (!License.active() && !(chosen && chosen.demo)) { Nav.replace(new LockScreen()); return; }
