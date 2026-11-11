@@ -1984,3 +1984,42 @@ body.lowfx:not(.touch) .scroll::-webkit-scrollbar, body.lowfx:not(.touch) .vscro
 .sx.sx-s.sx-go { -webkit-transform: translate3d(0, 0, 0) !important; transform: translate3d(0, 0, 0) !important;
     -webkit-transition: opacity .2s ease-out, -webkit-transform .28s cubic-bezier(.22,1,.36,1) !important; transition: opacity .2s ease-out, transform .28s cubic-bezier(.22,1,.36,1) !important; }
 
+/* ---------- Logo auf der Startseite: Lichtschimmer nur auf dem Logo selbst (vorher lief ein sichtbarer Balken über den Hintergrund) ---------- */
+.home-title { overflow: visible; }
+.home-title::after { top: 0; bottom: auto; left: 50%; width: 321px; height: 125px; margin-left: -160px; opacity: 1;
+    -webkit-transform: none; transform: none;
+    background: linear-gradient(100deg, rgba(255,245,215,0) 42%, rgba(255,245,215,.8) 50%, rgba(255,245,215,0) 58%) no-repeat; background-size: 260% 100%; background-position: 160% 0;
+    -webkit-mask: url(../img/logo-frei.png) center / 100% 100% no-repeat; mask: url(../img/logo-frei.png) center / 100% 100% no-repeat;
+    -webkit-animation: logoGlint 6s ease-in-out 1.2s infinite; animation: logoGlint 6s ease-in-out 1.2s infinite; }
+@-webkit-keyframes logoGlint { 0% { background-position: 160% 0; } 24%, 100% { background-position: -60% 0; } }
+@keyframes logoGlint { 0% { background-position: 160% 0; } 24%, 100% { background-position: -60% 0; } }
+
+/* ---------- Live TV (volle Animationen): Listen, Zeilen und Knöpfe kommen nacheinander herein; das Vorschaubild bleibt stehen ---------- */
+#app.anim-live .live-b > .col-cats, #app.anim-live .live-b > .col-list { -webkit-animation: layerIn .36s cubic-bezier(.22,1,.36,1) both; animation: layerIn .36s cubic-bezier(.22,1,.36,1) both; }
+#app.anim-live .live-b > .col-list { -webkit-animation-delay: .06s; animation-delay: .06s; }
+#app.anim-live .col-list .row, #app.anim-live .col-cats .cat, #app.anim-live .lv-act, #app.anim-live .lv-nx { -webkit-animation: itemIn .4s cubic-bezier(.22,1,.36,1) both; animation: itemIn .4s cubic-bezier(.22,1,.36,1) both; }
+#app.anim-live .col-list .scroll > :nth-child(1) .row, #app.anim-live .col-list .scroll > .row:nth-child(1), #app.anim-live .col-cats .cat:nth-child(1), #app.anim-live .lv-act:nth-child(1) { -webkit-animation-delay: .10s; animation-delay: .10s; }
+#app.anim-live .col-list .scroll > .row:nth-child(2), #app.anim-live .col-cats .cat:nth-child(2), #app.anim-live .lv-act:nth-child(2), #app.anim-live .lv-nx:nth-child(1) { -webkit-animation-delay: .14s; animation-delay: .14s; }
+#app.anim-live .col-list .scroll > .row:nth-child(3), #app.anim-live .col-cats .cat:nth-child(3), #app.anim-live .lv-act:nth-child(3), #app.anim-live .lv-nx:nth-child(2) { -webkit-animation-delay: .18s; animation-delay: .18s; }
+#app.anim-live .col-list .scroll > .row:nth-child(4), #app.anim-live .col-cats .cat:nth-child(4), #app.anim-live .lv-act:nth-child(4), #app.anim-live .lv-nx:nth-child(3) { -webkit-animation-delay: .22s; animation-delay: .22s; }
+#app.anim-live .col-list .scroll > .row:nth-child(5), #app.anim-live .col-cats .cat:nth-child(5) { -webkit-animation-delay: .26s; animation-delay: .26s; }
+#app.anim-live .col-list .scroll > .row:nth-child(6), #app.anim-live .col-cats .cat:nth-child(6) { -webkit-animation-delay: .30s; animation-delay: .30s; }
+#app.anim-live .col-list .scroll > .row:nth-child(7), #app.anim-live .col-cats .cat:nth-child(7) { -webkit-animation-delay: .34s; animation-delay: .34s; }
+#app.anim-live .col-list .scroll > .row:nth-child(8), #app.anim-live .col-cats .cat:nth-child(8) { -webkit-animation-delay: .38s; animation-delay: .38s; }
+/* die übrigen sichtbaren Einträge kommen gemeinsam direkt danach (nicht vor den ersten), alles außerhalb des Bildes ohne Bewegung */
+#app.anim-live .col-list .scroll > .row:nth-child(n+9), #app.anim-live .col-list .scroll > :nth-child(n+2) .row, #app.anim-live .col-cats .cat:nth-child(n+9) { -webkit-animation-delay: .42s; animation-delay: .42s; }
+#app.anim-live .col-list .scroll > :nth-child(n+15) .row, #app.anim-live .col-list .scroll > .row:nth-child(n+15), #app.anim-live .col-cats .cat:nth-child(n+22) { -webkit-animation: none; animation: none; }
+#app.anim-live .screen-title { -webkit-animation: itemIn .45s cubic-bezier(.22,1,.36,1) both; animation: itemIn .45s cubic-bezier(.22,1,.36,1) both; }
+body.lite #app.anim-live *, body.oldstick #app.anim-live * { -webkit-animation: none !important; animation: none !important; }
+
+/* ---------- Filme / Serien: wandernde Lichtstrahlen und ein paar Funken im Hintergrund, Titel gleitet herein ---------- */
+#app .vod-sparks i { opacity: 0; width: 5px; height: 5px; }
+#app.anim-in .screen-title, #app.anim-in .hint { -webkit-animation: itemIn .45s cubic-bezier(.22,1,.36,1) both; animation: itemIn .45s cubic-bezier(.22,1,.36,1) both; }
+#app.anim-in .cat-group { -webkit-animation: fadeOnly .5s ease-out .2s both; animation: fadeOnly .5s ease-out .2s both; }
+/* Poster heben sich beim Markieren auch auf Sticks (volle Animationen) */
+body.lowfx:not(.oldstick):not(.lite) .poster.focused { -webkit-transform: scale(1.06); transform: scale(1.06); z-index: 2; }
+/* Filme, Serien, Einstellungen …: die übrigen sichtbaren Einträge kommen gemeinsam nach den ersten acht (vorher standen sie schon da, bevor die ersten hereinkamen) */
+#app.anim-in .poster:nth-child(n+9):nth-child(-n+24), #app.anim-in .row:nth-child(n+9):nth-child(-n+14), #app.anim-in .cat:nth-child(n+9):nth-child(-n+24), #app.anim-in .set-row:nth-child(n+9):nth-child(-n+14),
+#app.anim-in .episode:nth-child(n+9):nth-child(-n+14) { -webkit-animation: itemIn .38s cubic-bezier(.22,1,.36,1) .33s both; animation: itemIn .38s cubic-bezier(.22,1,.36,1) .33s both; }
+body.oldstick #app.anim-in *, body.lite #app.anim-in * { -webkit-animation: none !important; animation: none !important; }
+

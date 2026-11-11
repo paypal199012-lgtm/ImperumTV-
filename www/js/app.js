@@ -5097,11 +5097,14 @@
         anim: null,          // „in“ (neuer Bildschirm) oder „back“ (zurück) – für den kurzen Übergang
         /** Startseite: aufsteigende goldene Funken (Animation) */
         sparks: function (screen, app) {
-            if (typeof HomeScreen === 'undefined' || !(screen instanceof HomeScreen) || app.querySelector('.home-sparks')) return;
-            var sp = document.createElement('div'); sp.className = 'home-sparks';
-            for (var si = 0; si < 14; si++) {
+            // Startseite: 14 Funken · Filme und Serien: wandernde Lichtstrahlen und ein paar Funken im Hintergrund
+            var isHome = typeof HomeScreen !== 'undefined' && screen instanceof HomeScreen;
+            var isVod = typeof MoviesScreen !== 'undefined' && screen instanceof MoviesScreen;
+            if ((!isHome && !isVod) || app.querySelector('.home-sparks')) return;
+            var sp = document.createElement('div'); sp.className = 'home-sparks' + (isVod ? ' vod-sparks' : '');
+            for (var si = 0; si < (isVod ? 7 : 14); si++) {
                 var dot = document.createElement('i');
-                dot.style.left = (4 + si * 6.8 + (si * 37 % 5)) + '%';
+                dot.style.left = (4 + si * (isVod ? 13.6 : 6.8) + (si * 37 % 5)) + '%';
                 dot.style.animationDelay = dot.style.webkitAnimationDelay = (-(si * 1.37 % 9)).toFixed(2) + 's';
                 dot.style.animationDuration = dot.style.webkitAnimationDuration = (8 + si * 0.53 % 5).toFixed(2) + 's';
                 sp.appendChild(dot);
@@ -5111,7 +5114,7 @@
         /** Alte Übergangs-Klassen weg, bevor neu gezeichnet wird (sonst misst der neue Bildschirm verschobene Kästen) */
         animReset: function (app) {
             clearTimeout(this.animT);
-            app.classList.remove('anim-in', 'anim-back', 'anim-home');
+            app.classList.remove('anim-in', 'anim-back', 'anim-home', 'anim-live');
             this.sxClear();
         },
         /** Einfache Stufe: Übergangs-Klassen von den zuletzt bewegten Bereichen nehmen (auch wenn sie gerade aufgehoben sind) */
@@ -5175,7 +5178,15 @@
             if (Lite.tier() === 'simple') { this.sxStart(app, a); return; }
             // Bildschirme mit Vorschaubild (Live TV, Programm): nicht bewegen – das Video und der Rahmen darum
             // werden nach der Position des Kastens gelegt und würden sonst verrutschen
-            if (app.querySelector('.preview-box, .eg-preview')) return;
+            if (app.querySelector('.preview-box, .eg-preview')) {
+                // Live TV: Listen, Zeilen und Knöpfe kommen herein – das Vorschaubild selbst bleibt unbewegt
+                if (app.querySelector('.live-b')) {
+                    app.classList.remove('anim-live'); void app.offsetWidth; app.classList.add('anim-live');
+                    clearTimeout(this.animT);
+                    this.animT = setTimeout(function () { app.classList.remove('anim-live'); }, 1300);
+                }
+                return;
+            }
             app.classList.remove('anim-in', 'anim-back', 'anim-home');
             void app.offsetWidth;                                   // Animation neu starten
             app.classList.add('anim-' + a);
