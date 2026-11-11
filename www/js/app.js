@@ -7304,17 +7304,26 @@
             c._mkN = c.name;
             return (c._mk = k.replace(/\s+/g, ' ').trim());
         },
-        /** Im Hintergrund (in kleinen Stücken, nur wenn niemand bedient) Namen und Qualitäten aller Sender vorberechnen – dann öffnet Live TV schneller */
+        /**
+         * Gleich nach dem Start im Hintergrund Namen, Qualitäten, Land und Event-Zeiten aller Sender vorberechnen –
+         * in kleinen Stücken (je 200 Sender, dazwischen kurze Pause), damit die Bedienung dabei flüssig bleibt.
+         * Danach bereitet Warm den Rest von Live TV vor. Öffnet jemand Live TV früher, wird nur der Rest sofort berechnet.
+         */
         warm: function () {
             var list = Data.channels, i = 0, self = this;
             if (!list || !list.length || this.warmedFor === list) return;
             this.warmedFor = list;
             (function step() {
                 if (Data.channels !== list) return;
-                if (Date.now() - (Nav.userAt || 0) < 1500) { setTimeout(step, 1000); return; }
-                var end = Math.min(list.length, i + 400);
-                for (; i < end; i++) { var c = list[i]; if (c && c.name) { self.key(c); self.tags(c); self.cleanName(c); } }
-                if (i < list.length) setTimeout(step, 30);
+                var end = Math.min(list.length, i + 200), now = Date.now();
+                try {
+                    for (; i < end; i++) {
+                        var c = list[i];
+                        if (c && c.name) { self.key(c); self.tags(c); self.cleanName(c); AltCh.cc(c); EventOver.over(c, now); }
+                    }
+                } catch (e) { i = end; }
+                if (i < list.length) setTimeout(step, 8);
+                else { try { Warm.afterNames(list); } catch (e2) { /* nur Vorbereitung */ } }
             })();
         },
         off: function () { return Storage.get('mergeOff', {}) || {}; },
@@ -7442,7 +7451,7 @@
             for (var i = 0; i < vis.length; i++) {
                 var ch = vis[i];
                 if (NameTidy.isSep(ch.name)) continue;
-                var k = this.key(ch), cc = AltCh.country(ch.name) || AltCh.country(ch.cat);
+                var k = this.key(ch), cc = AltCh.cc(ch);
                 var ck = 'C:' + (ch.cat || '') + '|' + k, ak = 'L:' + cc + '|' + k;
                 if (!k || k.length < 2 || off[ck]) ck += '#' + ch.id;
                 if (!k || k.length < 2 || off[ak]) ak += '#' + ch.id;
@@ -7488,6 +7497,78 @@
             buttons.push({ label: 'Abbrechen' });
             Modal.open('Qualität · ' + name, 'Die App merkt sich deine Wahl für diesen Sender. Hängt sie, wird automatisch eine andere Variante versucht.', buttons);
             if (Modal.node) Modal.node.classList.add('modal-list');
+        }
+    };
+
+    /**
+     * Vorbereiten nach dem Start, damit das ERSTE Öffnen schnell geht (gemessen auf einem Fire TV Stick 4K von 2018:
+     * Zählen 0,35 s + Zusammenfassen 0,45 s + erstes Anordnen 0,66 s).
+     *  1. Merge.warm: Namen aller Sender (in kleinen Stücken)
+     *  2. liveData: Sender zusammenfassen und zählen (ein kurzer Block, nur wenn gerade niemand eine Taste drückt)
+     *  3. layout: Schriften, Symbole und die Anordnung der Bildschirme einmal unsichtbar durchrechnen (kleine Stücke) –
+     *     das erste Anordnen eines Bildschirms ist sonst um ein Vielfaches langsamer als jedes weitere
+     */
+    var Warm = {
+        afterNames: function (list) {
+            var self = this;
+            whenQuiet(function () {
+                if (Data.channels !== list) return;
+                self.liveData();
+                self.layout(0);
+            }, 0, 250, 4000);
+        },
+        liveData: function () {
+            try {
+                if (!Data.channels || !Data.channels.length || (Nav.top() instanceof LiveScreen)) return;
+                var ls = new LiveScreen(0);
+                ls.filter();
+                Merge.counts(EventOver.apply(Hidden.apply(Parental.visible('live', Data.channels))));
+            } catch (e) { /* nur Vorbereitung */ }
+        },
+        rep: function (n, fn) { var o = ''; for (var i = 0; i < n; i++) o += fn(i); return o; },
+        /** Unsichtbare Probe-Stücke mit denselben Klassen und typischen Texten wie die echten Bildschirme */
+        probes: function () {
+            var R = this.rep;
+            var cat = function (i) { return '<div class="cat with-n' + (i === 0 ? ' active' : '') + '"><span class="cat-name">' + (i ? 'DE · Sport ' + i : '☰  Alle') + '</span><span class="cat-n">1.2' + i + '</span></div>'; };
+            var row = function (i) { return '<div class="row lv' + (i === 0 ? ' focused' : '') + '"><div class="num">' + (i + 1) + '</div><div class="logo"></div><div class="name rname"><div class="rn">Sender ' + i + ' · DE</div>' +
+                '<div class="rnow">Jetzt läuft · 12:00–13:00</div><div class="rpr"><i style="width:40%"></i></div></div><div class="ch-tag q">FHD</div><div class="mq"><b class="on">FHD</b><b>HD</b><b>+2</b></div><i class="hdot g"></i><div class="star">★</div></div>'; };
+            var poster = function (i) { return '<div class="poster' + (i === 0 ? ' focused' : '') + '"><div class="img"><div class="rate">★ 7.' + i + '</div><div class="fav">★</div></div><div class="title">Titel Nummer ' + i + ' (202' + i + ')</div></div>'; };
+            return [
+                // Live TV: Kategorien
+                '<div><div class="screen-title">Live TV</div><div class="hint">OK: Öffnen · OK lang: Favorit</div></div><div class="columns live-b"><div class="col col-cats"><div class="scroll">' +
+                    '<div class="cat cat-search"><span>Suchen</span></div><div class="col-head">Kategorien</div>' + R(12, cat) + '</div></div></div>',
+                // Live TV: Senderzeilen
+                '<div class="columns live-b"><div class="col col-list"><div class="scroll"><div class="sec-head">SPORT</div>' + R(12, row) + '</div></div></div>',
+                // Live TV: Vorschau, Programm, Knöpfe
+                '<div class="columns live-b"><div class="col col-info"><div class="preview-box empty"><div class="preview-placeholder">OK drücken für die Vorschau</div><div class="pv-info"><div class="pv-title">Sender 1<span class="ch-tag q">FHD</span></div>' +
+                    '<div class="pv-now">Jetzt: Titel · 12:00–13:00</div><div class="pv-pr"><i style="width:40%"></i></div></div></div><div class="lv-next"><div class="lv-nx"><b>13:00</b><span>Titel danach</span></div><div class="lv-nx"><b>14:00</b><span>Noch ein Titel</span></div></div>' +
+                    '<div class="lv-acts"><div class="lv-act primary">▶  Vollbild</div><div class="lv-act">★  Favorit</div><div class="lv-act">◎  Qualität</div><div class="lv-act">☰  Ganzes Programm</div></div></div></div>',
+                // Filme / Serien: Kategorien mit Gruppen und Poster
+                '<div class="columns vod-r1"><div class="col col-cats"><div class="scroll"><div class="cat cat-search"><span>Suchen</span></div><div class="cat cat-search cat-sort"><span>Sortieren: Standard</span></div>' +
+                    '<div class="cat-group">FÜR DICH</div>' + R(4, cat) + '<div class="cat-group">KATEGORIEN</div>' + R(6, cat) + '</div></div>' +
+                    '<div class="col col-grid"><div class="scroll"><div class="grid">' + R(8, poster) + '</div></div></div></div>'
+            ];
+        },
+        layoutDone: false,
+        layout: function (i) {
+            var self = this;
+            if (this.layoutDone) return;
+            var list = this._probes || (this._probes = this.probes());
+            if (i >= list.length) { this.layoutDone = true; this._probes = null; return; }
+            whenQuiet(function () {
+                try {
+                    var stage = $('#stage');
+                    if (stage) {
+                        var host = document.createElement('div');
+                        host.style.cssText = 'position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;visibility:hidden;pointer-events:none;z-index:-1';
+                        host.innerHTML = list[i];
+                        stage.appendChild(host);
+                        void host.offsetHeight;                        // einmal anordnen (Schriften, Symbole, Stil-Regeln)
+                        stage.removeChild(host);
+                    }
+                } catch (e) { /* nur Vorbereitung */ }
+                self.layout(i + 1);
+            }, 40, 250, 6000);
         }
     };
 
@@ -12869,7 +12950,8 @@
             try { if (Data.channels && Data.channels.length && !(Nav.top() instanceof LiveScreen)) { var ls = new LiveScreen(0); ls.filter(); Merge.counts(EventOver.apply(Hidden.apply(Parental.visible('live', Data.channels)))); } } catch (eW) { /* egal */ }
         }, 2500, 1200, 15000);
         // Sendernamen vorberechnen, sobald die Liste da ist (Live TV öffnet dann schneller)
-        (function warmLater(n) { setTimeout(function () { try { if (Data.channels && Data.channels.length) Merge.warm(); else if (n < 20) warmLater(n + 1); } catch (e) { /* egal */ } }, 3000); })(0);
+        // (die erste Minute lang immer wieder nachsehen: beim Schnellstart wird die gemerkte Liste kurz darauf durch die frische ersetzt)
+        (function warmLater(n) { setTimeout(function () { try { if (Data.channels && Data.channels.length) Merge.warm(); } catch (e) { /* egal */ } if (n < 240) warmLater(n + 1); }, 250); })(0);
         setTimeout(function () { try { Backup.startup(); } catch (e) { /* egal */ } }, 25000);   // Sicherung: übertragene prüfen, täglich sichern   // Genres im Hintergrund sammeln (nur wenn nichts läuft)
         setTimeout(function () { Updater.flags(); }, 8000);     // vom Admin erzwungenes Update?
         setTimeout(function () { try { Help.resume(); } catch (e) { /* egal */ } }, 6000);
