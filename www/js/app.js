@@ -1232,9 +1232,9 @@
 
     /** Was hat die App zuletzt Großes gemacht? (für den Bericht „Taste verspätet“) */
     var Busy = {
-        l: '', at: 0,
-        mark: function (label) { this.l = label; this.at = Date.now(); },
-        text: function () { return this.l ? this.l + ' (vor ' + Math.max(0, Date.now() - this.at) + ' ms)' : '-'; }
+        l: '', at: 0, detail: '',
+        mark: function (label) { this.l = label; this.at = Date.now(); this.detail = ''; },
+        text: function () { return this.l ? this.l + ' (vor ' + Math.max(0, Date.now() - this.at) + ' ms)' + (this.detail ? '\nSchritte: ' + this.detail : '') : '-'; }
     };
 
     var Quiet = {
@@ -5011,13 +5011,19 @@
             $('#toast').classList.add('hidden');   // Meldungen vom vorherigen Bildschirm ausblenden
             document.body.classList.remove('preview-mode', 'video-mode', 'osd');
             Focus.clear();
+            var tR0 = Date.now();
+            screen._laps = '';
             screen.render(app);
+            var tR1 = Date.now();
             var saved = restoring ? screen._scrolls : null;
             if (saved) this.fillTo(saved);
             var target = Focus.byKey(screen.focusKey);
-            if (!target && restoring && screen.focusKey) target = this.loadUntil(screen.focusKey);
+            // Kategorien werden stückweise gezeichnet: liegt die gemerkte weiter unten, bis dorthin nachladen
+            if (!target && screen.focusKey && (restoring || /^cat-\d+$/.test(screen.focusKey))) target = this.loadUntil(screen.focusKey);
             if (target) Focus.set(target); else Focus.first();
             if (saved) this.restoreScroll(screen, saved);
+            // Für den Bericht „Taste verspätet“: wo ging die Zeit hin?
+            try { Busy.detail = 'Aufbau ' + (tR1 - tR0) + ' ms' + (screen._laps ? ' [' + screen._laps + ']' : '') + ' · Fokus/Anordnen ' + (Date.now() - tR1) + ' ms'; } catch (eB) { /* egal */ }
             this.animate(screen);
         },
 
@@ -5328,7 +5334,14 @@
         var kind = search && search.kind;
         var counts = search && search.counts;               // Anzahl je Kategorie (gleiche Reihenfolge wie cats)
         var kidsHide = kind && Profiles.isKids();
-        cats.forEach(function (name, i) {
+        // Lange Kategorien-Listen (manche Anbieter haben Hunderte) nur stückweise aufbauen – der Rest kommt beim Blättern
+        var catShown = 0, CAT_STEP = 60;
+        function catMore() {
+            var end = Math.min(cats.length, catShown + CAT_STEP);
+            for (var ci = catShown; ci < end; ci++) addCat(cats[ci], ci);
+            catShown = end;
+        }
+        function addCat(name, i) {
             if (kidsHide && Parental.catProtected(kind, name)) return;     // Kinder-Profil: nicht freigegebene Kategorien gar nicht zeigen
             if (groups) groups.forEach(function (g) { if (g.at === i && i < cats.length) scroll.appendChild(h('div', 'cat-group', g.label)); });
             var item = h('div', 'cat' + (i === activeIndex ? ' active' : ''));
@@ -5363,8 +5376,21 @@
                     HiddenCats.ask(kind, rawName, name, function () { hd.done(i); });
                 };
             }
+            // kurz vor dem Ende des bisher Gezeichneten: weitere Kategorien nachladen
+            item._onFocus = function () { if (i >= catShown - 8 && catShown < cats.length) catMore(); };
             scroll.appendChild(item);
-        });
+        }
+        // Am Anfang: so viele, dass die gewählte Kategorie (und die, auf die der Fokus soll) sicher dabei ist
+        var catFirst = Math.max(CAT_STEP, (activeIndex > 0 ? activeIndex : 0) + 30, ((search && search.upTo) || 0) + 30);
+        while (catShown < cats.length && catShown < catFirst) catMore();
+        if (catShown < cats.length) {
+            // Für „Zurück“ (Nav lädt nach, bis der gemerkte Eintrag da ist) und für Maus/Finger (beim Scrollen nachladen)
+            scroll.classList.add('batch');
+            scroll._batchMore = function () { if (catShown >= cats.length) return false; catMore(); return true; };
+            scroll.addEventListener('scroll', function () {
+                if (catShown < cats.length && scroll.scrollTop + scroll.clientHeight > scroll.scrollHeight - 1500) catMore();
+            });
+        }
         col.appendChild(scroll);
         return col;
     }
@@ -7287,7 +7313,7 @@
                 if (Data.channels !== list) return;
                 if (Date.now() - (Nav.userAt || 0) < 1500) { setTimeout(step, 1000); return; }
                 var end = Math.min(list.length, i + 400);
-                for (; i < end; i++) { var c = list[i]; if (c && c.name) { self.key(c); self.tags(c); } }
+                for (; i < end; i++) { var c = list[i]; if (c && c.name) { self.key(c); self.tags(c); self.cleanName(c); } }
                 if (i < list.length) setTimeout(step, 30);
             })();
         },
@@ -7323,21 +7349,42 @@
         label: function (t) { return t.length ? t.join(' ') : 'Standard'; },
         /** Liste zusammenfassen. byCountry: unter „Alle“/Suche über Kategorien hinweg, aber nur gleiches Land */
         /** Zuletzt berechnete Gruppierung merken: erneutes Öffnen von Live TV muss nicht alles neu zusammenfassen */
-        _g: null,
+        _g: null, _gBig: null,
         group: function (list, byCountry) {
             if (!this.on()) { for (var z = 0; z < list.length; z++) { list[z]._mv = null; list[z]._mcc = ''; } return list; }
+            var self = this, k0;
             var gkey = [list.length, list.length ? list[0].id : '', list.length ? list[list.length - 1].id : '', byCountry ? 1 : 0,
-                JSON.stringify(this.off()), JSON.stringify(this.pref()), Math.floor(Date.now() / 120000)].join('|');
-            var g0 = this._g, k0;
+                JSON.stringify(this.off()), JSON.stringify(this.pref())].join('|');
+            // Große Listen („Alle“) haben einen eigenen Merkplatz – sonst verdrängt jede Kategorie das teure Ergebnis
+            var slot = list.length > 1500 ? '_gBig' : '_g', g0 = this[slot];
             if (g0 && g0.of === Data.channels && g0.key === gkey) {
                 // gemerkte Angaben an den Sendern wiederherstellen (andere Ansichten wie Favoriten überschreiben sie)
                 for (k0 = 0; k0 < g0.res.length; k0++) { var c1 = g0.res[k0], st1 = g0.st[k0]; c1._mv = st1[0]; c1._mcc = st1[1]; c1._mname = st1[2]; c1._mkey = st1[3]; }
+                // Älter als 3 Minuten (Sender-Ampel kann sich geändert haben): sofort das Gemerkte zeigen,
+                // neu zusammengefasst wird erst, wenn gerade niemand bedient – nicht mehr beim Öffnen von Live TV
+                if (Date.now() - g0.at > 180000 && !g0.busy) {
+                    g0.busy = true;
+                    whenQuiet(function () {
+                        if (self[slot] !== g0 || Data.channels !== g0.of) return;
+                        try { self.store(slot, list, byCountry, gkey); } catch (eG) { g0.busy = false; }
+                    }, 4000, 5000, 180000);
+                }
                 return g0.res;
             }
+            return this.store(slot, list, byCountry, gkey);
+        },
+        store: function (slot, list, byCountry, gkey) {
             var res0 = this.groupNow(list, byCountry), st0 = new Array(res0.length);
-            for (k0 = 0; k0 < res0.length; k0++) { var c2 = res0[k0]; st0[k0] = [c2._mv, c2._mcc, c2._mname, c2._mkey]; }
-            this._g = { of: Data.channels, key: gkey, res: res0, st: st0 };
+            for (var k0 = 0; k0 < res0.length; k0++) { var c2 = res0[k0]; st0[k0] = [c2._mv, c2._mcc, c2._mname, c2._mkey]; }
+            this[slot] = { of: Data.channels, key: gkey, res: res0, st: st0, at: Date.now() };
             return res0;
+        },
+        /** Bereinigter Name einer Variante (ohne Qualität, Länderkürzel, „Backup“ …) – einmal berechnet und am Sender gemerkt */
+        cleanName: function (c) {
+            if (c._mcn !== undefined && c._mcnN === c.name) return c._mcn;
+            c._mcnN = c.name;
+            return (c._mcn = NameTidy.of(c).name.replace(/[([]\s*(backup|alt|ersatz|reserve|mobile|low|lq)\s*[)\]]/ig, '')
+                .replace(/(^|\s)(backup|alt|ersatz|reserve|mobile|low|lq)(?=\s|$)/ig, ' ').replace(/\s+/g, ' ').trim());
         },
         groupNow: function (list, byCountry) {
             var groups = {}, order = [], off = this.off(), pref = this.pref(), i, c, k;
@@ -7377,8 +7424,7 @@
                 // Name: die ausführlichste Bezeichnung ohne Qualität und Länderkürzel
                 var name = '';
                 vs.forEach(function (v) {
-                    var n = NameTidy.split(v.c.name, v.c.cat).name.replace(/[([]\s*(backup|alt|ersatz|reserve|mobile|low|lq)\s*[)\]]/ig, '')
-                        .replace(/(^|\s)(backup|alt|ersatz|reserve|mobile|low|lq)(?=\s|$)/ig, ' ').replace(/\s+/g, ' ').trim();
+                    var n = self.cleanName(v.c);
                     if (n.length > name.length) name = n;
                 });
                 var c0 = rep.c;
@@ -7610,10 +7656,15 @@
         over: function (c, now) {
             var n = c && c.name;
             if (!n || n.indexOf('|') < 0 && n.indexOf('@') < 0) return false;
-            if (/^\s*(end|ended|ende|beendet|finished|vorbei)\s*[|:-]/i.test(n)) return true;
-            if (!/[|@]/.test(n) || NameTidy.isSep(n)) return false;
-            var t = this.startOf(n);
-            return t > 0 && now - t > (this.LONG.test(n) ? 5 : this.HOURS) * 3600000;
+            // Der Name ändert sich nicht: einmal auswerten und am Sender merken (-1 = „ENDED“, 0 = kein Event, sonst Anstoß und Dauer)
+            if (c._evN !== n) {
+                c._evN = n;
+                if (/^\s*(end|ended|ende|beendet|finished|vorbei)\s*[|:-]/i.test(n)) c._evT = -1;
+                else if (NameTidy.isSep(n)) c._evT = 0;
+                else { c._evT = this.startOf(n); c._evH = this.LONG.test(n) ? 5 : this.HOURS; }
+            }
+            if (c._evT === -1) return true;
+            return c._evT > 0 && now - c._evT > c._evH * 3600000;
         },
         /** Liste ohne vorbei-Events (Ergebnis 5 Minuten zwischengespeichert, solange die Senderliste gleich ist) */
         apply: function (list) {
@@ -7639,6 +7690,8 @@
         return Merge.group(all.filter(function (c) { return c.cat === cat || (c.cx && c.cx.indexOf(cat) >= 0); }), false);
     };
     LiveScreen.prototype.render = function (root) {
+        var tm = { t: Date.now(), parts: [] };
+        function lap(name) { var n = Date.now(); tm.parts.push(name + ' ' + (n - tm.t) + ' ms'); tm.t = n; }
         try { Health.sync(function () { Health.paint(); }); } catch (eH) { /* egal */ }
         var self = this;
         // Senderliste älter als 10 Minuten: im Hintergrund neu holen (PPV-/Event-Sender ändern sich ständig,
@@ -7661,18 +7714,29 @@
 
         var columns = h('div', 'columns live-b');
         var cats = this.categories();
+        lap('Kategorien (' + cats.length + ')');
         // Anzahl Sender je Kategorie (ohne Trennzeilen)
         var vis = EventOver.apply(Hidden.apply(Parental.visible('live', Data.channels))), cnt = {}, favN = 0, allN = 0;
-        for (var ci = 0; ci < vis.length; ci++) {
-            if (NameTidy.isSep(vis[ci].name)) continue;
-            allN++;
-            cnt[vis[ci].cat] = (cnt[vis[ci].cat] || 0) + 1;
-            if (vis[ci].cx) for (var cxi = 0; cxi < vis[ci].cx.length; cxi++) cnt[vis[ci].cx[cxi]] = (cnt[vis[ci].cx[cxi]] || 0) + 1;
-            if (Favs.has('live', vis[ci].id)) favN++;
+        // Favoriten als Tabelle (statt je Sender einen Text zusammenzusetzen – bei 20.000 Sendern spürbar)
+        var favIds = null;
+        for (var fk in Favs.set) if (Favs.set.hasOwnProperty(fk) && fk.indexOf('live:') === 0) { if (!favIds) favIds = {}; favIds[fk.slice(5)] = 1; }
+        var ci;
+        if (Merge.on()) {
+            // zusammengefasst: Anzahlen kommen gemerkt aus Merge.counts – hier nur noch die Favoriten zählen
+            if (favIds) for (ci = 0; ci < vis.length; ci++) if (favIds[vis[ci].id] && !NameTidy.isSep(vis[ci].name)) favN++;
+            var mc = Merge.counts(vis); allN = mc.all; cnt = mc.cat;
+        } else {
+            for (ci = 0; ci < vis.length; ci++) {
+                if (NameTidy.isSep(vis[ci].name)) continue;
+                allN++;
+                cnt[vis[ci].cat] = (cnt[vis[ci].cat] || 0) + 1;
+                if (vis[ci].cx) for (var cxi = 0; cxi < vis[ci].cx.length; cxi++) cnt[vis[ci].cx[cxi]] = (cnt[vis[ci].cx[cxi]] || 0) + 1;
+                if (favIds && favIds[vis[ci].id]) favN++;
+            }
         }
-        if (Merge.on()) { var mc = Merge.counts(vis); allN = mc.all; cnt = mc.cat; }
         var counts = cats.map(function (c, i) { return i === 0 ? allN : i === 1 ? favN : (cnt[c] || 0); });
         var catLabels = cats.map(function (c, i) { return i === 0 ? '☰  Alle' : i === 1 ? c : NameTidy.cat(c); });
+        lap('Zählen (' + vis.length + ')');
         columns.appendChild(categoryColumn(catLabels, this.catIndex, function (i) {
             self.catIndex = i;
             self.query = '';
@@ -7681,8 +7745,10 @@
             var first = $('.col-list .row');
             if (first) Focus.set(first);
         }, { query: this.query, kind: 'live', counts: counts, onClick: function () { self.openSearch(); },
-             hide: { from: 2, raw: cats, done: function (i) { self.catHidden(i); } } }));
+             upTo: this.catFocus || 0, hide: { from: 2, raw: cats, done: function (i) { self.catHidden(i); } } }));
+        this.catFocus = 0;
 
+        lap('Kategorie-Spalte');
         var listCol = h('div', 'col col-list');
         var scroll = h('div', 'scroll');
         listCol.appendChild(scroll);
@@ -7696,7 +7762,19 @@
             list.push(raw[ri]);
         }
         this.list = list;
-        var nowMap = Epg.nowFull(this.list);             // „Jetzt läuft“ mit Beginn/Ende für alle Sender auf einmal
+        // „Jetzt läuft“ (mit Beginn/Ende) nur für die Sender holen, die gerade gezeichnet werden – in Stücken von 120.
+        // Vorher wurde bei jedem Öffnen das Programm ALLER Sender der Liste abgefragt (bei „Alle“ viele Tausend).
+        var nowMap = {}, nowUpTo = 0, nowList = this.list;
+        function nowOf(i) {
+            if (i >= nowUpTo) {
+                var end = Math.min(nowList.length, Math.max(i + 1, nowUpTo + 120));
+                try { var part = Epg.nowFull(nowList.slice(nowUpTo, end)); for (var nk in part) if (part.hasOwnProperty(nk)) nowMap[nk] = part[nk]; } catch (eN) { /* ohne Programm */ }
+                nowUpTo = end;
+            }
+            var ek = nowList[i] && nowList[i].epg;
+            return ek ? nowMap[ek] : null;
+        }
+        lap('Liste (' + this.list.length + ')');
         if (!this.list.length) {
             scroll.appendChild(h('div', 'empty-note', this.query ? 'Kein Sender gefunden für „' + this.query + '“.' : this.catIndex === 1 ? 'Noch keine Favoriten. Drücke bei einem Sender die gelbe Taste.' : 'Keine Sender in dieser Kategorie. Dein Anbieter hat hier gerade keine Sender – bei PPV- und Event-Kategorien kommen sie meist erst kurz vor dem Spiel.'));
         }
@@ -7710,7 +7788,7 @@
             var nt0 = NameTidy.of(ch), nt = { name: nt0.name, tags: nt0.tags };     // Kopie: der gemerkte Wert darf nicht verändert werden
             if (ch._mv) nt = { name: ch._mname, tags: [] };
             if (ch._mcc && Merge.on()) nt.name += ' · ' + ch._mcc;
-            var now = ch.epg ? nowMap[ch.epg] : null;
+            var now = nowOf(i);
             var nm = h('div', 'name rname');
             nm.appendChild(h('div', 'rn', nt.name));
             if (now) {
@@ -7765,6 +7843,7 @@
         if (this.selected) {
             for (var i = 0; i < this.list.length; i++) if (this.list[i].id === this.selected.id) { batch.ensure(i); break; }
         }
+        lap('Zeilen');
 
         var info = h('div', 'col col-info');
         this.previewBox = h('div', 'preview-box' + (this.selected ? '' : ' empty'));
@@ -7824,6 +7903,8 @@
         // Hintergrund sofort legen (sonst blitzt beim Öffnen kurz Schwarz durch), danach zur Sicherheit noch einmal
         try { self.placeBg(); } catch (eBg) { /* gleich noch einmal */ }
         setTimeout(function () { self.placeBg(); }, 0);
+        lap('Anordnen');
+        this._laps = tm.parts.join(' · ');
 
         if (!this.focusKey) this.focusKey = this.selected ? 'ch-' + this.selected.id : (this.list.length ? 'ch-' + this.list[0].id : 'cat-0');
 
@@ -7839,6 +7920,7 @@
         else if (this.catIndex > i) this.catIndex--;
         this.query = '';
         this.focusKey = 'cat-' + Math.min(i, n - 1);
+        this.catFocus = Math.min(i, n - 1);
         Nav.show(this);
     };
     LiveScreen.prototype.openSearch = function () {
@@ -8409,13 +8491,16 @@
             if (first) Focus.set(first);
         }, { query: this.query, kind: this.favType(), dots: true, groups: this.groupAt, onClick: function () { self.openSearch(); }, counts: countsNow,
              sort: { label: 'Sortieren: ' + this.sortName(), onClick: function () { self.sortMenu(); } },
+             upTo: this.catFocus || 0,
              hide: { from: (this.groupAt && this.groupAt.length ? this.groupAt[this.groupAt.length - 1].at : catsNow.length), raw: catsNow, done: function (i) {
                  var n = self.categories().length;
                  if (self.catIndex === i) self.catIndex = Math.min(i, n - 1); else if (self.catIndex > i) self.catIndex--;
                  self.query = ''; self.savedScroll = 0;
                  self.focusKey = 'cat-' + Math.min(i, n - 1);
+                 self.catFocus = Math.min(i, n - 1);
                  Nav.show(self);
              } } }));
+        this.catFocus = 0;
         lap('Kategorie-Spalte (' + catsNow.length + ')');
 
         var gridCol = h('div', 'col col-grid');
