@@ -1,0 +1,145 @@
+{
+  "id": "was-kann-imperumtv",
+  "title": "Was ImperumTV alles kann",
+  "version": "",
+  "hook": {
+    "h": "Das kann<br>ImperumTV.",
+    "s": "Live TV, Filme, Serien, Farben – in 45 Sekunden.",
+    "art": {
+      "type": "clip",
+      "src": "clips/feat-home.mp4",
+      "from": 0
+    }
+  },
+  "scenes": [
+    {
+      "n": "START",
+      "h": "Startseite mit Stil.",
+      "s": "Große Kacheln, weiche Animationen.",
+      "art": {
+        "type": "clip",
+        "src": "clips/feat-home.mp4",
+        "from": 2.6,
+        "speed": 1.0
+      }
+    },
+    {
+      "n": "LIVE TV",
+      "h": "Live TV mit Vorschau.",
+      "s": "Sender nach Gruppen – das Bild läuft sofort.",
+      "art": {
+        "type": "clip",
+        "src": "clips/feat-live.mp4",
+        "from": 0,
+        "speed": 1.2
+      }
+    },
+    {
+      "n": "LIVE TV",
+      "h": "Mit Programm.",
+      "s": "Was läuft jetzt, was kommt danach.",
+      "art": {
+        "type": "clip",
+        "src": "clips/feat-live.mp4",
+        "from": 4.4,
+        "speed": 1.2
+      }
+    },
+    {
+      "n": "PROGRAMM",
+      "h": "Der TV-Guide.",
+      "s": "Alle Sender, Stunden im Voraus.",
+      "art": {
+        "type": "clip",
+        "src": "clips/feat-epg.mp4",
+        "from": 0.6,
+        "speed": 1.1
+      }
+    },
+    {
+      "n": "FILME",
+      "h": "Filme mit Postern.",
+      "s": "Sortiert nach Neu und Genre.",
+      "art": {
+        "type": "clip",
+        "src": "clips/feat-filme.mp4",
+        "from": 0.2,
+        "speed": 1.1
+      }
+    },
+    {
+      "n": "FILME",
+      "h": "Alle Infos auf einen Klick.",
+      "s": "Handlung, Bewertung, Favorit.",
+      "art": {
+        "type": "clip",
+        "src": "clips/feat-filme.mp4",
+        "from": 4.2,
+        "speed": 1.0
+      }
+    },
+    {
+      "n": "SERIEN",
+      "h": "Serien mit Staffeln.",
+      "s": "Fortschritt bei jeder Folge.",
+      "art": {
+        "type": "clip",
+        "src": "clips/feat-serien.mp4",
+        "from": 2.1,
+        "speed": 1.0
+      }
+    },
+    {
+      "n": "FARBEN",
+      "h": "9 Farbthemen.",
+      "s": "Neongrün …",
+      "art": {
+        "type": "clip",
+        "src": "clips/feat-farben.mp4",
+        "from": 2.2,
+        "speed": 1.3
+      }
+    },
+    {
+      "n": "FARBEN",
+      "h": "Ganz nach deinem Geschmack.",
+      "s": "… Pink …",
+      "art": {
+        "type": "clip",
+        "src": "clips/feat-farben.mp4",
+        "from": 8.0,
+        "speed": 1.3
+      }
+    },
+    {
+      "n": "FARBEN",
+      "h": "Umstellen in Sekunden.",
+      "s": "… oder Blau.",
+      "art": {
+        "type": "clip",
+        "src": "clips/feat-farben.mp4",
+        "from": 12.1,
+        "speed": 1.05
+      }
+    },
+    {
+      "n": "EINSTELLUNGEN",
+      "h": "Alles einstellbar.",
+      "s": "Ersatzsender, Kinderschutz, Schlaf-Timer, Support-Chat …",
+      "art": {
+        "type": "clip",
+        "src": "clips/feat-einst.mp4",
+        "from": 1.8,
+        "speed": 1.3
+      }
+    }
+  ],
+  "end": {
+    "h": "Jetzt 7 Tage<br>kostenlos testen.",
+    "s": "Fire TV, Android, iPhone und PC.",
+    "code": "2336102"
+  },
+  "caption": "Das alles kann ImperumTV 📺 Live TV mit Vorschau, TV-Guide, Filme, Serien, 9 Farbthemen und jede Menge Einstellungen. Welche Farbe nimmst du?",
+  "hashtags": "#firetvstick #iptvplayer #androidtv #smarttv #streaming #techtipps #fyp",
+  "music": "latin"
+}

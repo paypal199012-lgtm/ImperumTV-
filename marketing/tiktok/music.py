@@ -18,6 +18,7 @@ Stile (alle passen auf das Raster: Intro 2,6 s, jede Szene 3,6 s, Abschluss 3 s)
   piano    – ernst, Klavier-Akkorde, leiser Beat, Moll
   garage   – 2-Step, verschobene Bass-Drum, kurze Orgel-Stabs, Swing-Hi-Hats
   cinematic– Streicher-Ostinato in Sechzehnteln, tiefe Schläge, steigt mit jeder Szene an
+  latin    – Dembow-Rhythmus (3-3-2), Marimba-Melodie, warmer Bass
 Ohne Stil wird er aus dem Startwert (z. B. der Video-ID) gewählt.
 """
 import sys, zlib
@@ -27,7 +28,7 @@ out, n_scenes = sys.argv[1], int(sys.argv[2])
 style = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ''
 seed_txt = sys.argv[4] if len(sys.argv) > 4 else style
 seed = zlib.crc32(seed_txt.encode()) & 0xffffffff
-STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic']
+STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin']
 if style not in STYLES:
     style = STYLES[seed % len(STYLES)]
 
@@ -290,6 +291,28 @@ elif style == 'piano':                    # ernst, Klavier, 100 BPM
             if k: m.add(piano([notes(ch)[[2, 1, 2, 0, 1][k - 1]] * 2], B * 1.5, 0.07), tt, 1, 0.25)
     e0 = HOOK + n_scenes * SCENE
     m.add(piano([notes(prog[0])[0] / 2] + notes(prog[0]), END, 0.1), e0)
+
+elif style == 'latin':                    # 133 BPM halbe Zeit, Dembow 3-3-2, Marimba
+    B = 0.45; prog = [['A3', 'C4', 'E4'], ['F3', 'A3', 'C4'], ['C4', 'E4', 'G4'], ['G3', 'B3', 'D4']]
+    def marimba(fr, dur=0.3, g=0.12):
+        n = int(SR * dur); t = np.arange(n) / SR
+        return (np.sin(2 * np.pi * fr * t) + 0.35 * np.sin(2 * np.pi * fr * 4 * t) * np.exp(-t * 30)) * np.exp(-t * 9) * g
+    intro(B, rise=True)
+    for k in range(6): m.add(marimba(notes(prog[0])[k % 3] * 2, 0.3, 0.1), 0.3 + k * B * 0.75, 1, 0.2 if k % 2 else -0.2)
+    transitions(0.18)
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = prog[sc % 4]
+        for bar in range(2):
+            b0 = s0 + bar * 4 * B
+            for pos in (0, 2): m.add(kick(), b0 + pos * B, 1.0)
+            for pos in (0.75, 1.5, 2.75, 3.5): m.add(snare(0.7), b0 + pos * B)      # Dembow: 3-3-2
+            for q in range(8): m.add(hat(g=0.12), b0 + q * B / 2, 1, 0.3)
+            m.add(lp(tone(notes(ch)[0] / 2, B * 1.4, 'sine', a=0.005, d=0.5, gain=0.5), 220), b0)
+            m.add(lp(tone(notes(ch)[0] / 2, B * 1.2, 'sine', a=0.005, d=0.5, gain=0.4), 220), b0 + 2 * B)
+            for i, d in enumerate([0, 1, 2, 1, 2, 0, 1, 2]):
+                if i in (3, 6): continue
+                m.add(marimba(notes(ch)[d] * 2, 0.3, 0.1), b0 + i * B / 2, 1, 0.25 if i % 2 else -0.25)
+    outro(prog[0], B)
 
 elif style == 'cinematic':                # 133 BPM, Streicher-Ostinato, wird nach und nach voller
     B = 0.45; prog = [['D3', 'F3', 'A3'], ['A2', 'C3', 'E3'], ['F3', 'A3', 'C4'], ['C3', 'E3', 'G3']]
