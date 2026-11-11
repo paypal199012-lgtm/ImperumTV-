@@ -13410,7 +13410,12 @@
                 var chosen = Remote.find(lastId);
                 var acc = chosen ? playlistAccount(chosen) : null;
                 if (acc && !sameAcc(acc, saved)) { saved = acc; start(acc); }    // Zugangsdaten auf der Website geändert
-                else if (!chosen && Remote.lists.length) Nav.replace(new PlaylistsScreen('Die zuletzt genutzte Wiedergabeliste gibt es nicht mehr. Bitte wähle eine aus.'));
+                else if (!chosen) {
+                    // Die gemerkte Liste wurde auf der Website gelöscht – auch wenn gar keine mehr übrig ist: nicht mit der alten weiterlaufen
+                    try { Player.stop(); } catch (eP) { /* egal */ }
+                    Storage.remove('playlistId');
+                    Nav.replace(new PlaylistsScreen(Remote.lists.length ? 'Die zuletzt genutzte Wiedergabeliste gibt es nicht mehr. Bitte wähle eine aus.' : 'Die zuletzt genutzte Wiedergabeliste wurde gelöscht.'));
+                }
             }, function () { /* offline: gespeicherter Stand gilt */ });
             return;
         }
