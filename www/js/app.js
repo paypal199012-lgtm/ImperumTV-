@@ -2534,7 +2534,7 @@
             var old = Storage.get('licRev', null);
             if (old === rev) return;
             Storage.set('licRev', rev);
-            if (old !== null) this.refresh();
+            if (old !== null) { this.refresh(); try { Remote.recheck(); } catch (e) { /* egal */ } }
         },
         refresh: function () {
             if (STORE_BUILD || !Device.validMac(Device.mac) || !Device.validKey(Device.key)) return;
@@ -2954,7 +2954,7 @@
                 var m = null;
                 try { m = JSON.parse(e.data); } catch (x) { return; }
                 if (m && m.topic === topic && m.event === 'broadcast') {
-                    if (m.payload && m.payload.event === 'lic') { License.refresh(); return; }
+                    if (m.payload && m.payload.event === 'lic') { License.refresh(); try { Remote.recheck(); } catch (eR) { /* egal */ } return; }
                     self.hurry(); self.poll(false);
                 }
             };
@@ -3309,6 +3309,30 @@
             });
         },
 
+        /**
+         * Die Website meldet eine Änderung (Liste gelöscht, geändert, neu): Listen neu holen.
+         * Gibt es die gerade genutzte Wiedergabeliste nicht mehr, sofort anhalten und zur Auswahl – sie lief sonst weiter.
+         */
+        recheckBusy: false,
+        recheck: function () {
+            var self = this, cur = Storage.get('playlistId', null);
+            if (this.recheckBusy || cur === null || String(cur) === 'demo' || (Api.acc && Api.acc.demo)) return;
+            if (!Device.validMac(Device.mac) || !Device.validKey(Device.key)) return;
+            this.recheckBusy = true;
+            this.load().then(function (lists) {
+                self.recheckBusy = false;
+                if (!Array.isArray(lists) || self.find(cur)) {
+                    var top0 = Nav.top();
+                    if (top0 instanceof PlaylistsScreen && !Modal.node) Nav.show(top0);     // Auswahl zeigt den neuen Stand
+                    return;
+                }
+                try { Player.stop(); } catch (e) { /* egal */ }
+                try { Watch.set(''); Watch.send(); } catch (e2) { /* egal */ }
+                Storage.remove('playlistId');
+                try { if (Modal.node) Modal.close(); } catch (e3) { /* egal */ }
+                Nav.replace(new PlaylistsScreen('Diese Wiedergabeliste wurde auf der Website gelöscht.' + (lists.length ? ' Bitte wähle eine andere aus.' : '')));
+            }, function () { self.recheckBusy = false; /* offline: später */ });
+        },
         find: function (id) {
             if (String(id) === 'demo') return Demo.ENABLED ? Demo.playlist : null;
             var list = this.lists || [];
@@ -13487,7 +13511,7 @@
     }
     window.__pressFx = pressFx;                 // Android reicht Tasten direkt weiter (kein keydown)
     document.addEventListener('keydown', function (e) { if ((e.keyCode || e.which) === 13) pressFx(); }, true);
-    window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen, Lite: Lite, Glide: Glide, Busy: Busy, Metrics: Metrics, Free: Free };
+    window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen, Lite: Lite, Glide: Glide, Busy: Busy, Metrics: Metrics, Free: Free, Api: Api };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();
