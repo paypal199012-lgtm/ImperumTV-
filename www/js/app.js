@@ -4835,6 +4835,9 @@
             try { if (Lite.active() || screen instanceof PlayerScreen) return; } catch (e) { return; }
             this.sparks(screen, app);
             if (!a) return;
+            // Bildschirme mit Vorschaubild (Live TV, Programm): nicht bewegen – das Video und der Rahmen darum
+            // werden nach der Position des Kastens gelegt und würden sonst verrutschen
+            if (app.querySelector('.preview-box, .eg-preview')) return;
             app.classList.remove('anim-in', 'anim-back', 'anim-home');
             void app.offsetWidth;                                   // Animation neu starten
             app.classList.add('anim-' + a);
