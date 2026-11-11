@@ -1795,3 +1795,151 @@ body.ios .lv-act { padding: 12px 16px; margin-right: 10px; font-size: 21px; whit
 .chat-text { white-space: pre-wrap; word-break: break-word; }
 .chat-empty { font-size: 26px; color: #c9c3b6; }
 body.touch .chat-list { -webkit-overflow-scrolling: touch; }
+
+/* ---------- Bewegung (Animationen): kurz, weich, nur über den Grafikchip (transform/opacity). Bei „Leichte Darstellung“ aus. ---------- */
+/* Fokus: federt leicht nach, Farbe gleitet */
+.circle, .tile, .button, .cat, .row, .poster, .season, .episode, .set-row, .set-tile, .set-chip, .erow, .pl-card, .round-btn,
+.pf-chip, .actor, .kbd-key, .pin-key, .pb-btn, .pp-btn, .lv-act, .rec-row, .pl-btn, .pl-back {
+    -webkit-transition: -webkit-transform .26s cubic-bezier(.34,1.56,.64,1), background-color .2s ease-out, color .2s ease-out, box-shadow .2s ease-out, border-color .2s ease-out;
+    transition: transform .26s cubic-bezier(.34,1.56,.64,1), background-color .2s ease-out, color .2s ease-out, box-shadow .2s ease-out, border-color .2s ease-out;
+}
+.circle.focused { transform: scale(1.1); }
+.tile.focused, .set-tile.focused { transform: scale(1.06); }
+.poster.focused { transform: scale(1.08); }
+.round-btn.focused, .pl-card.focused { transform: scale(1.06); }
+.cat.focused, .row.focused, .set-row.focused, .erow.focused, .rec-row.focused { transform: translateX(8px); }
+.episode.focused, .season.focused { transform: scale(1.04); }
+/* Kreise auf der Startseite: Lichtschimmer läuft einmal drüber + weiches Leuchten */
+.circle { overflow: hidden; -webkit-transform: translateZ(0); }
+.circle::after { content: ""; position: absolute; top: -10%; bottom: -10%; left: 0; width: 45%; pointer-events: none; opacity: 0;
+    background: linear-gradient(100deg, transparent, rgba(255,240,200,.38), transparent); -webkit-transform: translateX(-150%) skewX(-18deg); transform: translateX(-150%) skewX(-18deg); }
+.circle.focused::after { -webkit-animation: shine .75s ease-out .05s; animation: shine .75s ease-out .05s; }
+@-webkit-keyframes shine { 0% { opacity: 1; -webkit-transform: translateX(-150%) skewX(-18deg); } 100% { opacity: 1; -webkit-transform: translateX(330%) skewX(-18deg); } }
+@keyframes shine { 0% { opacity: 1; transform: translateX(-150%) skewX(-18deg); } 100% { opacity: 1; transform: translateX(330%) skewX(-18deg); } }
+.circle::before { content: ""; position: absolute; left: 0; top: 0; right: 0; bottom: 0; border-radius: 50%; pointer-events: none; opacity: 0;
+    background: radial-gradient(circle at 50% 35%, rgba(244,220,158,.35), transparent 65%); -webkit-transition: opacity .3s; transition: opacity .3s; }
+.circle.focused::before { opacity: 1; -webkit-animation: glow 2.6s ease-in-out .4s infinite; animation: glow 2.6s ease-in-out .4s infinite; }
+@-webkit-keyframes glow { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes glow { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+/* Bildschirmwechsel: Inhalt (nicht der Hintergrund) gleitet in Ebenen herein */
+#app.anim-in > *, #app.anim-in .col-cats, #app.anim-in .col-list, #app.anim-in .col-grid, #app.anim-in .col-info,
+#app.anim-in .detail .cover, #app.anim-in .detail .body {
+    -webkit-animation: layerIn .36s cubic-bezier(.2,.8,.25,1) both; animation: layerIn .36s cubic-bezier(.2,.8,.25,1) both; }
+#app.anim-back > *, #app.anim-back .col-cats, #app.anim-back .col-list, #app.anim-back .col-grid, #app.anim-back .col-info {
+    -webkit-animation: layerBack .34s cubic-bezier(.2,.8,.25,1) both; animation: layerBack .34s cubic-bezier(.2,.8,.25,1) both; }
+#app.anim-in .col-list, #app.anim-in .col-grid, #app.anim-in .detail .body { -webkit-animation-delay: .05s; animation-delay: .05s; }
+#app.anim-in .col-info { -webkit-animation-delay: .1s; animation-delay: .1s; }
+#app.anim-in .detail .cover { -webkit-animation-name: coverIn; animation-name: coverIn; }
+@-webkit-keyframes layerIn { from { opacity: 0; -webkit-transform: translateY(22px) scale(.975); } to { opacity: 1; -webkit-transform: none; } }
+@keyframes layerIn { from { opacity: 0; transform: translateY(22px) scale(.975); } to { opacity: 1; transform: none; } }
+@-webkit-keyframes layerBack { from { opacity: 0; -webkit-transform: scale(1.025); } to { opacity: 1; -webkit-transform: none; } }
+@keyframes layerBack { from { opacity: 0; transform: scale(1.025); } to { opacity: 1; transform: none; } }
+@-webkit-keyframes coverIn { from { opacity: 0; -webkit-transform: translateX(-60px) rotateY(12deg); } to { opacity: 1; -webkit-transform: none; } }
+@keyframes coverIn { from { opacity: 0; transform: translateX(-60px) rotateY(12deg); } to { opacity: 1; transform: none; } }
+/* Listen: die ersten Einträge kommen nacheinander */
+#app.anim-in .row, #app.anim-in .cat, #app.anim-in .poster, #app.anim-in .set-row, #app.anim-in .episode, #app.anim-in .pl-card {
+    -webkit-animation: itemIn .38s cubic-bezier(.2,.8,.25,1) both; animation: itemIn .38s cubic-bezier(.2,.8,.25,1) both; }
+#app.anim-in .row:nth-child(1), #app.anim-in .cat:nth-child(1), #app.anim-in .poster:nth-child(1), #app.anim-in .set-row:nth-child(1), #app.anim-in .episode:nth-child(1), #app.anim-in .pl-card:nth-child(1) { -webkit-animation-delay: 0.09s; animation-delay: 0.09s; }
+#app.anim-in .row:nth-child(2), #app.anim-in .cat:nth-child(2), #app.anim-in .poster:nth-child(2), #app.anim-in .set-row:nth-child(2), #app.anim-in .episode:nth-child(2), #app.anim-in .pl-card:nth-child(2) { -webkit-animation-delay: 0.12s; animation-delay: 0.12s; }
+#app.anim-in .row:nth-child(3), #app.anim-in .cat:nth-child(3), #app.anim-in .poster:nth-child(3), #app.anim-in .set-row:nth-child(3), #app.anim-in .episode:nth-child(3), #app.anim-in .pl-card:nth-child(3) { -webkit-animation-delay: 0.15s; animation-delay: 0.15s; }
+#app.anim-in .row:nth-child(4), #app.anim-in .cat:nth-child(4), #app.anim-in .poster:nth-child(4), #app.anim-in .set-row:nth-child(4), #app.anim-in .episode:nth-child(4), #app.anim-in .pl-card:nth-child(4) { -webkit-animation-delay: 0.18s; animation-delay: 0.18s; }
+#app.anim-in .row:nth-child(5), #app.anim-in .cat:nth-child(5), #app.anim-in .poster:nth-child(5), #app.anim-in .set-row:nth-child(5), #app.anim-in .episode:nth-child(5), #app.anim-in .pl-card:nth-child(5) { -webkit-animation-delay: 0.21s; animation-delay: 0.21s; }
+#app.anim-in .row:nth-child(6), #app.anim-in .cat:nth-child(6), #app.anim-in .poster:nth-child(6), #app.anim-in .set-row:nth-child(6), #app.anim-in .episode:nth-child(6), #app.anim-in .pl-card:nth-child(6) { -webkit-animation-delay: 0.24s; animation-delay: 0.24s; }
+#app.anim-in .row:nth-child(7), #app.anim-in .cat:nth-child(7), #app.anim-in .poster:nth-child(7), #app.anim-in .set-row:nth-child(7), #app.anim-in .episode:nth-child(7), #app.anim-in .pl-card:nth-child(7) { -webkit-animation-delay: 0.27s; animation-delay: 0.27s; }
+#app.anim-in .row:nth-child(8), #app.anim-in .cat:nth-child(8), #app.anim-in .poster:nth-child(8), #app.anim-in .set-row:nth-child(8), #app.anim-in .episode:nth-child(8), #app.anim-in .pl-card:nth-child(8) { -webkit-animation-delay: 0.30s; animation-delay: 0.30s; }
+#app.anim-in .row:nth-child(9), #app.anim-in .cat:nth-child(9), #app.anim-in .poster:nth-child(9), #app.anim-in .set-row:nth-child(9), #app.anim-in .episode:nth-child(9), #app.anim-in .pl-card:nth-child(9) { -webkit-animation-delay: 0.33s; animation-delay: 0.33s; }
+#app.anim-in .row:nth-child(10), #app.anim-in .cat:nth-child(10), #app.anim-in .poster:nth-child(10), #app.anim-in .set-row:nth-child(10), #app.anim-in .episode:nth-child(10), #app.anim-in .pl-card:nth-child(10) { -webkit-animation-delay: 0.36s; animation-delay: 0.36s; }
+#app.anim-in .row:nth-child(11), #app.anim-in .cat:nth-child(11), #app.anim-in .poster:nth-child(11), #app.anim-in .set-row:nth-child(11), #app.anim-in .episode:nth-child(11), #app.anim-in .pl-card:nth-child(11) { -webkit-animation-delay: 0.39s; animation-delay: 0.39s; }
+#app.anim-in .row:nth-child(12), #app.anim-in .cat:nth-child(12), #app.anim-in .poster:nth-child(12), #app.anim-in .set-row:nth-child(12), #app.anim-in .episode:nth-child(12), #app.anim-in .pl-card:nth-child(12) { -webkit-animation-delay: 0.42s; animation-delay: 0.42s; }
+#app.anim-in .row:nth-child(13), #app.anim-in .cat:nth-child(13), #app.anim-in .poster:nth-child(13), #app.anim-in .set-row:nth-child(13), #app.anim-in .episode:nth-child(13), #app.anim-in .pl-card:nth-child(13) { -webkit-animation-delay: 0.45s; animation-delay: 0.45s; }
+#app.anim-in .row:nth-child(14), #app.anim-in .cat:nth-child(14), #app.anim-in .poster:nth-child(14), #app.anim-in .set-row:nth-child(14), #app.anim-in .episode:nth-child(14), #app.anim-in .pl-card:nth-child(14) { -webkit-animation-delay: 0.48s; animation-delay: 0.48s; }
+
+#app.anim-in .row:nth-child(n+15), #app.anim-in .cat:nth-child(n+15), #app.anim-in .poster:nth-child(n+15), #app.anim-in .set-row:nth-child(n+15) { -webkit-animation: none; animation: none; }
+@-webkit-keyframes itemIn { from { opacity: 0; -webkit-transform: translateY(16px); } to { opacity: 1; -webkit-transform: none; } }
+@keyframes itemIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+/* Startseite: Logo schwebt herein, Kreise ploppen nacheinander auf, Kacheln gleiten hoch */
+#app.anim-home > * { -webkit-animation: none; animation: none; }
+#app.anim-home .home-logo { -webkit-animation: logoIn .7s cubic-bezier(.2,.8,.25,1) both; animation: logoIn .7s cubic-bezier(.2,.8,.25,1) both; }
+#app.anim-home .circle { -webkit-animation: popIn .55s cubic-bezier(.34,1.56,.64,1) both; animation: popIn .55s cubic-bezier(.34,1.56,.64,1) both; }
+#app.anim-home .circle:nth-child(1) { -webkit-animation-delay: .12s; animation-delay: .12s; }
+#app.anim-home .circle:nth-child(2) { -webkit-animation-delay: .2s; animation-delay: .2s; }
+#app.anim-home .circle:nth-child(3) { -webkit-animation-delay: .28s; animation-delay: .28s; }
+#app.anim-home .circle:nth-child(4) { -webkit-animation-delay: .36s; animation-delay: .36s; }
+#app.anim-home .tile { -webkit-animation: itemIn .45s cubic-bezier(.2,.8,.25,1) both; animation: itemIn .45s cubic-bezier(.2,.8,.25,1) both; }
+#app.anim-home .tile:nth-child(1) { -webkit-animation-delay: .46s; animation-delay: .46s; }
+#app.anim-home .tile:nth-child(2) { -webkit-animation-delay: .52s; animation-delay: .52s; }
+#app.anim-home .tile:nth-child(3) { -webkit-animation-delay: .58s; animation-delay: .58s; }
+#app.anim-home .tile:nth-child(4) { -webkit-animation-delay: .64s; animation-delay: .64s; }
+@-webkit-keyframes logoIn { from { opacity: 0; -webkit-transform: translateY(-30px) scale(.92); } to { opacity: 1; -webkit-transform: none; } }
+@keyframes logoIn { from { opacity: 0; transform: translateY(-30px) scale(.92); } to { opacity: 1; transform: none; } }
+@-webkit-keyframes popIn { from { opacity: 0; -webkit-transform: translateY(40px) scale(.7); } to { opacity: 1; -webkit-transform: none; } }
+@keyframes popIn { from { opacity: 0; transform: translateY(40px) scale(.7); } to { opacity: 1; transform: none; } }
+
+/* Auswahlfenster: Hintergrund blendet ein, Fenster federt auf */
+#modal.anim-in { -webkit-animation: mdIn .22s ease-out both; animation: mdIn .22s ease-out both; }
+#modal.anim-in .modal-box { -webkit-animation: boxIn .34s cubic-bezier(.34,1.56,.64,1) both; animation: boxIn .34s cubic-bezier(.34,1.56,.64,1) both; }
+@-webkit-keyframes mdIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mdIn { from { opacity: 0; } to { opacity: 1; } }
+@-webkit-keyframes boxIn { from { opacity: 0; -webkit-transform: translateY(-50%) scale(.88); } to { opacity: 1; -webkit-transform: translateY(-50%) scale(1); } }
+@keyframes boxIn { from { opacity: 0; transform: translateY(-50%) scale(.88); } to { opacity: 1; transform: translateY(-50%) scale(1); } }
+/* Meldungen gleiten von oben herein */
+#toast { -webkit-animation: toastIn .32s cubic-bezier(.34,1.56,.64,1); animation: toastIn .32s cubic-bezier(.34,1.56,.64,1); }
+@-webkit-keyframes toastIn { from { opacity: 0; -webkit-transform: translateY(-30px); } to { opacity: 1; -webkit-transform: none; } }
+@keyframes toastIn { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: none; } }
+
+/* Leichte Darstellung (schwache Sticks): alles ruhig */
+body.lite #app *, body.lite #modal, body.lite #modal *, body.lite #toast { -webkit-animation: none !important; animation: none !important; }
+body.lite .circle::after, body.lite .circle::before { display: none; }
+body.lite .circle.focused, body.lite .tile.focused, body.lite .set-tile.focused, body.lite .cat.focused, body.lite .row.focused, body.lite .poster.focused,
+body.lite .set-row.focused, body.lite .erow.focused, body.lite .rec-row.focused, body.lite .round-btn.focused, body.lite .pl-card.focused,
+body.lite .episode.focused, body.lite .season.focused { transform: none; }
+/* ---------- Mehr Bewegung ---------- */
+/* Lichtstrahlen im Hintergrund wandern ganz langsam (eigene Ebene, nur transform) */
+#app::after { content: ""; position: absolute; left: -20%; top: -20%; width: 140%; height: 140%; pointer-events: none; z-index: -1;
+    background: linear-gradient(160deg, transparent 38%, rgba(244,220,158,.13) 44%, rgba(244,220,158,.04) 52%, transparent 58%),
+                linear-gradient(110deg, transparent 60%, rgba(244,220,158,.07) 64%, transparent 70%);
+    -webkit-animation: rays 18s ease-in-out infinite alternate; animation: rays 18s ease-in-out infinite alternate; }
+@-webkit-keyframes rays { from { -webkit-transform: translate3d(-6%, -2%, 0) rotate(-2deg); } to { -webkit-transform: translate3d(6%, 2%, 0) rotate(2deg); } }
+@keyframes rays { from { transform: translate3d(-6%, -2%, 0) rotate(-2deg); } to { transform: translate3d(6%, 2%, 0) rotate(2deg); } }
+body.preview-mode #app::after, body.video-mode #app::after { display: none; }
+/* Goldene Funken steigen auf der Startseite langsam auf */
+#app .home-sparks { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; overflow: hidden; z-index: -1; }
+#app .home-sparks i { position: absolute; bottom: -20px; width: 6px; height: 6px; border-radius: 50%; background: rgba(244,220,158,.8);
+    box-shadow: 0 0 10px rgba(244,220,158,.9); opacity: 0; -webkit-animation: spark 9s linear infinite; animation: spark 9s linear infinite; }
+@-webkit-keyframes spark { 0% { opacity: 0; -webkit-transform: translate3d(0, 0, 0); } 10% { opacity: .9; } 80% { opacity: .5; } 100% { opacity: 0; -webkit-transform: translate3d(40px, -900px, 0); } }
+@keyframes spark { 0% { opacity: 0; transform: translate3d(0, 0, 0); } 10% { opacity: .9; } 80% { opacity: .5; } 100% { opacity: 0; transform: translate3d(40px, -900px, 0); } }
+/* Logo: alle paar Sekunden läuft ein Lichtschimmer drüber */
+.home-title { overflow: hidden; }
+.home-title::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 120px; margin-left: -60px; pointer-events: none;
+    background: linear-gradient(100deg, transparent, rgba(255,245,215,.55), transparent); opacity: 0;
+    -webkit-animation: logoShine 6s ease-in-out 1.2s infinite; animation: logoShine 6s ease-in-out 1.2s infinite; }
+@-webkit-keyframes logoShine { 0% { opacity: 0; -webkit-transform: translateX(-260px) skewX(-20deg); } 8% { opacity: 1; } 22% { opacity: 1; -webkit-transform: translateX(260px) skewX(-20deg); } 23%, 100% { opacity: 0; } }
+@keyframes logoShine { 0% { opacity: 0; transform: translateX(-260px) skewX(-20deg); } 8% { opacity: 1; } 22% { opacity: 1; transform: translateX(260px) skewX(-20deg); } 23%, 100% { opacity: 0; } }
+/* Symbol im markierten Kreis / in der Kachel hüpft kurz */
+.circle .icon, .tile .icon { -webkit-transition: -webkit-transform .3s cubic-bezier(.34,1.56,.64,1); transition: transform .3s cubic-bezier(.34,1.56,.64,1); }
+.circle.focused .icon { -webkit-animation: hop .55s cubic-bezier(.34,1.56,.64,1); animation: hop .55s cubic-bezier(.34,1.56,.64,1); }
+.tile.focused .icon { -webkit-animation: wiggle .5s ease-in-out; animation: wiggle .5s ease-in-out; }
+@-webkit-keyframes hop { 0% { -webkit-transform: none; } 40% { -webkit-transform: translateY(-14px) scale(1.12); } 100% { -webkit-transform: none; } }
+@keyframes hop { 0% { transform: none; } 40% { transform: translateY(-14px) scale(1.12); } 100% { transform: none; } }
+@-webkit-keyframes wiggle { 0%, 100% { -webkit-transform: none; } 25% { -webkit-transform: rotate(-10deg) scale(1.1); } 60% { -webkit-transform: rotate(8deg) scale(1.1); } }
+@keyframes wiggle { 0%, 100% { transform: none; } 25% { transform: rotate(-10deg) scale(1.1); } 60% { transform: rotate(8deg) scale(1.1); } }
+/* Zeilen: goldener Balken links wächst beim Markieren */
+.row, .cat, .set-row { position: relative; }
+.row::before, .cat::before, .set-row::before { content: ""; position: absolute; left: 0; top: 10%; bottom: 10%; width: 5px; border-radius: 3px; background: #f4dc9e;
+    -webkit-transform: scaleY(0); transform: scaleY(0); -webkit-transition: -webkit-transform .25s cubic-bezier(.34,1.56,.64,1); transition: transform .25s cubic-bezier(.34,1.56,.64,1); }
+.row.focused::before, .cat.focused::before, .set-row.focused::before { -webkit-transform: scaleY(1); transform: scaleY(1); }
+/* Poster: Lichtschimmer beim Markieren */
+.poster { position: relative; overflow: hidden; }
+.poster::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 50%; pointer-events: none; opacity: 0;
+    background: linear-gradient(100deg, transparent, rgba(255,240,200,.35), transparent); -webkit-transform: translateX(-150%) skewX(-15deg); transform: translateX(-150%) skewX(-15deg); }
+.poster.focused::after { -webkit-animation: shine .7s ease-out .05s; animation: shine .7s ease-out .05s; }
+/* Druck-Feedback bei OK */
+.focused.press { -webkit-animation: press .26s ease-out; animation: press .26s ease-out; }
+@-webkit-keyframes press { 0% { -webkit-transform: scale(1); } 40% { -webkit-transform: scale(.92); } 100% { -webkit-transform: scale(1.06); } }
+@keyframes press { 0% { transform: scale(1); } 40% { transform: scale(.92); } 100% { transform: scale(1.06); } }
+/* Uhr: Doppelpunkt blinkt sanft */
+body.lite #app::after, body.lite .home-sparks, body.lite .home-title::after, body.lite .row::before, body.lite .cat::before, body.lite .set-row::before, body.lite .poster::after { display: none; }
+body.lite .focused.press, body.lite .circle.focused .icon, body.lite .tile.focused .icon { -webkit-animation: none !important; animation: none !important; }
+

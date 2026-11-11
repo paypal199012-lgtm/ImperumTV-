@@ -4764,6 +4764,34 @@
 
     var Nav = {
         stack: [],
+        anim: null,          // „in“ (neuer Bildschirm) oder „back“ (zurück) – für den kurzen Übergang
+        /** Startseite: aufsteigende goldene Funken (Animation) */
+        sparks: function (screen, app) {
+            if (typeof HomeScreen === 'undefined' || !(screen instanceof HomeScreen) || app.querySelector('.home-sparks')) return;
+            var sp = document.createElement('div'); sp.className = 'home-sparks';
+            for (var si = 0; si < 14; si++) {
+                var dot = document.createElement('i');
+                dot.style.left = (4 + si * 6.8 + (si * 37 % 5)) + '%';
+                dot.style.animationDelay = dot.style.webkitAnimationDelay = (-(si * 1.37 % 9)).toFixed(2) + 's';
+                dot.style.animationDuration = dot.style.webkitAnimationDuration = (8 + si * 0.53 % 5).toFixed(2) + 's';
+                sp.appendChild(dot);
+            }
+            app.insertBefore(sp, app.firstChild);
+        },
+        /** Kurzer, weicher Übergang beim Bildschirmwechsel (nicht beim Player, nicht bei „Leichte Darstellung“) */
+        animate: function (screen) {
+            var a = this.anim; this.anim = null;
+            var app = $('#app');
+            try { if (Lite.active() || screen instanceof PlayerScreen) return; } catch (e) { return; }
+            this.sparks(screen, app);
+            if (!a) return;
+            app.classList.remove('anim-in', 'anim-back', 'anim-home');
+            void app.offsetWidth;                                   // Animation neu starten
+            app.classList.add('anim-' + a);
+            if (a === 'in' && typeof HomeScreen !== 'undefined' && screen instanceof HomeScreen) app.classList.add('anim-home');
+            clearTimeout(this.animT);
+            this.animT = setTimeout(function () { app.classList.remove('anim-in', 'anim-back', 'anim-home'); }, 1300);
+        },
         top: function () { return this.stack[this.stack.length - 1]; },
 
         show: function (screen, restoring) {
@@ -4782,6 +4810,7 @@
             if (!target && restoring && screen.focusKey) target = this.loadUntil(screen.focusKey);
             if (target) Focus.set(target); else Focus.first();
             if (saved) this.restoreScroll(screen, saved);
+            this.animate(screen);
         },
 
         /** Alle Listen-Kästen (gleiche Reihenfolge wie beim Merken) */
@@ -4842,6 +4871,7 @@
                 }
             }
             this.stack.push(screen);
+            this.anim = 'in';
             this.show(screen);
         },
 
@@ -4862,6 +4892,7 @@
             if (target) Focus.set(target); else Focus.first();
             if (saved) this.restoreScroll(screen, saved);
             IosBack.update();
+            this.animate(screen);
         },
 
         replace: function (screen) {
@@ -4869,6 +4900,7 @@
             if (cur && cur.hide) cur.hide();
             this.stack = [];
             this.stack.push(screen);
+            this.anim = 'in';
             this.show(screen);
         },
 
@@ -4883,6 +4915,7 @@
             if (cur.hide) cur.hide();
             cur._backTo = null;
             var top = this.top();
+            this.anim = 'back';
             if (top._dom && (!top.canRevive || top.canRevive())) this.revive(top);
             else { top._dom = null; this.show(top, true); }
         },
@@ -5564,6 +5597,7 @@
             this.returnFocus = Focus.cur;
             var wrap = h('div', null);
             wrap.id = 'modal';
+            try { if (!Lite.active()) wrap.className = 'anim-in'; } catch (eA) { /* egal */ }
             var box = h('div', 'modal-box');
             box.appendChild(h('div', 'modal-title', title));
             if (text) box.appendChild(h('div', 'modal-text', text));
@@ -5591,6 +5625,7 @@
             this.returnFocus = Focus.cur;
             var wrap = h('div', null);
             wrap.id = 'modal';
+            try { if (!Lite.active()) wrap.className = 'anim-in'; } catch (eA) { /* egal */ }
             wrap.appendChild(box);
             $('#stage').appendChild(wrap);
             this.node = wrap;
@@ -12641,6 +12676,15 @@
     }
 
     // Nur für automatische Tests im Browser
+    // Druck-Feedback (Animation): markierter Eintrag federt bei OK kurz ein
+    document.addEventListener('keydown', function (e) {
+        if ((e.keyCode || e.which) !== 13) return;
+        try { if (Lite.active()) return; } catch (x) { return; }
+        var el = Focus.cur;
+        if (!el || !el.classList) return;
+        el.classList.remove('press'); void el.offsetWidth; el.classList.add('press');
+        setTimeout(function () { el.classList.remove('press'); }, 260);
+    }, true);
     window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
