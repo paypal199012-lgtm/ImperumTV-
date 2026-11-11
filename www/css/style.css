@@ -1947,7 +1947,6 @@ body.oldstick .home-sparks, body.oldstick .home-title::after, body.oldstick .cir
 body.oldstick .circle.focused::before { -webkit-animation: none; animation: none; }
 body.oldstick #app.anim-in .row, body.oldstick #app.anim-in .cat, body.oldstick #app.anim-in .poster, body.oldstick #app.anim-in .set-row,
 body.oldstick #app.anim-in .episode, body.oldstick #app.anim-in .pl-card { -webkit-animation: none; animation: none; }
-body.oldstick .circle.focused .icon, body.oldstick .tile.focused .icon { -webkit-animation: none; animation: none; }
 
 /* Effekte dürfen nie über die Bühne hinausragen */
 #app { overflow: hidden; }
@@ -1966,3 +1965,21 @@ body.oldstick .circle.focused .icon, body.oldstick .tile.focused .icon { -webkit
 #app { overflow: visible; }
 /* Alte Sticks: Bildschirmwechsel sofort (fühlt sich schneller an) */
 body.oldstick #app.anim-in *, body.oldstick #app.anim-back *, body.oldstick #app.anim-in > *, body.oldstick #app.anim-back > * { -webkit-animation: none !important; animation: none !important; }
+
+/* ---------- Android / Fire TV: Listen als eigene Ebene ----------
+   Der Grafikchip schiebt die fertig gezeichnete Liste weiter, statt sie bei jedem Schritt neu zu zeichnen
+   (macht Blättern in Sendern, Filmen und Serien auf schwachen Sticks deutlich leichter). Balken bleiben unsichtbar.
+   Handys/Tablets (Bedienung per Finger) scrollen ohnehin schon so – dort ändert sich nichts. */
+body.lowfx:not(.touch) .scroll, body.lowfx:not(.touch) .detail .body.vscroll { overflow-y: auto; scrollbar-width: none; }
+body.lowfx:not(.touch) .scroll::-webkit-scrollbar, body.lowfx:not(.touch) .vscroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+/* ---------- Einfache Animationen (ältere Sticks) ----------
+   Beim Bildschirmwechsel blenden nur die wenigen großen Bereiche weich ein und gleiten ein kleines Stück.
+   Die App setzt .sx (noch unsichtbar), wartet bis der Bildschirm gezeichnet ist, und startet dann mit .sx-go. */
+.sx { opacity: .01 !important; will-change: opacity; }
+.sx.sx-s { -webkit-transform: translate3d(0, 22px, 0) !important; transform: translate3d(0, 22px, 0) !important; will-change: opacity, transform; }
+.sx.sx-s.sx-b { -webkit-transform: translate3d(0, -14px, 0) !important; transform: translate3d(0, -14px, 0) !important; }
+.sx.sx-go { opacity: 1 !important; -webkit-transition: opacity .2s ease-out !important; transition: opacity .2s ease-out !important; }
+.sx.sx-s.sx-go { -webkit-transform: translate3d(0, 0, 0) !important; transform: translate3d(0, 0, 0) !important;
+    -webkit-transition: opacity .2s ease-out, -webkit-transform .28s cubic-bezier(.22,1,.36,1) !important; transition: opacity .2s ease-out, transform .28s cubic-bezier(.22,1,.36,1) !important; }
+

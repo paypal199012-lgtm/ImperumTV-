@@ -385,6 +385,7 @@
 
     // Einfache Symbole als SVG (Fernseher haben nicht immer passende Schriftzeichen)
     var ICONS = {
+        eyeoff: '<path d="M3 3l18 18"/><path d="M10.6 5.1A9.9 9.9 0 0 1 12 5c5.5 0 9 7 9 7a15.6 15.6 0 0 1-2.9 3.9M6.3 6.3C3.9 8 2.9 12 2.9 12s3.6 7 9.1 7a9 9 0 0 0 4.4-1.2"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
         tv: '<rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8M12 17.5V21"/>',
         film: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18M17 3v18M3 8h4M3 12h4M3 16h4M17 8h4M17 12h4M17 16h4"/>',
         series: '<rect x="2.5" y="6" width="15" height="12" rx="2"/><path d="M8.5 9.5l4 2.5-4 2.5z"/><path d="M6 3.5h14.5a1 1 0 0 1 1 1V15"/>',
@@ -520,6 +521,28 @@
     // Fokus-Steuerung mit den Pfeiltasten
     // =====================================================================
 
+    /** Listen weich weiterschieben statt springen – nur wo die Liste eine eigene Ebene hat (Android) und nicht bei „Leichte Darstellung“ */
+    var Glide = {
+        on: false, ok: null, rep: false,
+        can: function () {
+            if (this.ok === null) {
+                var ok = false;
+                try { ok = !!AB && !(AB && AB.deviceMacKey) && 'scrollBehavior' in document.documentElement.style && typeof Element.prototype.scrollTo === 'function'; } catch (e) { ok = false; }
+                this.ok = ok;
+            }
+            // Taste gehalten: springen (schneller durch lange Listen)
+            return this.ok && this.on && !this.rep && !document.body.classList.contains('lite');
+        },
+        /** Liste p um delta (Pixel der Oberfläche) verschieben */
+        by: function (p, delta) {
+            if (!delta) return;
+            if (this.can() && Math.abs(delta) < (p.clientHeight || 900) * 1.2) {
+                try { p.scrollTo({ top: p.scrollTop + delta, behavior: 'smooth' }); return; } catch (e) { this.ok = false; }
+            }
+            p.scrollTop += delta;
+        }
+    };
+
     function ensureVisible(node) {
         // Waagerechte Reihen (z. B. Schauspieler) seitlich mitscrollen
         var hp = node.parentElement;
@@ -534,8 +557,8 @@
         if (!p) return;
         var nr = node.getBoundingClientRect(), pr = p.getBoundingClientRect();
         var margin = 30 * scale;
-        if (nr.top < pr.top + margin) p.scrollTop -= (pr.top + margin - nr.top) / scale;
-        else if (nr.bottom > pr.bottom - margin) p.scrollTop += (nr.bottom - pr.bottom + margin) / scale;
+        if (nr.top < pr.top + margin) Glide.by(p, -(pr.top + margin - nr.top) / scale);
+        else if (nr.bottom > pr.bottom - margin) Glide.by(p, (nr.bottom - pr.bottom + margin) / scale);
         // Einstellungen: beim letzten Eintrag ganz nach unten (damit der Hinweis darunter sichtbar wird)
         if (p.classList.contains('settings')) {
             var all = p.querySelectorAll('.focusable');
@@ -636,7 +659,12 @@
             return null;
         },
 
+        /** Pfeiltaste: zum Nachbarn – Listen dürfen dabei weich mitgleiten (nur hier, nicht beim Aufbau eines Bildschirms) */
         move: function (dir) {
+            Glide.on = true;
+            try { return this.moveNow(dir); } finally { Glide.on = false; }
+        },
+        moveNow: function (dir) {
             var cur = this.cur;
             if (!this.isValid(cur)) { this.first(); return false; }
             if (dir === 'up' || dir === 'down') {
@@ -1010,18 +1038,34 @@
             return 0;
         },
         mode: function () { return Storage.get('liteMode', 'auto'); },
-        /** Automatisch: erst mit Animationen versuchen; ruckelt es (gemessen beim Bedienen), schaltet die App selbst auf leicht */
-        autoOn: function () { return Storage.rawGet('liteAuto', null) === 'on'; },
+        /**
+         * Automatisch, in drei Stufen: volle Animationen → einfache Animationen → leichte Darstellung (alles ruhig).
+         * Ruckelt es beim Bedienen (gemessen), geht die App selbst eine Stufe herunter.
+         * liteAuto: null = wird gemessen · 'off' = volle Animationen laufen flüssig · 'simple' = einfache, wird noch gemessen ·
+         *           'simpleok' = einfache laufen flüssig · 'on' = Gerät zu langsam, leichte Darstellung
+         */
+        auto: function () { return Storage.rawGet('liteAuto', null); },
+        autoOn: function () { return this.auto() === 'on'; },
         weak: function () { return this.autoOn(); },
         active: function () { var md = this.mode(); return md === 'on' || (md === 'auto' && this.autoOn()); },
+        /** 'lite' (keine Bewegung) · 'simple' (wenige, günstige Animationen – ältere Sticks) · 'full' */
+        tier: function () {
+            if (this.active()) return 'lite';
+            var a = this.auto(), m = this.mem();
+            if (this.mode() === 'auto' && (a === 'simple' || a === 'simpleok')) return 'simple';
+            if (m > 0 && m < 1700) return 'simple';                      // wenig Arbeitsspeicher = älterer Stick
+            return 'full';
+        },
         apply: function () {
-            document.body.classList.toggle('lite', this.active());
-            var m = this.mem();
-            document.body.classList.toggle('oldstick', !this.active() && m > 0 && m < 1700);   // alte Sticks: nur leichte Animationen
+            var t = this.tier();
+            document.body.classList.toggle('lite', t === 'lite');
+            document.body.classList.toggle('oldstick', t === 'simple');
         },
         label: function () {
             var md = this.mode();
-            return md === 'on' ? 'An' : md === 'off' ? 'Aus' : 'Automatisch · ' + (this.autoOn() ? 'an (Gerät zu langsam)' : 'aus');
+            if (md === 'on') return 'An';
+            if (md === 'off') return 'Aus';
+            return 'Automatisch · ' + (this.autoOn() ? 'an (Gerät zu langsam)' : this.tier() === 'simple' ? 'aus (einfache Animationen)' : 'aus');
         },
         next: function () {
             var md = this.mode();
@@ -1032,48 +1076,76 @@
         },
         /** Einmalig: früher von Hand gesetztes „Aus/An“ zurück auf Automatisch (mit neuer Messung) */
         migrate: function () {
-            if (Storage.rawGet('liteMig2', 0)) return;
-            Storage.rawSet('liteMig2', 1);
-            Storage.set('liteMode', 'auto');
-            Storage.rawSet('liteAuto', null);
+            if (!Storage.rawGet('liteMig2', 0)) {
+                Storage.rawSet('liteMig2', 1);
+                Storage.set('liteMode', 'auto');
+                Storage.rawSet('liteAuto', null);
+            }
+            // Neue Zwischenstufe „einfache Animationen“: zu langsame Geräte probieren erst die, alle anderen messen neu
+            if (!Storage.rawGet('liteMig3', 0)) {
+                Storage.rawSet('liteMig3', 1);
+                Storage.rawSet('liteAuto', this.auto() === 'on' ? 'simple' : null);
+            }
         },
         /**
          * Ruckel-Messung: beim Bedienen (Pfeiltasten/OK) für 1,5 s die Bildabstände messen.
-         * Viele langsame Bilder (über 50 ms) → Leichte Darstellung einschalten. Genug flüssige Bilder → fertig, Animationen bleiben.
+         * Viele langsame Bilder (über 50 ms) → eine Stufe herunter. Genug flüssige Bilder → fertig, die Stufe bleibt.
          */
-        watching: false,
+        watching: false, onKey: null,
         watch: function () {
-            var self = this;
-            if (this.watching || this.mode() !== 'auto' || this.autoOn() || Storage.rawGet('liteAuto', null) === 'off') return;
+            var self = this, a = this.auto();
+            if (this.watching || this.mode() !== 'auto' || a === 'on' || a === 'off' || a === 'simpleok') return;
             if (typeof requestAnimationFrame !== 'function') return;
             this.watching = true;
-            var frames = 0, slow = 0, until = 0, last = 0, running = false;
+            var frames = 0, slow = 0, worst = 0, until = 0, last = 0, running = false;
             function tick(t) {
                 if (!self.watching) { running = false; return; }
                 if (last) {
                     var d = t - last;
-                    if (d < 1000) { frames++; if (d > 50) slow++; }
+                    if (d < 1000) { frames++; if (d > 50) slow++; if (d > worst) worst = d; }
                 }
                 last = t;
                 if (Date.now() < until) requestAnimationFrame(tick);
                 else { running = false; last = 0; check(); }
             }
+            function stop() { self.watching = false; self.onKey = null; document.removeEventListener('keydown', onKey, true); }
             function check() {
+                var was = self.tier();
                 if (frames >= 90 && slow / frames > 0.22) {
-                    self.watching = false; document.removeEventListener('keydown', onKey, true);
+                    var info = slow + ' von ' + frames + ' Bildern zu langsam (längstes ' + Math.round(worst) + ' ms)';
+                    if (was === 'full') {
+                        // erst die einfachen Animationen probieren – und weiter messen
+                        Storage.rawSet('liteAuto', 'simple'); self.apply();
+                        self.perf('full', 'simple', slow, frames, worst);
+                        frames = 0; slow = 0; worst = 0;
+                        return;
+                    }
+                    stop();
                     Storage.rawSet('liteAuto', 'on'); self.apply();
+                    self.perf(was, 'lite', slow, frames, worst);
                     try { toast('Dieses Gerät ist für Animationen zu langsam – „Leichte Darstellung“ ist jetzt an. Ändern: Einstellungen.', 6000); } catch (e) { /* egal */ }
-                    try { Report.send('verzögerung', 'Leichte Darstellung automatisch an: ' + slow + ' von ' + frames + ' Bildern zu langsam'); } catch (e2) { /* egal */ }
+                    try { Report.send('verzögerung', 'Leichte Darstellung automatisch an: ' + info); } catch (e2) { /* egal */ }
                 } else if (frames >= 600) {
-                    self.watching = false; document.removeEventListener('keydown', onKey, true);
-                    Storage.rawSet('liteAuto', 'off');
+                    stop();
+                    Storage.rawSet('liteAuto', was === 'simple' && self.auto() === 'simple' ? 'simpleok' : 'off');
+                    self.perf(was, was, slow, frames, worst);
                 }
             }
             function onKey() {
                 until = Date.now() + 1500;
                 if (!running) { running = true; requestAnimationFrame(tick); }
             }
+            this.onKey = onKey;                                        // Android reicht Tasten direkt weiter (kein keydown) – siehe __androidKey
             document.addEventListener('keydown', onKey, true);
+        },
+        /** Messwert für die Auswertung je Gerätetyp (nur Zahlen: Stufe, Bilder, Arbeitsspeicher – nichts Persönliches) */
+        perf: function (from, to, slow, frames, worst) {
+            try {
+                if (!Device.validMac(Device.mac) || !Device.validKey(Device.key)) return;
+                Remote.rpc('device_perf', { p_mac: Device.mac, p_key: Device.key, p_perf: {
+                    v: Report.version(), from: from, to: to, slow: slow, frames: frames, worst: Math.round(worst), mem: Math.round(this.mem()),
+                    scr: (Nav.top() && Nav.top().constructor && Nav.top().constructor.name) || '' } }).then(null, function () { /* egal */ });
+            } catch (e) { /* egal */ }
         }
     };
 
@@ -4853,6 +4925,55 @@
         animReset: function (app) {
             clearTimeout(this.animT);
             app.classList.remove('anim-in', 'anim-back', 'anim-home');
+            this.sxClear();
+        },
+        /** Einfache Stufe: Übergangs-Klassen von den zuletzt bewegten Bereichen nehmen (auch wenn sie gerade aufgehoben sind) */
+        sxEls: null, sxT: null, sxN: 0,
+        sxClear: function () {
+            clearTimeout(this.sxT); this.sxN++;
+            var els = this.sxEls; this.sxEls = null;
+            if (els) for (var i = 0; i < els.length; i++) els[i].classList.remove('sx', 'sx-s', 'sx-b', 'sx-go');
+        },
+        /**
+         * Einfache Animationen (ältere Sticks): die großen Bereiche blenden weich ein und gleiten ein kleines Stück.
+         * Wenige Ebenen, nur Deckkraft/Verschiebung (macht der Grafikchip), und gestartet wird erst, wenn der neue
+         * Bildschirm fertig gezeichnet ist – so ruckelt der Anfang nicht.
+         */
+        sxStart: function (app, dir) {
+            var self = this, els = [], i, n;
+            var hole = !!app.querySelector('.preview-box, .eg-preview');
+            if (hole) {
+                // Live TV: nur die beiden Listen-Spalten (das Vorschaubild und der Rahmen darum bleiben, wo sie sind)
+                var cols = app.querySelectorAll('.live-b > .col-cats, .live-b > .col-list');
+                for (i = 0; i < cols.length; i++) els.push(cols[i]);
+            } else {
+                for (n = app.firstElementChild; n; n = n.nextElementSibling) {
+                    if (n.classList.contains('home-sparks') || n.classList.contains('home-info') || !n.offsetWidth) continue;
+                    // halb durchsichtige Bereiche (z. B. das Hintergrundbild eines Films) bleiben, wie sie sind
+                    try { if (getComputedStyle(n).opacity !== '1') continue; } catch (eO) { continue; }
+                    els.push(n);
+                }
+            }
+            if (!els.length) return;
+            for (i = 0; i < els.length; i++) {
+                var el = els[i], slide = false;
+                // gleiten nur, was selbst nicht schon verschoben/gedreht ist und kein Hintergrundbild ist
+                try { slide = !/^detail-(bg|shade)$/.test(el.className) && getComputedStyle(el).transform === 'none' && el.offsetHeight > 0; } catch (e) { slide = false; }
+                el.classList.add('sx');
+                if (slide) { el.classList.add('sx-s'); if (dir === 'back') el.classList.add('sx-b'); }
+            }
+            this.sxEls = els;
+            var my = ++this.sxN, started = false;
+            function go() {
+                if (started || my !== self.sxN) return;
+                started = true;
+                for (var k = 0; k < els.length; k++) els[k].classList.add('sx-go');
+                self.sxT = setTimeout(function () { if (my === self.sxN) self.sxClear(); }, 420);
+            }
+            // zwei Bilder abwarten (dann ist der Bildschirm gezeichnet), notfalls nach 150 ms
+            var raf = window.requestAnimationFrame;
+            if (raf) raf(function () { raf(go); });
+            setTimeout(go, 150);
         },
         /** Kurzer, weicher Übergang beim Bildschirmwechsel (nicht beim Player, nicht bei „Leichte Darstellung“) */
         animate: function (screen) {
@@ -4864,6 +4985,7 @@
             app.scrollLeft = 0; app.scrollTop = 0;                    // nie seitlich verschoben stehen bleiben
             if (app.parentNode) { app.parentNode.scrollLeft = 0; app.parentNode.scrollTop = 0; }
             if (!a) return;
+            if (Lite.tier() === 'simple') { this.sxStart(app, a); return; }
             // Bildschirme mit Vorschaubild (Live TV, Programm): nicht bewegen – das Video und der Rahmen darum
             // werden nach der Position des Kastens gelegt und würden sonst verrutschen
             if (app.querySelector('.preview-box, .eg-preview')) return;
@@ -5230,6 +5352,14 @@
                 if (kind && Parental.catLocked(kind, name)) Parental.ask('PIN für „' + name + '“', function () { onSelect(i); });
                 else onSelect(i);
             }, 'cats');
+            // OK lang auf einer Kategorie des Anbieters: ausblenden (nicht im Kinder-Profil)
+            var hd = search && search.hide;
+            if (hd && kind && i >= hd.from && !Profiles.isKids()) {
+                item._onLong = function () {
+                    var rawName = hd.raw ? hd.raw[i] : name;
+                    HiddenCats.ask(kind, rawName, name, function () { hd.done(i); });
+                };
+            }
             scroll.appendChild(item);
         });
         col.appendChild(scroll);
@@ -5981,15 +6111,19 @@
         catLocked: function (kind, cat) { return !this.unlocked() && this.catProtected(kind, cat); },
         /** Liste ohne gesperrte Inhalte */
         visible: function (kind, list) {
-            if (!list || !this.enabled() || this.unlocked()) return list;
+            if (!list) return list;
+            // Ausgeblendete Kategorien (Aufräumen) gelten immer, die Kindersicherung nur solange sie nicht mit PIN geöffnet ist
+            var hsig = HiddenCats.sig(), guard = this.enabled() && !this.unlocked();
+            if (!guard && !hsig) return list;
             // Schnell: Entscheidung je Kategorie nur einmal treffen (nicht je Film), Ergebnis an der Liste merken.
             // Vorher las jede Prüfung mehrmals den Speicher – bei 20.000 Filmen dauerte das Öffnen Sekunden.
-            var sig = kind + '|' + this.sig();
+            var sig = kind + '|' + (guard ? this.sig() : '-') + '|' + hsig;
             if (list._pvSig === sig && list._pvLen === list.length) return list._pvRes;
+            var hid = hsig ? HiddenCats.map() : null;
             var memo = {}, self = this, res = list.filter(function (it) {
                 var c = it.cat || '';
                 var p = memo[c];
-                if (p === undefined) p = memo[c] = self.catProtected(kind, c);
+                if (p === undefined) p = memo[c] = (guard && self.catProtected(kind, c)) || !!(hid && c && hid[kind + ':' + c]);
                 return !p;
             });
             try { list._pvSig = sig; list._pvLen = list.length; list._pvRes = res; } catch (e) { /* egal */ }
@@ -6572,7 +6706,7 @@
             ['resume', 'Weiterschauen', ['resume']],
             ['seen', 'Gesehen', ['seen', 'newEps']],
             ['remind', 'Erinnerungen', ['reminders']],
-            ['parental', 'Kindersicherung', ['parentalPin', 'parentalCats', 'parentalAdult', 'hiddenLive', 'kidsCats']],
+            ['parental', 'Kindersicherung', ['parentalPin', 'parentalCats', 'parentalAdult', 'hiddenLive', 'hiddenCats', 'kidsCats']],
             ['settings', 'Einstellungen', ['theme', 'clock', 'liveExt', 'altSwitch', 'altWait', 'autoNext', 'introBtn', 'prefAudio', 'prefSubtitle',
                 'aspects', 'vodPlayer', 'epgOnlyProg', 'netq', 'mergeCh', 'mergeOff', 'mergePref', 'genreScan', 'sort.']]
         ],
@@ -7332,8 +7466,65 @@
             if (c.cat && !seen[c.cat]) { seen[c.cat] = true; cats.push(c.cat); }
             if (c.cx) for (var i = 0; i < c.cx.length; i++) if (!seen[c.cx[i]]) { seen[c.cx[i]] = true; cats.push(c.cx[i]); }
         });
+        var hid = HiddenCats.count('live') ? HiddenCats.map() : null;
+        if (hid) cats = cats.filter(function (n) { return !hid['live:' + n]; });
         return ['Alle', '★ Favoriten'].concat(cats);
     };
+    /**
+     * Ausgeblendete Kategorien (Aufräumen ohne PIN): die Kategorie und ihr Inhalt verschwinden aus allen Listen,
+     * bis man sie in den Einstellungen wieder einblendet. Gespeichert als „art:Name“ (art = live, movie, series).
+     */
+    var HiddenCats = {
+        list: function () { var c = Storage.get('hiddenCats', []); return Array.isArray(c) ? c : []; },
+        /** Nachschlage-Tabelle (einmal je Listen-Aufbau holen, nicht je Eintrag) */
+        map: function () { var m = {}, c = this.list(); for (var i = 0; i < c.length; i++) m[c[i]] = 1; return m; },
+        has: function (kind, cat) { return !!cat && this.list().indexOf(kind + ':' + cat) >= 0; },
+        count: function (kind) {
+            var c = this.list();
+            if (!kind) return c.length;
+            var n = 0, pre = kind + ':';
+            for (var i = 0; i < c.length; i++) if (c[i].indexOf(pre) === 0) n++;
+            return n;
+        },
+        /** Kurzer Stand (für gemerkte Listen: ändert sich, sobald etwas aus- oder eingeblendet wird) */
+        sig: function () { var c = this.list(); return c.length ? c.length + ':' + c.join('\u0001') : ''; },
+        toggle: function (kind, cat) {
+            var c = this.list(), k = kind + ':' + cat, i = c.indexOf(k);
+            if (i >= 0) c.splice(i, 1); else c.push(k);
+            Storage.set('hiddenCats', c);
+            return i < 0;
+        },
+        clear: function (kind) {
+            if (!kind) { Storage.set('hiddenCats', []); return; }
+            var pre = kind + ':';
+            Storage.set('hiddenCats', this.list().filter(function (k) { return k.indexOf(pre) !== 0; }));
+        },
+        kindName: function (kind) { return kind === 'live' ? 'Live TV' : kind === 'movie' ? 'Filme' : 'Serien'; },
+        label: function () { var n = this.count(); return n ? String(n) : 'Keine'; },
+        /** Kategorie über „OK lang“ ausblenden – mit Rückfrage */
+        ask: function (kind, cat, shown, done) {
+            var self = this;
+            Modal.open(shown || cat, 'Diese Kategorie und ihr Inhalt verschwinden aus den Listen. Zurückholen: Einstellungen → Ausgeblendete Kategorien.', [
+                { label: 'Kategorie ausblenden', primary: true, action: function () {
+                    if (!self.has(kind, cat)) self.toggle(kind, cat);
+                    toast('„' + (shown || cat) + '“ ausgeblendet · zurückholen unter Einstellungen → Ausgeblendete Kategorien', 5000);
+                    if (done) done();
+                } },
+                { label: 'Abbrechen' }
+            ]);
+        },
+        /** Einstellungen: Art wählen (Live TV, Filme, Serien) oder alles wieder einblenden */
+        menu: function (done) {
+            var self = this, buttons = ['live', 'movie', 'series'].map(function (k) {
+                var n = self.count(k);
+                return { label: self.kindName(k) + (n ? ' · ' + n + ' ausgeblendet' : ''), action: function () { Nav.push(new ParentalCatsScreen(k, true)); } };
+            });
+            if (this.count()) buttons.push({ label: 'Alle ' + this.count() + ' wieder einblenden', action: function () { self.clear(); toast('Alle Kategorien werden wieder gezeigt'); if (done) done(); } });
+            buttons.push({ label: 'Schließen' });
+            Modal.open('Kategorien ausblenden', 'Wähle, wo du aufräumen möchtest. Tipp: In der Kategorien-Liste geht es auch direkt – OK lange drücken.', buttons);
+        }
+    };
+
     /** Ausgeblendete Sender (der Anbieter liefert sie weiter, die App zeigt sie nur nicht) */
     var Hidden = {
         ids: function () { return Storage.get('hiddenLive', {}) || {}; },
@@ -7486,7 +7677,8 @@
             Nav.show(self);
             var first = $('.col-list .row');
             if (first) Focus.set(first);
-        }, { query: this.query, kind: 'live', counts: counts, onClick: function () { self.openSearch(); } }));
+        }, { query: this.query, kind: 'live', counts: counts, onClick: function () { self.openSearch(); },
+             hide: { from: 2, raw: cats, done: function (i) { self.catHidden(i); } } }));
 
         var listCol = h('div', 'col col-list');
         var scroll = h('div', 'scroll');
@@ -7626,6 +7818,8 @@
             this.nextBox.style.width = iw + 'px'; this.nextBox.style.top = (ph + 28) + 'px';
             acts.style.top = (ph + 128) + 'px';
         }
+        // Hintergrund sofort legen (sonst blitzt beim Öffnen kurz Schwarz durch), danach zur Sicherheit noch einmal
+        try { self.placeBg(); } catch (eBg) { /* gleich noch einmal */ }
         setTimeout(function () { self.placeBg(); }, 0);
 
         if (!this.focusKey) this.focusKey = this.selected ? 'ch-' + this.selected.id : (this.list.length ? 'ch-' + this.list[0].id : 'cat-0');
@@ -7634,6 +7828,15 @@
             var sel = this.selected;
             setTimeout(function () { self.startPreview(sel); }, 50);
         }
+    };
+    /** Kategorie i wurde ausgeblendet: an derselben Stelle bleiben (die nächste rückt nach) und neu zeichnen */
+    LiveScreen.prototype.catHidden = function (i) {
+        var n = this.categories().length;
+        if (this.catIndex === i) this.catIndex = Math.min(i, n - 1);
+        else if (this.catIndex > i) this.catIndex--;
+        this.query = '';
+        this.focusKey = 'cat-' + Math.min(i, n - 1);
+        Nav.show(this);
     };
     LiveScreen.prototype.openSearch = function () {
         var self = this;
@@ -7930,7 +8133,7 @@
     MoviesScreen.prototype.memoKey = function () {
         var all = this.allItems(), sh = this.sh();
         if (sh.all !== all) { sh.all = all; sh.gen = (sh.gen || 0) + 1; }
-        return sh.gen + '|' + (all ? all.length : 0) + '|' + Parental.sig();
+        return sh.gen + '|' + (all ? all.length : 0) + '|' + Parental.sig() + '|' + HiddenCats.sig();
     };
     MoviesScreen.prototype.favType = function () { return this.kind === 'movies' ? 'movie' : 'series'; };
     MoviesScreen.prototype.yearLabel = function () { return 'Filme ' + new Date().getFullYear(); };
@@ -7974,7 +8177,8 @@
     };
     MoviesScreen.prototype.categoriesRaw = function () {
         var seen = {}, cats = [];
-        this.allItems().forEach(function (m) { if (m.cat && !seen[m.cat]) { seen[m.cat] = true; cats.push(m.cat); } });
+        var hk = this.favType(), hid = HiddenCats.count(hk) ? HiddenCats.map() : null;
+        this.allItems().forEach(function (m) { if (m.cat && !seen[m.cat]) { seen[m.cat] = true; if (!hid || !hid[hk + ':' + m.cat]) cats.push(m.cat); } });
         // A1b: Für dich · Neu & Stöbern · Kategorien vom Anbieter
         var base = ['Alle', '★ Favoriten', RESUME_CAT];
         if (this.kind === 'movies') base.push(SEEN_CAT);
@@ -8201,7 +8405,14 @@
             var first = $('.poster');
             if (first) Focus.set(first);
         }, { query: this.query, kind: this.favType(), dots: true, groups: this.groupAt, onClick: function () { self.openSearch(); }, counts: countsNow,
-             sort: { label: 'Sortieren: ' + this.sortName(), onClick: function () { self.sortMenu(); } } }));
+             sort: { label: 'Sortieren: ' + this.sortName(), onClick: function () { self.sortMenu(); } },
+             hide: { from: (this.groupAt && this.groupAt.length ? this.groupAt[this.groupAt.length - 1].at : catsNow.length), raw: catsNow, done: function (i) {
+                 var n = self.categories().length;
+                 if (self.catIndex === i) self.catIndex = Math.min(i, n - 1); else if (self.catIndex > i) self.catIndex--;
+                 self.query = ''; self.savedScroll = 0;
+                 self.focusKey = 'cat-' + Math.min(i, n - 1);
+                 Nav.show(self);
+             } } }));
         lap('Kategorie-Spalte (' + catsNow.length + ')');
 
         var gridCol = h('div', 'col col-grid');
@@ -9555,6 +9766,7 @@
             '<span><i class="k yellow"></i>Favorit</span><span><i class="k blue"></i>Jetzt</span><span><b>▲</b> ganz oben: Kategorien</span>';
         wrap.appendChild(hint);
         root.appendChild(wrap);
+        try { placeHoleBg(self.bg, self.previewBox); } catch (eBg) { /* gleich noch einmal */ }
         setTimeout(function () { placeHoleBg(self.bg, self.previewBox); }, 0);
 
         this.marks = Rec.marks();
@@ -10474,7 +10686,9 @@
         row('lite', 'speed', 'Leichte Darstellung', Lite.label(), function (v) {
             Lite.next();
             v.textContent = Lite.label();
-            toast(Lite.active() ? 'Leichte Darstellung an: ohne Schatten und Übergänge – weniger Arbeit für den Stick.' : 'Leichte Darstellung aus', 5000);
+            toast(Lite.active() ? 'Leichte Darstellung an: ohne Schatten und Übergänge – weniger Arbeit für den Stick.'
+                : Lite.mode() === 'auto' ? 'Automatisch: Die App probiert Animationen und nimmt selbst die Stufe, die auf diesem Gerät flüssig läuft.'
+                : 'Leichte Darstellung aus', 5000);
         });
         row('clock', 'clock', 'Uhrzeit oben rechts', Clock.label().replace('An · mit Sekunden', 'Mit Sekunden').replace('An · ohne Sekunden', 'Ohne Sekunden'), function (v) {
             Clock.next();
@@ -10487,6 +10701,9 @@
         row('parental', 'lock', 'Kinderschutz', Parental.hasPin() ? 'An · PIN' : 'Aus', parentalOpen);
         row('hidden', 'list', 'Ausgeblendete Sender', Hidden.count() ? String(Hidden.count()) : 'Keine', function (v) {
             Hidden.menu(function () { v.textContent = Hidden.count() ? String(Hidden.count()) : 'Keine'; });
+        });
+        row('hiddencats', 'eyeoff', 'Ausgeblendete Kategorien', HiddenCats.label(), function (v) {
+            HiddenCats.menu(function () { v.textContent = HiddenCats.label(); });
         });
         row('profiles', 'users', 'Profile', Profiles.count() ? Profiles.count() + ' · ' + Profiles.cur().name : 'Aus', function () {
             if (Profiles.count() >= 2) Nav.push(new WhoScreen(function () { Nav.stack.length = 0; Nav.push(new HomeScreen()); }, true));
@@ -10542,7 +10759,14 @@
             return false;
         }
         function fit() { if (overflows()) { box.classList.add('dense'); if (overflows()) box.classList.add('dense2'); } }
-        fit(); setTimeout(fit, 0);
+        // Nachmessen erst, wenn der Übergang vorbei ist – verschobene Zeilen sähen sonst aus wie „passt nicht“ (Zeilen wurden unnötig flach)
+        function later(n) {
+            if (!document.body.contains(box)) return;
+            var app = $('#app');
+            if (n < 8 && app && /anim-(in|back)/.test(app.className)) { setTimeout(function () { later(n + 1); }, 250); return; }
+            fit();
+        }
+        fit(); setTimeout(function () { later(0); }, 0);
         if (!this.focusKey) this.focusKey = 'set-format';
     };
 
@@ -11134,11 +11358,13 @@
     };
 
     /** Kategorien zum Sperren an- und abhaken */
-    function ParentalCatsScreen(kind) { this.kind = kind; }
+    /** hide = true: dieselbe Liste zum Ausblenden von Kategorien (ohne PIN) statt zum Sperren */
+    function ParentalCatsScreen(kind, hide) { this.kind = kind; this.hideMode = !!hide; }     // nicht „hide“ nennen: so heißt die Funktion, die Nav beim Verlassen aufruft
     ParentalCatsScreen.prototype.render = function (root) {
-        var self = this, kind = this.kind;
+        var self = this, kind = this.kind, hide = this.hideMode;
         var title = kind === 'live' ? 'Live-TV-Kategorien sperren' : kind === 'movie' ? 'Film-Kategorien sperren' : 'Serien-Kategorien sperren';
-        root.appendChild(topbar(title, 'OK: sperren / freigeben'));
+        if (hide) title = (kind === 'live' ? 'Live-TV-Kategorien' : kind === 'movie' ? 'Film-Kategorien' : 'Serien-Kategorien') + ' ausblenden';
+        root.appendChild(topbar(title, hide ? 'OK: ausblenden / einblenden' : 'OK: sperren / freigeben'));
         var list = kind === 'live' ? Data.channels : kind === 'movie' ? Data.movies : Data.series;
         var loaded = kind === 'live' || (kind === 'movie' ? Data.moviesLoaded : Data.seriesLoaded);
         if (!loaded) {
@@ -11160,6 +11386,13 @@
             var r = h('div', 'row par-row');
             var mark = h('div', 'par-mark');
             function draw() {
+                if (hide) {
+                    var off = HiddenCats.has(kind, cat);
+                    mark.innerHTML = off ? icon('eyeoff', 30) : '';
+                    r.classList.toggle('on', off);
+                    note.textContent = off ? 'ausgeblendet' : '';
+                    return;
+                }
                 var own = Parental.cats().indexOf(kind + ':' + cat) >= 0;
                 var auto = Parental.autoAdult() && Parental.ADULT.test(cat);
                 mark.innerHTML = (own || auto) ? icon('lock', 30) : '';
@@ -11172,6 +11405,12 @@
             r.appendChild(note);
             draw();
             return focusable(r, 'pc-' + i, function () {
+                if (hide) {
+                    var nowOff = HiddenCats.toggle(kind, cat);
+                    draw();
+                    toast(nowOff ? '„' + cat + '“ ist jetzt ausgeblendet' : '„' + cat + '“ wird wieder gezeigt');
+                    return;
+                }
                 if (Parental.autoAdult() && Parental.ADULT.test(cat) && Parental.cats().indexOf(kind + ':' + cat) < 0) {
                     toast('„' + cat + '“ ist automatisch gesperrt. Das lässt sich unter „Erwachsenen-Kategorien automatisch sperren“ abschalten.', 5000);
                     return;
@@ -12448,6 +12687,7 @@
     var lastRepeatAt = 0;
     function onKeyDown(e) {
         var k = e.keyCode;
+        Glide.rep = !!e.repeat;
         if (k === 461) k = KEY.BACK;          // Zurück-Taste der LG-Fernbedienung
         // Pfeiltaste gedrückt halten: höchstens alle 90 ms einen Schritt, sonst stauen sich die Tasten und es ruckelt
         if (e.repeat && (k === KEY.UP || k === KEY.DOWN || k === KEY.LEFT || k === KEY.RIGHT)) {
@@ -12621,6 +12861,7 @@
         window.__androidKey = function (code, repeat, sentAt, idleMs) {
             var t0 = Date.now();
             Nav.userAt = t0;
+            try { if (Lite.onKey) Lite.onKey(); if (code === KEY.ENTER && !repeat && window.__pressFx) window.__pressFx(); } catch (eLk) { /* nur Messung/Kosmetik */ }
             onKeyDown({ keyCode: code, repeat: !!repeat, preventDefault: function () { } });
             // Messung: kam die Taste verspätet in der Oberfläche an? (einmal pro Start melden)
             if (sentAt && !window.__lagReported) {
@@ -12809,15 +13050,16 @@
         document.addEventListener('keyup', fixAll, true);
     })();
     // Druck-Feedback (Animation): markierter Eintrag federt bei OK kurz ein
-    document.addEventListener('keydown', function (e) {
-        if ((e.keyCode || e.which) !== 13) return;
+    function pressFx() {
         try { if (Lite.active()) return; } catch (x) { return; }
         var el = Focus.cur;
         if (!el || !el.classList) return;
         el.classList.remove('press'); void el.offsetWidth; el.classList.add('press');
         setTimeout(function () { el.classList.remove('press'); }, 260);
-    }, true);
-    window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen };
+    }
+    window.__pressFx = pressFx;                 // Android reicht Tasten direkt weiter (kein keydown)
+    document.addEventListener('keydown', function (e) { if ((e.keyCode || e.which) === 13) pressFx(); }, true);
+    window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen, Lite: Lite, Glide: Glide };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();
