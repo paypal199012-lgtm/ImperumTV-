@@ -7185,8 +7185,24 @@
         },
         label: function (t) { return t.length ? t.join(' ') : 'Standard'; },
         /** Liste zusammenfassen. byCountry: unter „Alle“/Suche über Kategorien hinweg, aber nur gleiches Land */
+        /** Zuletzt berechnete Gruppierung merken: erneutes Öffnen von Live TV muss nicht alles neu zusammenfassen */
+        _g: null,
         group: function (list, byCountry) {
             if (!this.on()) { for (var z = 0; z < list.length; z++) { list[z]._mv = null; list[z]._mcc = ''; } return list; }
+            var gkey = [list.length, list.length ? list[0].id : '', list.length ? list[list.length - 1].id : '', byCountry ? 1 : 0,
+                JSON.stringify(this.off()), JSON.stringify(this.pref()), Math.floor(Date.now() / 120000)].join('|');
+            var g0 = this._g, k0;
+            if (g0 && g0.of === Data.channels && g0.key === gkey) {
+                // gemerkte Angaben an den Sendern wiederherstellen (andere Ansichten wie Favoriten überschreiben sie)
+                for (k0 = 0; k0 < g0.res.length; k0++) { var c1 = g0.res[k0], st1 = g0.st[k0]; c1._mv = st1[0]; c1._mcc = st1[1]; c1._mname = st1[2]; c1._mkey = st1[3]; }
+                return g0.res;
+            }
+            var res0 = this.groupNow(list, byCountry), st0 = new Array(res0.length);
+            for (k0 = 0; k0 < res0.length; k0++) { var c2 = res0[k0]; st0[k0] = [c2._mv, c2._mcc, c2._mname, c2._mkey]; }
+            this._g = { of: Data.channels, key: gkey, res: res0, st: st0 };
+            return res0;
+        },
+        groupNow: function (list, byCountry) {
             var groups = {}, order = [], off = this.off(), pref = this.pref(), i, c, k;
             for (i = 0; i < list.length; i++) {
                 c = list[i];
@@ -12520,6 +12536,10 @@
         Updater.autoCheck();                               // gleich beim Start nach neuer Version suchen
         applyStallWait();
         setTimeout(function () { GenreScan.start(); }, 30000);
+        // Live TV vorbereiten (Sender zusammenfassen, zählen), damit das erste Öffnen schnell geht
+        whenQuiet(function () {
+            try { if (Data.channels && Data.channels.length && !(Nav.top() instanceof LiveScreen)) { var ls = new LiveScreen(0); ls.filter(); Merge.counts(EventOver.apply(Hidden.apply(Parental.visible('live', Data.channels)))); } } catch (eW) { /* egal */ }
+        }, 2500, 1200, 15000);
         // Sendernamen vorberechnen, sobald die Liste da ist (Live TV öffnet dann schneller)
         (function warmLater(n) { setTimeout(function () { try { if (Data.channels && Data.channels.length) Merge.warm(); else if (n < 20) warmLater(n + 1); } catch (e) { /* egal */ } }, 3000); })(0);
         setTimeout(function () { try { Backup.startup(); } catch (e) { /* egal */ } }, 25000);   // Sicherung: übertragene prüfen, täglich sichern   // Genres im Hintergrund sammeln (nur wenn nichts läuft)
