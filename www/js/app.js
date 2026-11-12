@@ -3481,12 +3481,30 @@
                     if (top0 instanceof PlaylistsScreen && !Modal.node) Nav.show(top0);     // Auswahl zeigt den neuen Stand
                     return;
                 }
-                try { Player.stop(); } catch (e) { /* egal */ }
-                try { Watch.set(''); Watch.send(); } catch (e2) { /* egal */ }
-                Storage.remove('playlistId');
-                try { if (Modal.node) Modal.close(); } catch (e3) { /* egal */ }
-                Nav.replace(new PlaylistsScreen('Diese Wiedergabeliste wurde auf der Website gelöscht.' + (lists.length ? ' Bitte wähle eine andere aus.' : '')));
+                self.dropCurrent('Diese Wiedergabeliste wurde auf der Website gelöscht.' + (lists.length ? ' Bitte wähle eine andere aus.' : ''));
             }, function () { self.recheckBusy = false; /* offline: später */ });
+        },
+        /**
+         * Die genutzte Wiedergabeliste gibt es nicht mehr: anhalten, Liste und Zugang vergessen, zur Auswahl.
+         * „gone“ sorgt dafür, dass ein noch laufender Start danach nicht doch auf die Startseite springt.
+         */
+        gone: false,
+        dropCurrent: function (msg) {
+            this.gone = true;
+            try { Player.stop(); } catch (e) { /* egal */ }
+            try { Watch.set(''); Watch.send(); } catch (e2) { /* egal */ }
+            Storage.remove('playlistId');
+            Storage.remove('account');
+            try { if (Modal.node) Modal.close(); } catch (e3) { /* egal */ }
+            Nav.replace(new PlaylistsScreen(msg));
+        },
+        /** Listen sind frisch geladen: gibt es die gerade genutzte noch? Sonst zur Auswahl. true = war weg */
+        checkCurrent: function () {
+            var cur = Storage.get('playlistId', null);
+            if (cur === null || String(cur) === 'demo' || (Api.acc && Api.acc.demo) || !Array.isArray(this.lists)) return false;
+            if (this.find(cur) || Nav.top() instanceof PlaylistsScreen || Nav.top() instanceof LockScreen) return false;
+            this.dropCurrent('Diese Wiedergabeliste wurde auf der Website gelöscht.' + (this.lists.length ? ' Bitte wähle eine andere aus.' : ''));
+            return true;
         },
         find: function (id) {
             if (String(id) === 'demo') return Demo.ENABLED ? Demo.playlist : null;
@@ -4624,7 +4642,7 @@
             this.moviesLoaded = false; this.seriesLoaded = false;
             this.gen++; this.moviesPromise = null; this.seriesPromise = null;
             this.epgCache = {};
-            Storage.set('account', r.acc);
+            if (!Remote.gone) Storage.set('account', r.acc);     // gelöschte Liste nicht wieder merken
         },
 
         login: function (acc, progress) {
@@ -4653,7 +4671,7 @@
                 self.status = r.status; self.expiry = r.expiry;
                 self.channels = r.list;
                 self.epgCache = {};
-                Storage.set('account', r.acc);
+                if (!Remote.gone) Storage.set('account', r.acc);     // gelöschte Liste nicht wieder merken
                 if (safeMode()) return;
                 return quietly(1500, 2500, 45000).then(function () {
                     if (gen !== self.gen) return null;
@@ -6114,9 +6132,11 @@
             return;
         }
         var previous = Api.acc, self = this;
+        Remote.gone = false;                             // neue Auswahl: wieder normal starten und merken
         OVpn.whenReady(function () {
             syncAll(acc, 'Verbinde mit „' + p.name + '“ …', function () {
                 Storage.set('playlistId', p.id);
+                Remote.gone = false;
                 Nav.replace(new HomeScreen());
                 Updater.autoCheck();
             }, function (e) {
@@ -13592,6 +13612,7 @@
         function startCached(acc, c, pending) {
             Data.useCache(acc, c);
             Sync.quick('ImperumTV wird gestartet …', c.live.length, c.movies ? c.movies.length : -1, c.series ? c.series.length : -1, function () {
+                if (Remote.gone) return;                 // Liste wurde inzwischen gelöscht: die Auswahl bleibt stehen
                 Nav.replace(new HomeScreen());
                 Updater.autoCheck();
             });
@@ -13601,6 +13622,7 @@
             }, function (e) {
                 var msg = e && e.message || String(e);
                 // Zugang abgelehnt oder abgelaufen: wie bisher zur Auswahl der Listen; sonst (offline) mit den gespeicherten Listen weiter
+                if (Remote.gone) return;
                 if (/abgelehnt|abgelaufen|HTTP 40[134]|gesperrt|Unerwartete/.test(msg)) Nav.replace(new PlaylistsScreen(msg));
                 else toast('Keine Verbindung zum Anbieter – gespeicherte Listen werden angezeigt');
             });
@@ -13609,9 +13631,11 @@
         function normalStart(acc, pending) {
             {
                 syncAll(acc, 'ImperumTV wird gestartet …', function () {
+                    if (Remote.gone) return;             // Liste wurde inzwischen gelöscht: die Auswahl bleibt stehen
                     Nav.replace(new HomeScreen());
                     Updater.autoCheck();
                 }, function (e) {
+                    if (Remote.gone) return;
                     var i = OVpn.native() ? OVpn.info() : {};
                     var vpnOffer = !acc.demo && i.has && i.state !== 'an';
                     Nav.replace(new PlaylistsScreen(vpnOffer ? '' : (e.message || String(e))));
@@ -13638,9 +13662,7 @@
                 if (acc && !sameAcc(acc, saved)) { saved = acc; start(acc); }    // Zugangsdaten auf der Website geändert
                 else if (!chosen) {
                     // Die gemerkte Liste wurde auf der Website gelöscht – auch wenn gar keine mehr übrig ist: nicht mit der alten weiterlaufen
-                    try { Player.stop(); } catch (eP) { /* egal */ }
-                    Storage.remove('playlistId');
-                    Nav.replace(new PlaylistsScreen(Remote.lists.length ? 'Die zuletzt genutzte Wiedergabeliste gibt es nicht mehr. Bitte wähle eine aus.' : 'Die zuletzt genutzte Wiedergabeliste wurde gelöscht.'));
+                    Remote.dropCurrent(Remote.lists.length ? 'Die zuletzt genutzte Wiedergabeliste gibt es nicht mehr. Bitte wähle eine aus.' : 'Die zuletzt genutzte Wiedergabeliste wurde gelöscht.');
                 }
             }, function () { /* offline: gespeicherter Stand gilt */ });
             return;
@@ -13677,9 +13699,10 @@
             StateSync.sync();
             Updater.flags();
             Watch.refresh();
-            Remote.load().then(null, function () { /* offline: gespeicherter Stand */ }).then(function () {
+            Remote.load().then(function () { return true; }, function () { return false; /* offline: gespeicherter Stand */ }).then(function (loaded) {
                 if (Api.acc && Api.acc.demo) return;      // Demo braucht keine Freischaltung
-                if (!License.active() && !(Nav.top() instanceof LockScreen)) Nav.replace(new LockScreen());
+                if (!License.active() && !(Nav.top() instanceof LockScreen)) { Nav.replace(new LockScreen()); return; }
+                if (loaded) { try { Remote.checkCurrent(); } catch (eC) { /* egal */ } }     // Liste inzwischen gelöscht?
             });
         }, 600000);
 
