@@ -1,0 +1,56 @@
+{
+  "id": "live-umschalten",
+  "title": "Live TV: So schnell schaltest du um (echte App)",
+  "version": "",
+  "hook": {
+    "h": "So schnell ist<br>Live TV.",
+    "s": "Echte Aufnahme aus der App.",
+    "art": { "type": "clip", "src": "clips/app-live-zappen.mp4", "from": 0 }
+  },
+  "scenes": [
+    {
+      "n": "SENDERLISTE",
+      "h": "Alle Sender<br>nach Gruppen.",
+      "s": "Sport, Nachrichten, Kinder – links auswählen.",
+      "art": { "type": "clip", "src": "clips/app-live-zappen.mp4", "from": 1.4, "speed": 0.7 }
+    },
+    {
+      "n": "VORSCHAU",
+      "h": "OK drücken –<br>Bild läuft sofort.",
+      "s": "Rechts mit Programm: was jetzt läuft und was danach kommt.",
+      "art": { "type": "clip", "src": "clips/app-live-zappen.mp4", "from": 3.7, "speed": 1 }
+    },
+    {
+      "n": "UMSCHALTEN",
+      "h": "Runter, OK –<br>nächster Sender.",
+      "s": "Ohne Warten, ohne Ladebildschirm.",
+      "art": { "type": "clip", "src": "clips/app-live-zappen.mp4", "from": 6.4, "speed": 1.25 }
+    },
+    {
+      "n": "VOLLBILD",
+      "h": "Noch mal OK:<br>Vollbild.",
+      "s": "Unten siehst du Sender, Sendung und was danach kommt.",
+      "art": { "type": "clip", "src": "clips/app-live-zappen.mp4", "from": 12.6, "speed": 1 }
+    },
+    {
+      "n": "ZAPPEN",
+      "h": "Hoch & runter<br>schaltet um.",
+      "s": "Wie beim normalen Fernseher – nur schneller.",
+      "art": { "type": "clip", "src": "clips/app-live-zappen.mp4", "from": 15.6, "speed": 1.4 }
+    },
+    {
+      "n": "PROGRAMM",
+      "h": "Und der<br>TV-Guide.",
+      "s": "Alle Sender, die nächsten Stunden auf einen Blick.",
+      "art": { "type": "clip", "src": "clips/app-epg.mp4", "from": 0.5, "speed": 1.1 }
+    }
+  ],
+  "end": {
+    "h": "Jetzt 7 Tage<br>kostenlos testen.",
+    "s": "Fire TV · Android · iPhone · PC",
+    "code": "2336102"
+  },
+  "caption": "So schnell schaltest du mit ImperumTV um 📺⚡ Echte Aufnahme aus der App: Vorschau mit OK, umschalten mit hoch & runter, Senderinfo und TV-Guide. Für deine eigene Wiedergabeliste.",
+  "hashtags": "#firetvstick #iptvplayer #livetv #androidtv #smarttv #techtipps #fyp",
+  "music": "dnb"
+}

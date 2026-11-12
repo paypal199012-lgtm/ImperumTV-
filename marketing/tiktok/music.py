@@ -22,6 +22,7 @@ Stile (alle passen auf das Raster: Intro 2,6 s, jede Szene 3,6 s, Abschluss 3 s)
   disco    – 133 BPM, Bass-Drum auf jedem Schlag, Oktav-Bass, offene Hi-Hat im Offbeat, Streicher-Stöße
   jazz     – Swing mit Ride-Becken, laufender Kontrabass, Klavier-Akkorde (Septimen)
   reggae   – One-Drop (Bass-Drum und Snare auf 3), Offbeat-Akkorde, tiefer runder Bass, entspannt
+  dnb      – Drum & Bass: schnelle Breakbeats mit Sechzehntel-Hi-Hats, tiefer schwebender Reese-Bass, Flächen
 Ohne Stil wird er aus dem Startwert (z. B. der Video-ID) gewählt.
 """
 import sys, zlib
@@ -31,7 +32,7 @@ out, n_scenes = sys.argv[1], int(sys.argv[2])
 style = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ''
 seed_txt = sys.argv[4] if len(sys.argv) > 4 else style
 seed = zlib.crc32(seed_txt.encode()) & 0xffffffff
-STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz']
+STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb']
 if style not in STYLES:
     style = STYLES[seed % len(STYLES)]
 
@@ -367,6 +368,27 @@ elif style == 'jazz':                     # Swing, laufender Bass, Ride-Becken, 
                 m.add(lp(tone(walk, B * 0.9, 'sine', a=0.01, d=0.3, gain=0.4), 300), b0 + q * B)
             for pos in (0, 1.66, 2.66): m.add(epiano(notes(ch), B * 0.8, 0.06), b0 + pos * B, 1, -0.2)
     outro(prog[2][:3], B)
+
+elif style == 'dnb':                      # Breakbeat (Kick 1 + 2¾, Snare 2 + 4), Sechzehntel-Hats, Reese-Bass
+    B = 0.45; prog = [['E3', 'G3', 'B3'], ['C3', 'E3', 'G3'], ['A2', 'C3', 'E3'], ['D3', 'F3', 'A3']]
+    intro(B); m.add(riser(2.0, 0.26), 0.5)
+    transitions(0.18)
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = prog[sc % 4]
+        m.add(crash(0.12), s0)
+        m.add(lp(chord(notes(ch) + [notes(ch)[0] * 2], SCENE, 0.03, 1600), 1600), s0, 1, 0.2)          # Fläche
+        for bar in range(2):
+            b0 = s0 + bar * 4 * B
+            for pos in (0, 1.75, 2.5): m.add(kick(), b0 + pos * B, 0.9)
+            for pos in (1, 3): m.add(snare(0.85), b0 + pos * B)
+            m.add(lp(snare(0.25), 2500), b0 + 3.75 * B)                                                # Ghost-Note
+            for q in range(16): m.add(hat(g=0.07 + (0.05 if q % 4 == 2 else 0)), b0 + q * B / 4, 1, 0.3 if q % 2 else -0.1)
+            for pos, d in ((0, B * 1.4), (1.75, B * 0.7), (2.5, B * 1.4)):                         # Reese: zwei leicht verstimmte Sägezähne
+                fr = notes(ch)[0] / 2
+                m.add(lp(tone(fr, d, 'saw', a=0.01, d=0.25, gain=0.2), 330), b0 + pos * B)
+                m.add(lp(tone(fr * 1.012, d, 'saw', a=0.01, d=0.25, gain=0.2), 330), b0 + pos * B)
+        for pos in (0.5, 4.5): m.add(pluck(notes(ch)[2] * 2, 0.3, 0.09), s0 + pos * B)
+    outro(prog[0], B)
 
 elif style == 'cinematic':                # 133 BPM, Streicher-Ostinato, wird nach und nach voller
     B = 0.45; prog = [['D3', 'F3', 'A3'], ['A2', 'C3', 'E3'], ['F3', 'A3', 'C4'], ['C3', 'E3', 'G3']]
