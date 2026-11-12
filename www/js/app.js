@@ -6317,7 +6317,7 @@
         left.appendChild(h('div', 'lock-title', 'Deine Testphase ist abgelaufen'));
         left.appendChild(h('div', 'lock-text', 'Aktiviere ImperumTV für ' + REMOTE.price + ' einmalig. Danach kannst du die App auf diesem Gerät unbegrenzt nutzen, ohne Abo.'));
         var steps = h('ol', 'lock-steps');
-        ['Scanne den QR-Code rechts mit dem Handy.', 'Bezahle auf der Website ' + REMOTE.price + ' per PayPal und tippe dort auf „Ich habe bezahlt“.', 'Sobald die Zahlung bestätigt ist, geht es hier von selbst weiter.'].forEach(function (t) {
+        ['Scanne den QR-Code rechts mit dem Handy.', 'Bezahle auf der Website ' + REMOTE.price + ' mit Karte, Apple Pay oder Google Pay.', 'Sobald die Zahlung bestätigt ist, geht es hier von selbst weiter.'].forEach(function (t) {
             steps.appendChild(h('li', null, t));
         });
         left.appendChild(steps);
