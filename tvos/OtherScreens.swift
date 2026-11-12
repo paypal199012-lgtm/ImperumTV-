@@ -59,7 +59,7 @@ struct PlaylistsScreen: View {
                     ForEach(store.lists) { l in
                         card(l.name, l.address, active: store.savedId == l.id, spot: .list(l.id)) { Task { await choose { await store.use(l) } } }
                     }
-                    card("Demo", "Freie Testvideos – hier drücken zum Ausprobieren", active: store.source == .demo, spot: .demo) { Task { await choose { store.useDemo() } } }
+                    card("Demo", "Freie Testvideos ansehen", active: store.source == .demo, spot: .demo) { Task { await choose { store.useDemo() } } }
                 }
                 .padding(20)
             }
