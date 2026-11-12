@@ -306,7 +306,7 @@
      * Neu = mehr Einträge als beim letzten Mal auf diesem Gerät.
      */
     function syncAll(acc, title, onOk, onErr, pending, quick) {
-        var key = 'counts.' + (acc.demo ? 'demo' : acc.server + '|' + acc.username);
+        var key = 'counts.' + (acc.demo ? 'demo' : acc.m3u ? 'm3u|' + acc.m3u : acc.server + '|' + acc.username);
         var before = Storage.get(key, null);
         var finished = false, left = 2, mvOk = true, srOk = true;
         function fresh(now, old) { return before && old > 0 && now > old ? now - old : 0; }
@@ -2196,7 +2196,7 @@
     var Resume = {
         MAX: 40,
         cache: null,
-        accKey: function () { var a = Api.acc; return a ? a.server + '|' + a.username : ''; },
+        accKey: function () { var a = Api.acc; return a ? (a.m3u ? 'm3u|' + a.m3u : a.server + '|' + a.username) : ''; },
         raw: function () {
             if (!this.cache) { var l = Storage.get('resume', []); this.cache = Array.isArray(l) ? l : []; }
             return this.cache;
@@ -2533,6 +2533,103 @@
         return new Error('Der Server antwortet mit HTTP ' + status + '.' + tail);
     }
 
+    /**
+     * Einfache M3U/M3U8-Listen (ohne Benutzername/Passwort): Datei laden, Sender lesen und so tun,
+     * als wäre es ein Xtream-Zugang (wie die Demo). Filme = Einträge mit Film-Dateien (.mp4, /movie/ …), Serien gibt es nicht.
+     * Konto: { server: Herkunft, username: 'm3u', password: Link, m3u: Link }
+     */
+    var M3U = {
+        data: null, loading: null, at: 0,
+        account: function (link) {
+            try {
+                var u = new URL(String(link || '').trim());
+                if (!/^https?:$/.test(u.protocol)) return null;
+                return { server: u.protocol + '//' + u.host, username: 'm3u', password: u.href, m3u: u.href };
+            } catch (e) { return null; }
+        },
+        /** Datei holen: auf Android über den Android-Teil (sonst blockiert der Browser fremde Server ohne CORS) */
+        fetchText: function (url) {
+            var host = NativeList.host(), src = host ? 'https://' + host + '/raw?u=' + encodeURIComponent(url) : url;
+            return fetch(src).then(function (res) {
+                return res.text().then(function (t) { if (!res.ok) throw httpError(res.status, t); return t; });
+            }, function () { throw new Error('Die Liste ist nicht erreichbar. Prüfe den Link und die Internetverbindung.'); });
+        },
+        /** Liste laden (höchstens alle 30 s neu), Ergebnis in this.data */
+        load: function (acc, force) {
+            var self = this;
+            if (!force && this.data && this.data.url === acc.m3u && Date.now() - this.at < 30000) return Promise.resolve(this.data);
+            if (this.loading && this.loading.url === acc.m3u) return this.loading.p;
+            var p = this.fetchText(acc.m3u).then(function (text) {
+                var d = self.parse(text);
+                d.url = acc.m3u;
+                if (!d.live.length && !d.vod.length) throw new Error('Unerwartete Antwort: Unter diesem Link liegt keine M3U-Liste mit Sendern.');
+                self.data = d; self.at = Date.now(); self.loading = null;
+                return d;
+            }, function (e) { self.loading = null; throw e; });
+            this.loading = { url: acc.m3u, p: p };
+            return p;
+        },
+        attr: function (line, name) {
+            var m = new RegExp(name + '="([^"]*)"', 'i').exec(line);
+            return m ? m[1].trim() : '';
+        },
+        isVod: function (url) {
+            var path = String(url).split('?')[0].toLowerCase();
+            return /\/(movie|movies|vod)\//.test(path) || /\.(mp4|mkv|avi|mov|m4v|wmv|flv|webm)$/.test(path);
+        },
+        parse: function (text) {
+            var lines = String(text || '').replace(/^﻿/, '').split(/\r?\n/), out = { live: [], vod: [], lc: [], vc: [], epgUrl: '', byId: {} };
+            var catIds = { live: {}, vod: {} }, info = null, grp = '', seen = {};
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i].trim();
+                if (!line) continue;
+                if (line.charAt(0) === '#') {
+                    if (/^#EXTM3U/i.test(line)) { out.epgUrl = this.attr(line, 'url-tvg') || this.attr(line, 'x-tvg-url') || ''; out.epgUrl = out.epgUrl.split(',')[0].trim(); }
+                    else if (/^#EXTINF/i.test(line)) {
+                        var comma = line.lastIndexOf('",'), name = comma >= 0 ? line.slice(comma + 2) : line.slice(line.indexOf(',') + 1);
+                        info = { name: name.trim() || this.attr(line, 'tvg-name'), logo: this.attr(line, 'tvg-logo'), group: this.attr(line, 'group-title'),
+                            epg: this.attr(line, 'tvg-id'), num: this.attr(line, 'tvg-chno') };
+                        grp = '';
+                    } else if (/^#EXTGRP:/i.test(line)) grp = line.slice(8).trim();
+                    continue;
+                }
+                if (!/^(https?|rtmp|rtsp|udp|rtp):\/\//i.test(line)) { info = null; continue; }
+                var it = info || { name: '', logo: '', group: '', epg: '', num: '' };
+                info = null;
+                var kind = this.isVod(line) ? 'vod' : 'live';
+                var cat = it.group || grp || (kind === 'vod' ? 'Filme' : 'Sender');
+                var ci = catIds[kind][cat];
+                if (!ci) { ci = catIds[kind][cat] = String((kind === 'vod' ? 5000 : 1) + out[kind === 'vod' ? 'vc' : 'lc'].length); out[kind === 'vod' ? 'vc' : 'lc'].push({ category_id: ci, category_name: cat }); }
+                var id = hash32(line, 7) % 2000000000 + 1;
+                if (seen[id]) continue;                     // derselbe Link zweimal: nur einmal zeigen
+                seen[id] = 1;
+                var nm = it.name || line.split('?')[0].split('/').pop() || 'Sender';
+                out.byId[id] = line;
+                if (kind === 'live') out.live.push({ num: +it.num || out.live.length + 1, name: nm, stream_type: 'live', stream_id: id, stream_icon: it.logo, epg_channel_id: it.epg, category_id: ci });
+                else out.vod.push({ num: out.vod.length + 1, name: nm, stream_type: 'movie', stream_id: id, stream_icon: it.logo, category_id: ci,
+                    container_extension: (/\.([a-z0-9]{2,4})$/i.exec(line.split('?')[0]) || [])[1] || 'mp4' });
+            }
+            return out;
+        },
+        /** Antworten wie ein Xtream-Server */
+        answer: function (action) {
+            var d = this.data || { live: [], vod: [], lc: [], vc: [] };
+            switch (action || '') {
+                case '': return { user_info: { auth: 1, status: 'Active', exp_date: null } };
+                case 'get_live_categories': return d.lc;
+                case 'get_live_streams': return d.live;
+                case 'get_vod_categories': return d.vc;
+                case 'get_vod_streams': return d.vod;
+                case 'get_series_categories': case 'get_series': return [];
+                case 'get_short_epg': case 'get_simple_data_table': return { epg_listings: [] };
+                case 'get_vod_info': return { info: {}, movie_data: {} };
+                case 'get_series_info': return { info: {}, episodes: {} };
+                default: return [];
+            }
+        },
+        url: function (id) { return (this.data && this.data.byId[id]) || ''; }
+    };
+
     var Api = {
         acc: null,
 
@@ -2542,6 +2639,7 @@
                 var answer = Demo.answer(action, extra);
                 return new Promise(function (resolve) { setTimeout(function () { resolve(answer); }, 120); });
             }
+            if (a && a.m3u) return M3U.load(a).then(function () { return M3U.answer(action, extra); });
             var url = a.server + '/player_api.php?username=' + encodeURIComponent(a.username) +
                 '&password=' + encodeURIComponent(a.password);
             if (action) url += '&action=' + action;
@@ -2570,7 +2668,7 @@
         /** Große Liste holen und im Hintergrund umrechnen. cats: Promise der Kategorien */
         list: function (action, kind, cats) {
             var a = this.acc, text, self = this;
-            if (a && !a.demo && NativeList.host()) {
+            if (a && !a.demo && !a.m3u && NativeList.host()) {
                 // Fire TV/Android: der Android-Teil liest und kürzt die Liste, hier wird nur noch eingesetzt
                 var src = a.server + '/player_api.php?username=' + encodeURIComponent(a.username) +
                     '&password=' + encodeURIComponent(a.password) + '&action=' + action;
@@ -2586,6 +2684,7 @@
         listClassic: function (action, kind, cats) {
             var a = this.acc, text;
             if (a && a.demo) text = Promise.resolve(JSON.stringify(Demo.answer(action)));
+            else if (a && a.m3u) text = M3U.load(a).then(function () { return JSON.stringify(M3U.answer(action)); });
             else {
                 var url = a.server + '/player_api.php?username=' + encodeURIComponent(a.username) +
                     '&password=' + encodeURIComponent(a.password) + '&action=' + action;
@@ -2605,9 +2704,9 @@
         creds: function () {
             return encodeURIComponent(this.acc.username) + '/' + encodeURIComponent(this.acc.password);
         },
-        liveUrl: function (id) { if (this.acc.demo) return Demo.liveUrl(id); return this.acc.server + '/live/' + this.creds() + '/' + id + '.' + Settings.liveExt; },
-        movieUrl: function (id, ext) { if (this.acc.demo) return Demo.movieUrl(id); return this.acc.server + '/movie/' + this.creds() + '/' + id + '.' + (ext || 'mp4'); },
-        episodeUrl: function (id, ext) { if (this.acc.demo) return Demo.episodeUrl(id); return this.acc.server + '/series/' + this.creds() + '/' + id + '.' + (ext || 'mp4'); }
+        liveUrl: function (id) { if (this.acc.demo) return Demo.liveUrl(id); if (this.acc.m3u) return M3U.url(id); return this.acc.server + '/live/' + this.creds() + '/' + id + '.' + Settings.liveExt; },
+        movieUrl: function (id, ext) { if (this.acc.demo) return Demo.movieUrl(id); if (this.acc.m3u) return M3U.url(id); return this.acc.server + '/movie/' + this.creds() + '/' + id + '.' + (ext || 'mp4'); },
+        episodeUrl: function (id, ext) { if (this.acc.demo) return Demo.episodeUrl(id); if (this.acc.m3u) return M3U.url(id); return this.acc.server + '/series/' + this.creds() + '/' + id + '.' + (ext || 'mp4'); }
     };
 
     // =====================================================================
@@ -2915,6 +3014,9 @@
      */
     var WhatsNew = {
         LIST: [
+            { v: 330, items: [
+                ['📄', 'Auch einfache M3U-Listen', 'Neben dem Link vom Anbieter kannst du auf der Website jetzt auch einfache M3U/M3U8-Listen eintragen. Sie zeigen Live TV mit Kategorien und Logos, Filme-Einträge landen unter Filme.']
+            ] },
             { v: 329, items: [
                 ['🧠', 'Speicher auf einen Blick', 'In den Einstellungen siehst du jetzt oben, wie viel Speicher dein Gerät frei hat. Wird es knapp, färbt sich das Feld gelb oder rot – antippen zeigt, was hilft.']
             ] },
@@ -3549,13 +3651,13 @@
             if (fromLink) return fromLink;
             return { server: Account.normalizeServer(p.server), username: p.username, password: p.password };
         }
-        return Account.parse(p.m3u || p.server || '');
+        return Account.parse(p.m3u || p.server || '') || (p.m3u ? M3U.account(p.m3u) : null);   // ohne Zugangsdaten: einfache M3U-Liste
     }
 
     function playlistAddress(p) {
         if (p.demo) return 'Freie Testvideos zum Ausprobieren';
         var a = playlistAccount(p);
-        if (a) return a.server;
+        if (a) return a.m3u ? a.m3u.split('?')[0] : a.server;
         return (p.m3u || p.server || '').split('?')[0];
     }
 
@@ -4072,7 +4174,7 @@
         cache: {}, valid: false, status: null, nowCache: null,
         native: function () { return !!(AB && AB.epgFor && AB.epgSync && AB.epgInfo); },
         info: function () { try { return JSON.parse(AB.epgInfo() || '{}') || {}; } catch (e) { return {}; } },
-        accountKey: function () { var a = Api.acc; return a ? a.server + '|' + a.username : ''; },
+        accountKey: function () { var a = Api.acc; return a ? (a.m3u ? 'm3u|' + a.m3u : a.server + '|' + a.username) : ''; },
         /** Nach dem Laden der Sender: gespeichertes Programm passt zum Konto? Sonst (oder älter als 20 h) neu laden */
         sync: function (force) {
             if (!this.native() || !Api.acc || Api.acc.demo || !Data.channels.length || safeMode()) return;
@@ -4087,6 +4189,11 @@
             var list = Object.keys(ids);
             if (!list.length) return;
             var a = Api.acc;
+            if (a.m3u) {                                          // einfache Liste: Programm nur, wenn sie eine Adresse dafür mitliefert (url-tvg)
+                var eu = M3U.data && M3U.data.url === a.m3u ? M3U.data.epgUrl : '';
+                if (eu && /^https?:\/\//i.test(eu)) AB.epgSync(eu, key, JSON.stringify(list));
+                return;
+            }
             AB.epgSync(a.server + '/xmltv.php?username=' + encodeURIComponent(a.username) + '&password=' + encodeURIComponent(a.password),
                 key, JSON.stringify(list));
         },
@@ -4417,7 +4524,7 @@
     // =====================================================================
     var ListCache = {
         db: null,
-        key: function (acc) { return acc && !acc.demo && acc.server ? acc.server + '|' + acc.username : null; },
+        key: function (acc) { return acc && !acc.demo && !acc.m3u && acc.server ? acc.server + '|' + acc.username : null; },   // einfache M3U-Listen: immer frisch laden
         open: function () {
             var self = this;
             if (this.db) return Promise.resolve(this.db);
@@ -6818,6 +6925,7 @@
         },
         /** Live-Adresse für Aufnahmen: immer TS, das lässt sich am besten speichern */
         url: function (ch) {
+            if (Api.acc && Api.acc.m3u) return M3U.url(ch.id);
             return Api.acc.server + '/live/' + Api.creds() + '/' + ch.id + '.ts';
         },
         /** Aufnahme planen. Rückgabe: true oder Fehlertext */
@@ -11679,7 +11787,7 @@
             }
             // 3) Server des Anbieters: eine kleine Anfrage (Kontodaten)
             var a = Api.acc;
-            if (!a || a.demo || !a.server) {
+            if (!a || a.demo || a.m3u || !a.server) {
                 self.set('server', 'skip', a && a.demo ? 'Demo-Liste' : 'Nur mit Zugangsdaten (Xtream) prüfbar', '–');
                 out.lines.push('Server: nicht geprüft');
                 return { skip: true };
@@ -12830,7 +12938,7 @@
         }
         // Bild lässt sich auf diesem Gerät nicht dekodieren: einmal als HLS (M3U8) statt TS versuchen
         // Auch wenn der Anbieter kein TS liefert (PARSING_CONTAINER_UNSUPPORTED, oft bei Event-/PPV-Sendern): als HLS versuchen
-        if (this.kind === 'live' && /DECOD|PARSING|CONTAINER|extractor/i.test(msg || '') && !(this.altUrl && this.altFor === this.index) && this.vlcFor !== this.index && Api.acc && !Api.acc.demo && Settings.liveExt === 'ts') {
+        if (this.kind === 'live' && /DECOD|PARSING|CONTAINER|extractor/i.test(msg || '') && !(this.altUrl && this.altFor === this.index) && this.vlcFor !== this.index && Api.acc && !Api.acc.demo && !Api.acc.m3u && Settings.liveExt === 'ts') {
             this.altUrl = Api.acc.server + '/live/' + Api.creds() + '/' + it.id + '.m3u8'; this.altFor = this.index; this.altName = '';
             toast('Bild ließ sich nicht abspielen – anderes Format wird versucht …', 3500);
             this.start();
@@ -13859,7 +13967,7 @@
     }
     window.__pressFx = pressFx;                 // Android reicht Tasten direkt weiter (kein keydown)
     document.addEventListener('keydown', function (e) { if ((e.keyCode || e.which) === 13) pressFx(); }, true);
-    window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen, Lite: Lite, Glide: Glide, Busy: Busy, Metrics: Metrics, Free: Free, Api: Api, UpdateLock: UpdateLock, StateSync: StateSync, FavSync: FavSync, Storage: Storage };
+    window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen, Lite: Lite, Glide: Glide, Busy: Busy, Metrics: Metrics, Free: Free, Api: Api, M3U: M3U, UpdateLock: UpdateLock, StateSync: StateSync, FavSync: FavSync, Storage: Storage };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();

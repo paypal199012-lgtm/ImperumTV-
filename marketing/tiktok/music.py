@@ -20,6 +20,7 @@ Stile (alle passen auf das Raster: Intro 2,6 s, jede Szene 3,6 s, Abschluss 3 s)
   cinematic– Streicher-Ostinato in Sechzehnteln, tiefe Schläge, steigt mit jeder Szene an
   latin    – Dembow-Rhythmus (3-3-2), Marimba-Melodie, warmer Bass
   disco    – 133 BPM, Bass-Drum auf jedem Schlag, Oktav-Bass, offene Hi-Hat im Offbeat, Streicher-Stöße
+  jazz     – Swing mit Ride-Becken, laufender Kontrabass, Klavier-Akkorde (Septimen)
   reggae   – One-Drop (Bass-Drum und Snare auf 3), Offbeat-Akkorde, tiefer runder Bass, entspannt
 Ohne Stil wird er aus dem Startwert (z. B. der Video-ID) gewählt.
 """
@@ -30,7 +31,7 @@ out, n_scenes = sys.argv[1], int(sys.argv[2])
 style = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ''
 seed_txt = sys.argv[4] if len(sys.argv) > 4 else style
 seed = zlib.crc32(seed_txt.encode()) & 0xffffffff
-STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae']
+STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz']
 if style not in STYLES:
     style = STYLES[seed % len(STYLES)]
 
@@ -348,6 +349,24 @@ elif style == 'reggae':                   # 133 BPM halbe Zeit, One-Drop, Offbea
             for pos, d, g in ((0, 0, 1.0), (1.5, 2, 0.7), (2.5, 0, 0.85), (3.25, 1, 0.6)):
                 m.add(lp(tone(notes(ch)[d] / 2, B * 0.7, 'sine', a=0.01, d=0.35, gain=0.42 * g), 240), b0 + pos * B)
     outro(prog[0], B)
+
+elif style == 'jazz':                     # Swing, laufender Bass, Ride-Becken, Septakkorde
+    B = 0.45; prog = [['D3', 'F3', 'A3', 'C4'], ['G3', 'B3', 'D4', 'F4'], ['C3', 'E3', 'G3', 'B3'], ['A3', 'C4', 'E4', 'G4']]
+    intro(B, rise=False)
+    transitions(0.12)
+    sw = B * 0.66                                   # Swing: zweite Achtel spät
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = prog[sc % 4]
+        for bar in range(2):
+            b0 = s0 + bar * 4 * B
+            for q in range(4):
+                m.add(hat(g=0.10), b0 + q * B, 1, 0.35)                            # Ride auf jedem Schlag
+                if q % 2: m.add(hat(g=0.08), b0 + q * B + sw, 1, 0.35)            # Swing-Achtel
+                if q % 2: m.add(lp(snare(0.25), 3000), b0 + q * B)                # leiser Besen auf 2 und 4
+                walk = [notes(ch)[0], notes(ch)[1], notes(ch)[2], notes(ch)[1] * 1.06][q] / 2
+                m.add(lp(tone(walk, B * 0.9, 'sine', a=0.01, d=0.3, gain=0.4), 300), b0 + q * B)
+            for pos in (0, 1.66, 2.66): m.add(epiano(notes(ch), B * 0.8, 0.06), b0 + pos * B, 1, -0.2)
+    outro(prog[2][:3], B)
 
 elif style == 'cinematic':                # 133 BPM, Streicher-Ostinato, wird nach und nach voller
     B = 0.45; prog = [['D3', 'F3', 'A3'], ['A2', 'C3', 'E3'], ['F3', 'A3', 'C4'], ['C3', 'E3', 'G3']]

@@ -1,0 +1,94 @@
+{
+  "id": "m3u-listen",
+  "title": "Einfache M3U-Listen in ImperumTV",
+  "version": "1.0.330",
+  "hook": {
+    "h": "Nur eine<br>M3U-Liste?",
+    "s": "Kein Problem – ImperumTV spielt sie jetzt auch ab.",
+    "art": {
+      "type": "tv",
+      "screen": "pitch",
+      "badge": "Sport Arena 1"
+    }
+  },
+  "scenes": [
+    {
+      "n": "SCHRITT 1",
+      "h": "Link eintragen.",
+      "s": "Auf imperumtv.xyz unter „Wiedergabeliste verwalten“.",
+      "art": {
+        "type": "phone",
+        "title": "Wiedergabeliste",
+        "ok": "Gespeichert",
+        "rows": [
+          [
+            "M3U-Link",
+            "…/liste.m3u8"
+          ],
+          [
+            "Name",
+            "Wohnzimmer"
+          ]
+        ]
+      }
+    },
+    {
+      "n": "SCHRITT 2",
+      "h": "Sender mit Logos<br>und Kategorien.",
+      "s": "Alles aus deiner Liste – sortiert wie dort.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Sport",
+            "v": "12 Sender",
+            "icon": "⚽"
+          },
+          {
+            "t": "Nachrichten",
+            "v": "6 Sender",
+            "icon": "📰"
+          },
+          {
+            "t": "Kinder",
+            "v": "5 Sender",
+            "icon": "🎈"
+          }
+        ]
+      }
+    },
+    {
+      "n": "SCHRITT 3",
+      "h": "Filme landen<br>unter Filme.",
+      "s": "Mit Programm, wenn deine Liste eins mitliefert.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Nachtzug",
+            "v": "Film",
+            "icon": "🎬"
+          },
+          {
+            "t": "Grenzland",
+            "v": "Film",
+            "icon": "🎬"
+          },
+          {
+            "t": "Programm",
+            "v": "aus der Liste",
+            "ok": true,
+            "icon": "📅"
+          }
+        ]
+      }
+    }
+  ],
+  "end": {
+    "h": "Anbieter-Link oder M3U.",
+    "s": "Beides geht in ImperumTV."
+  },
+  "caption": "Nur eine M3U-Liste und kein Anbieter-Login? Geht jetzt auch in ImperumTV 📄 Link auf der Website eintragen – fertig.",
+  "hashtags": "#firetvstick #androidtv #m3u #iptvplayer #techtipps #apptipp #fyp",
+  "music": "jazz"
+}
