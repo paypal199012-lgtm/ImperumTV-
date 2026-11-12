@@ -20,6 +20,7 @@ Stile (alle passen auf das Raster: Intro 2,6 s, jede Szene 3,6 s, Abschluss 3 s)
   cinematic– Streicher-Ostinato in Sechzehnteln, tiefe Schläge, steigt mit jeder Szene an
   latin    – Dembow-Rhythmus (3-3-2), Marimba-Melodie, warmer Bass
   disco    – 133 BPM, Bass-Drum auf jedem Schlag, Oktav-Bass, offene Hi-Hat im Offbeat, Streicher-Stöße
+  reggae   – One-Drop (Bass-Drum und Snare auf 3), Offbeat-Akkorde, tiefer runder Bass, entspannt
 Ohne Stil wird er aus dem Startwert (z. B. der Video-ID) gewählt.
 """
 import sys, zlib
@@ -29,7 +30,7 @@ out, n_scenes = sys.argv[1], int(sys.argv[2])
 style = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ''
 seed_txt = sys.argv[4] if len(sys.argv) > 4 else style
 seed = zlib.crc32(seed_txt.encode()) & 0xffffffff
-STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco']
+STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae']
 if style not in STYLES:
     style = STYLES[seed % len(STYLES)]
 
@@ -331,6 +332,21 @@ elif style == 'disco':                    # 133 BPM, Vier-auf-den-Boden, Oktav-B
                 m.add(lp(tone(notes(ch)[0] / 2, B * 0.42, 'saw', a=0.004, d=0.12, gain=0.3), 420), b0 + q * B)
                 m.add(lp(tone(notes(ch)[0], B * 0.38, 'saw', a=0.004, d=0.1, gain=0.22), 600), b0 + q * B + B / 2)
             for pos in (0, 1.5, 2.5): m.add(lp(chord([x * 2 for x in notes(ch)], 0.2, 0.06, 3200), 3200), b0 + pos * B, 1, 0.25 if pos else -0.25)
+    outro(prog[0], B)
+
+elif style == 'reggae':                   # 133 BPM halbe Zeit, One-Drop, Offbeat-Skank, runder Bass
+    B = 0.45; prog = [['A3', 'C4', 'E4'], ['D3', 'F3', 'A3'], ['E3', 'G3', 'B3'], ['A3', 'C4', 'E4']]
+    intro(B, rise=False)
+    transitions(0.14)
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = prog[sc % 4]
+        for bar in range(2):
+            b0 = s0 + bar * 4 * B
+            m.add(kick(), b0 + 2 * B, 0.95); m.add(snare(0.7), b0 + 2 * B)              # One-Drop: Schlag 3
+            for q in range(8): m.add(hat(g=0.09 if q % 2 else 0.12), b0 + q * B / 2, 1, 0.3)
+            for q in range(4): m.add(lp(chord(notes(ch), 0.14, 0.07, 2400, 'sq'), 2400), b0 + q * B + B / 2, 1, -0.25)   # Skank im Offbeat
+            for pos, d, g in ((0, 0, 1.0), (1.5, 2, 0.7), (2.5, 0, 0.85), (3.25, 1, 0.6)):
+                m.add(lp(tone(notes(ch)[d] / 2, B * 0.7, 'sine', a=0.01, d=0.35, gain=0.42 * g), 240), b0 + pos * B)
     outro(prog[0], B)
 
 elif style == 'cinematic':                # 133 BPM, Streicher-Ostinato, wird nach und nach voller

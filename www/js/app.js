@@ -410,6 +410,7 @@
         play: '<path d="M7.5 4.5l12 7.5-12 7.5z"/>',
         next: '<path d="M5.5 5l9 7-9 7zM18.5 5v14"/>',
         speed: '<path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4.2-5"/>',
+        mem: '<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/>',
         device: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/>',
         users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17" cy="8.5" r="2.8"/><path d="M17 14c2.8.2 4.8 2.3 4.8 5.5"/>',
         epg: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h10M7 17h6"/><circle cx="5.2" cy="9" r=".4"/><circle cx="5.2" cy="13" r=".4"/><circle cx="5.2" cy="17" r=".4"/>'
@@ -1325,7 +1326,17 @@
      */
     var Metrics = {
         d: null, startDone: false, saveAt: 0,
-        fresh: function () { return { since: Date.now(), s: 0, start: { n: 0, sum: 0, max: 0 }, scr: {}, key: { n: 0, slow: 0, max: 0 }, heap: 0, el: 0 }; },
+        fresh: function () { return { since: Date.now(), s: 0, start: { n: 0, sum: 0, max: 0 }, scr: {}, key: { n: 0, slow: 0, max: 0 }, heap: 0, el: 0, zap: this.zap0(), vod: this.zap0() }; },
+        zap0: function () { return { n: 0, sum: 0, max: 0, b: [0, 0, 0, 0, 0], fail: 0 }; },
+        /** Umschalten gemessen: ms bis zum ersten Bild (live = Sender, sonst Film/Folge). ms < 0 = kam kein Bild */
+        zapped: function (live, ms) {
+            try {
+                var d = this.get(), z = d[live ? 'zap' : 'vod'] || (d[live ? 'zap' : 'vod'] = this.zap0());
+                if (ms < 0) { z.fail++; return; }
+                z.n++; z.sum += ms; if (ms > z.max) z.max = ms;
+                z.b[ms < 1000 ? 0 : ms < 2000 ? 1 : ms < 4000 ? 2 : ms < 8000 ? 3 : 4]++;
+            } catch (e) { /* nur Messung */ }
+        },
         get: function () {
             if (!this.d) { var x = Storage.rawGet('met', null); this.d = x && x.scr && x.key && x.start ? x : this.fresh(); }
             return this.d;
@@ -1374,7 +1385,7 @@
                 var d = this.get(), last = Storage.rawGet('metSent', 0);
                 if (!d.s || Date.now() - last < 20 * 3600000) return;
                 if (!Device.validMac(Device.mac) || !Device.validKey(Device.key)) return;
-                var self = this, out = { s: d.s, start: d.start, scr: d.scr, key: d.key, heap: d.heap, el: d.el, mem: Math.round(Lite.mem()), tier: Lite.tier(), auto: Lite.auto() || '',
+                var self = this, out = { s: d.s, start: d.start, scr: d.scr, key: d.key, heap: d.heap, el: d.el, zap: d.zap, vod: d.vod, mem: Math.round(Lite.mem()), tier: Lite.tier(), auto: Lite.auto() || '',
                     ch: Data.channels ? Data.channels.length : 0, mv: Data.movies ? Data.movies.length : 0, se: Data.series ? Data.series.length : 0 };
                 Remote.rpc('device_metrics', { p_mac: Device.mac, p_key: Device.key, p_version: Report.version(), p_device: Report.platform(), p_data: out }).then(function (ok) {
                     if (ok !== true) return;
@@ -2644,6 +2655,19 @@
                 try { if (window.webapis && webapis.productinfo) base = String(webapis.productinfo.getDuid() || ''); } catch (e2) { base = ''; }
             }
             var bytes = [], i;
+            // Schon eine Kennung gespeichert? Die bleibt – auch wenn das System die Geräte-ID ändert
+            // (kam auf einem Fire TV nach einem Update vor: das Gerät erschien sonst im Admin als neues Gerät ohne Listen)
+            var kept = Storage.get('device', null);
+            if (kept && this.validMac(kept.mac) && this.validKey(kept.key)) {
+                this.mac = kept.mac; this.key = kept.key;
+                if (base) {
+                    var a0 = hash32(base, 11), b0 = hash32(base, 23);
+                    var calc = [((a0 >>> 24) | 2) & 254, (a0 >>> 16) & 255, (a0 >>> 8) & 255, a0 & 255, b0 >>> 24, (b0 >>> 16) & 255];
+                    var calcMac = calc.map(function (x) { return ('0' + x.toString(16)).slice(-2); }).join(':').toUpperCase();
+                    if (calcMac !== this.mac) this.changed = calcMac;     // wird einmal gemeldet (Report.later), damit wir sehen, wie oft das passiert
+                }
+                return;
+            }
             if (base) {
                 var a = hash32(base, 11), b = hash32(base, 23);
                 bytes = [a >>> 24, (a >>> 16) & 255, (a >>> 8) & 255, a & 255, b >>> 24, (b >>> 16) & 255];
@@ -2891,6 +2915,9 @@
      */
     var WhatsNew = {
         LIST: [
+            { v: 329, items: [
+                ['🧠', 'Speicher auf einen Blick', 'In den Einstellungen siehst du jetzt oben, wie viel Speicher dein Gerät frei hat. Wird es knapp, färbt sich das Feld gelb oder rot – antippen zeigt, was hilft.']
+            ] },
             { v: 324, items: [
                 ['🔄', 'Weiterschauen auf allen Geräten', 'Film am Fernseher angefangen? Am Handy geht es an derselben Stelle weiter. Weiterschauen, „Gesehen“ und Favoriten sind auf allen Geräten mit denselben Zugangsdaten gleich.']
             ] },
@@ -4858,7 +4885,23 @@
         },
 
         on: function (handlers) { this.handlers = handlers || {}; },
+        /** Messung „Umschalten bis erstes Bild“ abschließen (ms < 0: kein Bild) */
+        zapEnd: function (ms) {
+            var z = this.zap; if (!z) return;
+            this.zap = null; clearTimeout(this.zapTimer); this.zapTimer = null;
+            if (ms < 0) { if (Date.now() - z.at > 1500) Metrics.zapped(z.live, -1); return; }   // sehr schnell weitergeschaltet: zählt nicht
+            if (ms < 60000) Metrics.zapped(z.live, ms);
+        },
         emit: function (name, a, b) {
+            if (this.zap) {
+                var zz = this.zap, self0 = this;
+                if (name === 'frame') this.zapEnd(Date.now() - zz.at);
+                else if (name === 'ready' && !this.zapTimer) {
+                    // VLC meldet kein „erstes Bild“: dann zählt „bereit“, wenn binnen 3 s nichts anderes kommt
+                    var rd = Date.now() - zz.at;
+                    this.zapTimer = setTimeout(function () { self0.zapTimer = null; if (self0.zap === zz) self0.zapEnd(rd); }, 3000);
+                }
+            }
             if (name === 'buffer') NetQ.onBuffer(!!a);
             if (name === 'ready') this.gotReady = true;
             if (name === 'buffer') this.isBuf = !!a;
@@ -4891,6 +4934,7 @@
             this.audioLangs = this.nextLangs || '';            // nur für genau diesen Film/diese Folge
             this.gotReady = false; this.gotFrame = false;
             this.st = { at: Date.now() };
+            this.zap = this.android ? { at: Date.now(), live: !/\/(movie|series)\//i.test(url) } : null;   // nur Android meldet „erstes Bild“
             this.nextLangs = '';
             NetQ.reset();
             Sleep.awake(true);
@@ -4982,6 +5026,7 @@
         },
 
         stop: function () {
+            try { this.zapEnd(-1); } catch (eZ) { /* nur Messung */ }      // Sender kam nie ins Bild
             this.url = null;
             try { Watch.set(''); } catch (e0) { /* egal */ }
             if (this.android) { AB.stop(); return; }
@@ -11181,6 +11226,12 @@
                     : 'Dein Anbieter meldet kein Ablaufdatum.', 5000);
             });
         })();
+        // Speicher des Geräts (Android): freier Arbeitsspeicher, bei Knappheit gelb/rot – Antippen zeigt Einzelheiten und Tipps
+        (function () {
+            var m = MemInfo.get();
+            if (!m) return;
+            stat('memstat', 'mem', 'Speicher', MemInfo.short(m), MemInfo.level(m), function () { MemInfo.dialog(); });
+        })();
         stat('devstat', 'device', 'Gerät', Device.macText(), 'small', function () { Nav.push(new PlaylistsScreen()); });
         hero.appendChild(stats);
         box.appendChild(hero);
@@ -11458,6 +11509,42 @@
         }
         fit(); setTimeout(function () { later(0); }, 0);
         if (!this.focusKey) this.focusKey = 'set-format';
+    };
+
+    /**
+     * Speicher-Anzeige (Einstellungen): freier Arbeitsspeicher und Speicherplatz des Geräts, mit Rat, wenn es knapp wird.
+     * Werte kommen vom Android-Teil (AB.health), auf anderen Geräten gibt es die Anzeige nicht.
+     */
+    var MemInfo = {
+        get: function () {
+            if (!AB || !AB.health) return null;
+            try { var d = JSON.parse(AB.health() || '{}') || {}; return d.ramTotal ? d : null; } catch (e) { return null; }
+        },
+        gb: function (mb) { return mb >= 1000 ? (Math.round(mb / 102.4) / 10).toString().replace('.', ',') + ' GB' : Math.round(mb) + ' MB'; },
+        short: function (m) { return this.gb(m.ramFree) + ' frei'; },
+        /** '' = gut, 'warn' = knapp, 'err' = sehr knapp */
+        level: function (m) {
+            if (m.lowMem || m.ramFree < 180 || (m.stFree >= 0 && m.stFree < 300)) return 'err';
+            if (m.ramFree < 350 || (m.stFree >= 0 && m.stFree < 1000)) return 'warn';
+            return '';
+        },
+        dialog: function () {
+            var m = this.get();
+            if (!m) return;
+            var lv = this.level(m), lines = [];
+            lines.push('Arbeitsspeicher: ' + this.gb(m.ramFree) + ' frei von ' + this.gb(m.ramTotal));
+            if (m.stTotal) lines.push('Speicherplatz: ' + this.gb(m.stFree) + ' frei von ' + this.gb(m.stTotal));
+            if (m.cache >= 0 && m.cache !== undefined) lines.push('Zwischenspeicher von ImperumTV: ' + this.gb(m.cache));
+            var tip;
+            if (lv === 'err') tip = 'Der Speicher ist sehr knapp. Das kann Ruckeln und Abbrüche verursachen. Hilft meist: andere Apps schließen, den Fire TV einmal neu starten (Stecker ziehen) und hier „Cache leeren“.';
+            else if (lv === 'warn') tip = 'Der Speicher wird knapp. Wenn es ruckelt: den Fire TV einmal neu starten und „Cache leeren“.';
+            else tip = 'Alles im grünen Bereich.';
+            if (m.stFree >= 0 && m.stFree < 1000) tip += ' Der Speicherplatz ist fast voll – nicht benötigte Apps deinstallieren schafft Platz.';
+            Modal.open('Speicher', lines.join('\n') + '\n\n' + tip, [
+                { label: 'Cache leeren', primary: lv !== '', action: function () { clearCacheFlow(); } },
+                { label: 'Schließen', primary: lv === '' }
+            ]);
+        }
     };
 
     // =====================================================================
@@ -13644,6 +13731,12 @@
             }
         }
 
+        // Hätte sich die Geräte-Kennung geändert (System-ID anders)? Einmal melden – behalten wird die alte
+        if (Device.changed && Storage.rawGet('idChgSent', '') !== Device.changed) {
+            setTimeout(function () {
+                try { Report.send('kennung', 'Geräte-Kennung behalten: ' + Device.mac + ' (neu berechnet wäre ' + Device.changed + ')'); Storage.rawSet('idChgSent', Device.changed); } catch (eK) { /* egal */ }
+            }, 20000);
+        }
         if (Profiles.askOnStart()) Nav.replace(new WhoScreen(loadLists));
         else loadLists();
 

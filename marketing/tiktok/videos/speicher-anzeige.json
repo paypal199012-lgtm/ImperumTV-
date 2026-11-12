@@ -1,0 +1,86 @@
+{
+  "id": "speicher-anzeige",
+  "title": "Speicher-Anzeige in den Einstellungen",
+  "version": "1.0.329",
+  "hook": {
+    "h": "Fire TV ruckelt<br>auf einmal?",
+    "s": "Oft ist einfach der Speicher voll.",
+    "art": {
+      "type": "tv",
+      "screen": "movie",
+      "badge": "Kino Plus",
+      "toast": "Lädt …",
+      "toastAt": 1.0
+    }
+  },
+  "scenes": [
+    {
+      "n": "SCHRITT 1",
+      "h": "Einstellungen<br>öffnen.",
+      "s": "Oben steht jetzt: Speicher.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Kinderschutz",
+            "v": "Aus",
+            "icon": "🔒"
+          },
+          {
+            "t": "Speicher",
+            "v": "840 MB frei",
+            "ok": true,
+            "icon": "🧠"
+          },
+          {
+            "t": "Gerät",
+            "v": "Fire TV",
+            "icon": "📺"
+          }
+        ]
+      }
+    },
+    {
+      "n": "SCHRITT 2",
+      "h": "Gelb oder rot?",
+      "s": "Dann wird es knapp – antippen zeigt, was hilft.",
+      "art": {
+        "type": "cards",
+        "items": [
+          {
+            "t": "Arbeitsspeicher",
+            "v": "150 MB frei",
+            "icon": "⚠"
+          },
+          {
+            "t": "Speicherplatz",
+            "v": "200 MB frei",
+            "icon": "⚠"
+          },
+          {
+            "t": "Tipp",
+            "v": "Neustart + Cache leeren",
+            "icon": "💡"
+          }
+        ]
+      }
+    },
+    {
+      "n": "SCHRITT 3",
+      "h": "Cache leeren.",
+      "s": "Ein Knopf – Favoriten und Einstellungen bleiben.",
+      "art": {
+        "type": "big",
+        "text": "1,2 GB",
+        "small": "wieder frei"
+      }
+    }
+  ],
+  "end": {
+    "h": "Ruckelt nicht mehr.",
+    "s": "Speicher-Anzeige ist eingebaut."
+  },
+  "caption": "Fire TV ruckelt? Oft ist der Speicher voll 🧠 In ImperumTV siehst du jetzt in den Einstellungen sofort, wie viel frei ist – und was hilft.",
+  "hashtags": "#firetvstick #firetv #androidtv #techtipps #apptipp #streaming #fyp",
+  "music": "reggae"
+}
