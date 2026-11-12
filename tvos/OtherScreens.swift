@@ -17,6 +17,11 @@ struct PlaylistsScreen: View {
     @EnvironmentObject var nav: Nav
     @ObservedObject private var help = RemoteHelp.shared
     @State private var busy = false
+    // Beim Öffnen steht die Auswahl auf der ersten Kachel (ohne Liste: „Demo“), nicht auf „Fernhilfe“.
+    // So kommt man auch ohne eigene Wiedergabeliste mit einem Klick in die App (App-Prüfung 2.1).
+    private enum Spot: Hashable { case list(String), demo }
+    @FocusState private var focus: Spot?
+    private var firstSpot: Spot { store.lists.first.map { .list($0.id) } ?? .demo }
 
     private var link: String {
         RemoteConfig.website + "?mac=" + store.device.mac.lowercased() + "&key=" + store.device.key + "&app=apple"
@@ -37,6 +42,7 @@ struct PlaylistsScreen: View {
                 .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .black.opacity(0.45), ring: false, solid: true))
                 .padding(.leading, 30)
             }
+            .focusSection()
             .place(70, 34, 1300, 70)
 
             if store.lists.isEmpty {
@@ -51,12 +57,13 @@ struct PlaylistsScreen: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 30) {
                     ForEach(store.lists) { l in
-                        card(l.name, l.address, active: store.savedId == l.id) { Task { await choose { await store.use(l) } } }
+                        card(l.name, l.address, active: store.savedId == l.id, spot: .list(l.id)) { Task { await choose { await store.use(l) } } }
                     }
-                    card("Demo", "Freie Testvideos zum Ausprobieren", active: store.source == .demo) { Task { await choose { store.useDemo() } } }
+                    card("Demo", "Freie Testvideos – hier drücken zum Ausprobieren", active: store.source == .demo, spot: .demo) { Task { await choose { store.useDemo() } } }
                 }
                 .padding(20)
             }
+            .focusSection()
             .place(store.lists.isEmpty ? 1100 : 80, store.lists.isEmpty ? 180 : 160, store.lists.isEmpty ? 780 : 1760, 240)
 
             if let m = store.message {
@@ -89,6 +96,7 @@ struct PlaylistsScreen: View {
                 .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .white.opacity(0.08), ring: false, solid: true))
             }
             .padding(.horizontal, 50)
+            .focusSection()
             .frame(width: 1720, height: 330)
             .background(RoundedRectangle(cornerRadius: 18).fill(.black.opacity(0.35)))
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.15), lineWidth: 1.5))
@@ -98,6 +106,8 @@ struct PlaylistsScreen: View {
                 .font(UI.font(21)).foregroundColor(UI.muted).place(0, 960, 1920, 40, alignment: .center)
         }
         .frame(width: 1920, height: 1080)
+        .defaultFocus($focus, firstSpot)
+        .onAppear { focus = firstSpot }
         .task {
             // Liste auf der Website eingetragen? Alle 15 s nachsehen, solange dieser Bildschirm offen ist
             while !Task.isCancelled {
@@ -108,7 +118,7 @@ struct PlaylistsScreen: View {
         }
     }
 
-    private func card(_ title: String, _ sub: String, active: Bool, _ action: @escaping () -> Void) -> some View {
+    private func card(_ title: String, _ sub: String, active: Bool, spot: Spot, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 12) {
                 Text(title).font(UI.font(34, .bold)).foregroundColor(UI.gold).lineLimit(1)
@@ -121,6 +131,7 @@ struct PlaylistsScreen: View {
         }
         .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 14)), normal: .black.opacity(0.4),
                                focusFill: UI.tan(0.42), border: .white.opacity(0.15), borderWidth: 1.5, scale: 1.04))
+        .focused($focus, equals: spot)
     }
 
     private func choose(_ f: () async -> Void) async {
