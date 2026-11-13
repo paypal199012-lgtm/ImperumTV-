@@ -1,0 +1,56 @@
+{
+  "id": "sprachen",
+  "title": "ImperumTV jetzt auf Englisch & Französisch (echte App)",
+  "version": "1.0.331",
+  "hook": {
+    "h": "ImperumTV spricht<br>jetzt 3 Sprachen.",
+    "s": "Deutsch · English · Français",
+    "art": { "type": "clip", "src": "clips/app-sprachen.mp4", "from": 0 }
+  },
+  "scenes": [
+    {
+      "n": "SCHRITT 1",
+      "h": "Einstellungen<br>öffnen.",
+      "s": "Ganz oben unter „Anzeige & Familie“: Sprache.",
+      "art": { "type": "clip", "src": "clips/app-sprachen.mp4", "from": 1.8, "speed": 1.1 }
+    },
+    {
+      "n": "SCHRITT 2",
+      "h": "Sprache<br>wählen.",
+      "s": "Automatisch nimmt einfach die Sprache des Geräts.",
+      "art": { "type": "clip", "src": "clips/app-sprachen.mp4", "from": 5.2, "speed": 0.8 }
+    },
+    {
+      "n": "ENGLISH",
+      "h": "Alles auf<br>Englisch.",
+      "s": "Menü, Live TV, Programm und Einstellungen.",
+      "art": { "type": "clip", "src": "clips/app-sprachen.mp4", "from": 10.6, "speed": 1.2 }
+    },
+    {
+      "n": "LIVE TV",
+      "h": "Vorschau, Favoriten,<br>Qualität …",
+      "s": "Jeder Knopf in deiner Sprache.",
+      "art": { "type": "clip", "src": "clips/app-sprachen.mp4", "from": 15.3, "speed": 1 }
+    },
+    {
+      "n": "FRANÇAIS",
+      "h": "Oder auf<br>Französisch.",
+      "s": "Perfekt für Familie und Freunde aus Frankreich, Belgien und der Schweiz.",
+      "art": { "type": "clip", "src": "clips/app-sprachen.mp4", "from": 29.9, "speed": 1 }
+    },
+    {
+      "n": "FRANÇAIS",
+      "h": "Auch Datum<br>und Uhrzeit.",
+      "s": "„ven. 13 novembre“ statt „Fr, 13. November“.",
+      "art": { "type": "clip", "src": "clips/app-sprachen.mp4", "from": 32.8, "speed": 1 }
+    }
+  ],
+  "end": {
+    "h": "Jetzt 7 Tage<br>kostenlos testen.",
+    "s": "Fire TV · Android · PC",
+    "code": "2336102"
+  },
+  "caption": "ImperumTV gibt es jetzt auf Deutsch, Englisch und Französisch 🌍 Einstellungen → Sprache – oder einfach automatisch in der Sprache deines Geräts. Echte Aufnahme aus der App.",
+  "hashtags": "#firetvstick #iptvplayer #androidtv #smarttv #english #français #fyp",
+  "music": "bossa"
+}

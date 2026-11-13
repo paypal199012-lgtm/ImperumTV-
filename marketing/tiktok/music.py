@@ -23,6 +23,7 @@ Stile (alle passen auf das Raster: Intro 2,6 s, jede Szene 3,6 s, Abschluss 3 s)
   jazz     – Swing mit Ride-Becken, laufender Kontrabass, Klavier-Akkorde (Septimen)
   reggae   – One-Drop (Bass-Drum und Snare auf 3), Offbeat-Akkorde, tiefer runder Bass, entspannt
   dnb      – Drum & Bass: schnelle Breakbeats mit Sechzehntel-Hi-Hats, tiefer schwebender Reese-Bass, Flächen
+  bossa    – Bossa Nova: weiche Zupf-Akkorde im Bossa-Rhythmus, Shaker, Bass auf 1 und 3, leichtes Rimshot-Muster
 Ohne Stil wird er aus dem Startwert (z. B. der Video-ID) gewählt.
 """
 import sys, zlib
@@ -32,7 +33,7 @@ out, n_scenes = sys.argv[1], int(sys.argv[2])
 style = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ''
 seed_txt = sys.argv[4] if len(sys.argv) > 4 else style
 seed = zlib.crc32(seed_txt.encode()) & 0xffffffff
-STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb']
+STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb', 'bossa']
 if style not in STYLES:
     style = STYLES[seed % len(STYLES)]
 
@@ -389,6 +390,23 @@ elif style == 'dnb':                      # Breakbeat (Kick 1 + 2¾, Snare 2 + 4
                 m.add(lp(tone(fr * 1.012, d, 'saw', a=0.01, d=0.25, gain=0.2), 330), b0 + pos * B)
         for pos in (0.5, 4.5): m.add(pluck(notes(ch)[2] * 2, 0.3, 0.09), s0 + pos * B)
     outro(prog[0], B)
+
+elif style == 'bossa':                    # Bossa Nova: Gitarren-Zupfakkorde (3+3+2-Gefühl), Shaker, Bass 1 und 3, Rimshot
+    B = 0.45; prog = [['D3', 'F3', 'A3', 'C4'], ['G3', 'B3', 'D4', 'F4'], ['C3', 'E3', 'G3', 'B3'], ['A2', 'C3', 'E3', 'G3']]
+    intro(B, rise=False)
+    transitions(0.1)
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = prog[sc % 4]
+        for bar in range(2):
+            b0 = s0 + bar * 4 * B
+            for q in range(8): m.add(hat(g=0.05 if q % 2 else 0.08), b0 + q * B / 2, 1, 0.3)                 # Shaker
+            for pos in (0, 2): m.add(lp(tone(notes(ch)[0] / 2, B * 1.4, 'sine', a=0.01, d=0.4, gain=0.38), 260), b0 + pos * B)
+            for pos in (1.5, 3.5): m.add(lp(tone(notes(ch)[2] / 2, B * 0.5, 'sine', a=0.01, d=0.2, gain=0.22), 260), b0 + pos * B)
+            for pos in (0, 1.5, 3): m.add(lp(snare(0.18), 3500), b0 + pos * B, 1, 0.2)                          # Rimshot 3+3+2
+            m.add(kick(), b0, 0.5)
+            for pos in (0, 0.75, 1.5, 2.5, 3.25): m.add(lp(chord([x * 2 for x in notes(ch)], 0.22, 0.05, 2400, 'sq'), 2400), b0 + pos * B, 1, -0.25)
+        m.add(pluck(notes(ch)[3] * 2, 0.5, 0.07), s0 + 4.5 * B)
+    outro(prog[0][:3], B)
 
 elif style == 'cinematic':                # 133 BPM, Streicher-Ostinato, wird nach und nach voller
     B = 0.45; prog = [['D3', 'F3', 'A3'], ['A2', 'C3', 'E3'], ['F3', 'A3', 'C4'], ['C3', 'E3', 'G3']]
