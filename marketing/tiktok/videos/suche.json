@@ -1,0 +1,36 @@
+{
+  "id": "suche",
+  "title": "Suche: Film oder Serie in Sekunden finden",
+  "version": "1.0.335",
+  "hook": {
+    "h": "Du scrollst<br>ewig durch Listen?",
+    "s": "Und findest den Film trotzdem nicht …",
+    "art": { "type": "clip", "src": "clips/app-suche.mp4", "from": 0 }
+  },
+  "scenes": [
+    {
+      "n": "SCHRITT 1",
+      "h": "Auf „Suche“ drücken.",
+      "s": "Direkt auf der Startseite.",
+      "art": { "type": "clip", "src": "clips/app-suche.mp4", "from": 0.3 }
+    },
+    {
+      "n": "SCHRITT 2",
+      "h": "Ein paar Buchstaben.",
+      "s": "Schon nach 2 Buchstaben kommen Treffer.",
+      "art": { "type": "clip", "src": "clips/app-suche.mp4", "from": 2.4 }
+    },
+    {
+      "h": "Filme UND Serien.<br>Auf einen Blick.",
+      "s": "Gesucht wird in Live TV, Filmen und Serien gleichzeitig.",
+      "art": { "type": "clip", "src": "clips/app-suche.mp4", "from": 5.4 }
+    }
+  ],
+  "end": {
+    "h": "Tippen.<br>Finden. Schauen.",
+    "s": "Die Suche ist in ImperumTV eingebaut."
+  },
+  "caption": "Schluss mit ewigem Scrollen 🔎 In ImperumTV tippst du 2 Buchstaben – und siehst Sender, Filme und Serien auf einmal.",
+  "hashtags": "#firetvstick #androidtv #smarttv #techtipps #streaming #fyp",
+  "music": "afro"
+}

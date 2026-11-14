@@ -1,70 +1,41 @@
 {
   "id": "schlaf-timer",
-  "title": "Schlaf-Timer: beim Film einschlafen",
+  "title": "Schlaf-Timer: beim Fernsehen einschlafen",
   "version": "1.0.335",
   "hook": {
-    "h": "Beim Film<br>eingeschlafen?",
+    "h": "Beim Fernsehen<br>eingeschlafen?",
     "s": "Und der Fernseher läuft die ganze Nacht …",
-    "art": {
-      "type": "big",
-      "text": "😴",
-      "small": "3:47 Uhr – läuft immer noch"
-    }
+    "art": { "type": "clip", "src": "clips/app-schlaf.mp4", "from": 0 }
   },
   "scenes": [
     {
       "n": "SCHRITT 1",
-      "h": "Im Player auf ☾ drücken.",
+      "h": "Im Player auf ☾.",
       "s": "Schlaf-Timer – direkt beim Schauen.",
-      "art": {
-        "type": "tv",
-        "screen": "movie",
-        "badge": "Nachtkino HD",
-        "toast": "☾ Schlaf-Timer",
-        "toastAt": 1.0
-      }
+      "art": { "type": "clip", "src": "clips/app-schlaf.mp4", "from": 0.9 }
     },
     {
       "n": "SCHRITT 2",
       "h": "Zeit wählen.",
-      "s": "15, 30, 60, 90 Minuten – oder bis der Film zu Ende ist.",
-      "art": {
-        "type": "cards",
-        "items": [
-          { "t": "30 Min", "v": "stoppt um 23:40", "ok": true, "icon": "☾" },
-          { "t": "60 Min", "v": "stoppt um 0:10", "icon": "☾" },
-          { "t": "Bis Filmende", "v": "stoppt um 0:25", "icon": "🎬" }
-        ]
-      }
+      "s": "15, 30, 60, 90 Minuten – oder bis die Sendung zu Ende ist.",
+      "art": { "type": "clip", "src": "clips/app-schlaf.mp4", "from": 4.4 }
     },
     {
       "h": "Noch wach?",
       "s": "Eine Minute vorher fragt die App – mit „+ 30 Minuten“.",
-      "art": {
-        "type": "big",
-        "text": "☾ 0:59",
-        "small": "Gute Nacht – Wiedergabe stoppt gleich"
-      }
+      "art": { "type": "clip", "src": "clips/app-schlaf.mp4", "from": 11.4 }
     },
     {
-      "h": "Bild aus.<br>Stick schläft.",
-      "s": "Der Fire TV geht danach von selbst in den Ruhemodus.",
-      "art": {
-        "type": "tv",
-        "screen": "movie",
-        "badge": "Nachtkino HD",
-        "toast": "Wiedergabe gestoppt. Gute Nacht!",
-        "toastAt": 0.6,
-        "blackFrom": 1.4,
-        "blackTo": 3.6
-      }
+      "h": "Aus.<br>Gute Nacht!",
+      "s": "Die Wiedergabe stoppt, der Fire TV darf schlafen gehen.",
+      "art": { "type": "clip", "src": "clips/app-schlaf.mp4", "from": 14.6 }
     }
   ],
   "end": {
     "h": "Einschlafen.<br>Wir machen aus.",
     "s": "Der Schlaf-Timer ist in ImperumTV eingebaut."
   },
-  "caption": "Wer schläft auch immer beim Film ein? 😴 Mit dem Schlaf-Timer in ImperumTV geht der Fernseher von alleine aus – 2 Klicks.",
+  "caption": "Wer schläft auch immer vorm Fernseher ein? 😴 Mit dem Schlaf-Timer in ImperumTV stoppt alles von allein – 2 Klicks.",
   "hashtags": "#schlaftimer #firetvstick #androidtv #smarttv #techtipps #lifehack #fyp",
   "music": "lullaby"
 }

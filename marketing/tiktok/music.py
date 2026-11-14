@@ -25,6 +25,8 @@ Stile (alle passen auf das Raster: Intro 2,6 s, jede Szene 3,6 s, Abschluss 3 s)
   dnb      – Drum & Bass: schnelle Breakbeats mit Sechzehntel-Hi-Hats, tiefer schwebender Reese-Bass, Flächen
   bossa    – Bossa Nova: weiche Zupf-Akkorde im Bossa-Rhythmus, Shaker, Bass auf 1 und 3, leichtes Rimshot-Muster
   lullaby  – Spieluhr im 3/4-Takt, weiche Fläche, kein Schlagzeug – zum Einschlafen
+  afro     – Afrobeats: 108 BPM, Log-Drum-Bass, Shaker, Clave-Rhythmus, helle Gitarren-Zupfer
+  chiptune – 8-Bit-Videospiel: Rechteck-Melodie, schnelle Arpeggios, Rausch-Schlagzeug, 133 BPM
 Ohne Stil wird er aus dem Startwert (z. B. der Video-ID) gewählt.
 """
 import sys, zlib
@@ -34,7 +36,7 @@ out, n_scenes = sys.argv[1], int(sys.argv[2])
 style = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ''
 seed_txt = sys.argv[4] if len(sys.argv) > 4 else style
 seed = zlib.crc32(seed_txt.encode()) & 0xffffffff
-STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb', 'bossa', 'lullaby']
+STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb', 'bossa', 'lullaby', 'afro', 'chiptune']
 if style not in STYLES:
     style = STYLES[seed % len(STYLES)]
 
@@ -451,6 +453,60 @@ elif style == 'lullaby':                  # Spieluhr, 3/4-Takt, 100 BPM, 2 Takte
     m.add(lp(chord(notes(prog[0]), END, 0.035, 900, 'tri'), 900), e0)
     for k, q in enumerate([2, 1, 0]): m.add(mbox(notes(prog[0])[q] * 2, 2.2, 0.09), e0 + k * B, 1, 0.2)
     m.add(lp(tone(f('C3') / 2, END, 'sine', a=0.02, d=1.4, gain=0.3), 300), e0)
+
+elif style == 'afro':                     # Afrobeats, ~108 BPM (4 Schläge = 2,22 s), Log-Drum und Shaker
+    B = SCENE / 6.5; prog = [['A3', 'C4', 'E4'], ['F3', 'A3', 'C4'], ['C4', 'E4', 'G4'], ['G3', 'B3', 'D4']]
+    def logdrum(freq, g=0.4):
+        n = int(SR * 0.35); t = np.arange(n) / SR
+        fr = freq * (1 + 0.25 * np.exp(-t * 30))
+        return np.tanh(np.sin(2 * np.pi * np.cumsum(fr) / SR) * 2) * np.exp(-t * 9) * g
+    intro(B, rise=True)
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = notes(prog[sc % 4])
+        m.add(crash(0.12), s0); m.add(whoosh(0.35, True, 0.12), s0 - 0.33)
+        m.add(lp(chord(ch, SCENE, 0.022, 1600, 'tri'), 1600), s0, 1, -0.15)
+        t = 0.0
+        while t < SCENE - 0.05:
+            tt = s0 + t; k = round(t / B)
+            if k % 4 in (0, 2): m.add(kick(), tt, 0.75)
+            if k % 4 == 2: m.add(lp(snare(0.35), 5000), tt + B * 0.5, 1, 0.1)
+            for q in range(4): m.add(hat(g=0.05 if q % 2 else 0.08), tt + q * B / 4, 1, 0.35)            # Shaker
+            if k % 2 == 0:
+                for pos in (0, 0.75, 1.5): m.add(lp(snare(0.12), 6000), tt + pos * B, 1, -0.3)            # Clave 3-3-2
+            t += B
+        for pos, nn in [(0, 0), (0.75, 0), (1.5, 2), (2.5, 1), (3.0, 0), (4.0, 0), (4.75, 2), (5.5, 1)]:   # Log-Drum-Linie
+            m.add(lp(logdrum(ch[nn] / 2, 0.35), 900), s0 + pos * B)
+        for q in range(12):                                                                             # Gitarren-Zupfer
+            if q % 3 == 1: continue
+            m.add(pluck(ch[[0, 2, 1, 2][q % 4]] * 2, 0.22, 0.07), s0 + q * B / 2, 1, 0.3)
+    outro(prog[0], B)
+
+elif style == 'chiptune':                 # 8-Bit, 133 BPM: Rechteck-Lead, Arpeggio, Rausch-Snare
+    B = 0.45; prog = [['C4', 'E4', 'G4'], ['A3', 'C4', 'E4'], ['F3', 'A3', 'C4'], ['G3', 'B3', 'D4']]
+    def sq(freq, dur, g=0.06, duty=0.25):
+        n = int(SR * dur); t = np.arange(n) / SR
+        s = np.where((t * freq) % 1 < duty, 1.0, -1.0)
+        return s * np.minimum(1, np.maximum(0, (dur - t) / 0.02)) * g
+    def nz(dur, g=0.12):
+        n = int(SR * dur); return noise(n) * np.exp(-np.arange(n) / SR * 30) * g
+    for q in range(int(HOOK / (B / 4))):                                                                 # Intro: steigendes Arpeggio
+        m.add(sq(notes(prog[0])[q % 3] * (2 if q > 8 else 1), B / 4 * 0.9, 0.045), q * B / 4, 1, 0.2)
+    lead = [0, 2, 1, 2, 3, 2, 1, 0]
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = notes(prog[sc % 4]); top = ch + [ch[0] * 2]
+        m.add(sq(ch[1] * 2, 0.08, 0.06, 0.5), s0 - 0.12); m.add(sq(ch[2] * 2, 0.1, 0.06, 0.5), s0 - 0.05)  # Sprung-Sound
+        for k in range(8):
+            tt = s0 + k * B
+            m.add(lp(tone(ch[0] / 2, B * 0.45, 'tri', a=0.002, gain=0.3), 900), tt)                      # Dreieck-Bass
+            m.add(lp(tone(ch[0] / 2 * (1.5 if k % 2 else 1), B * 0.4, 'tri', a=0.002, gain=0.25), 900), tt + B / 2)
+            if k % 2 == 0: m.add(kick(), tt, 0.55)
+            else: m.add(lp(nz(0.18, 0.22), 7000), tt)
+            m.add(lp(nz(0.04, 0.06), 9000), tt + B / 2, 1, 0.3)
+            for q in range(4): m.add(sq(ch[q % 3] * 2, B / 4 * 0.85, 0.022, 0.125), tt + q * B / 4, 1, -0.35)  # Arpeggio
+            m.add(sq(top[lead[k]] * 2, B * 0.8, 0.05, 0.25), tt, 1, 0.2)                                 # Melodie
+    e0 = HOOK + n_scenes * SCENE
+    for k, nn in enumerate(['C4', 'E4', 'G4', 'C5']): m.add(sq(f(nn) * 2, 0.12 if k < 3 else 1.2, 0.06, 0.25), e0 + k * 0.12)
+    m.add(lp(tone(f('C3'), END, 'tri', a=0.002, d=1.2, gain=0.3), 900), e0)
 
 else:                                     # garage: 2-Step mit Swing
     B = 0.45; prog = [['D3', 'F3', 'A3', 'C4'], ['G3', 'B3', 'D4', 'F4'], ['C4', 'E4', 'G4', 'B4'], ['A3', 'C4', 'E4', 'G4']]

@@ -17,7 +17,7 @@ Die Dateien landen in der Vorab-Version **tiktok** und erscheinen im Admin unter
   "scenes": [ { "h": "…", "s": "…", "art": { ... } } ],
   "end":    { "h": "Schlusssatz", "s": "Zeile darunter" },
   "caption": "Text für TikTok", "hashtags": "#firetvstick …",
-  "music": "drama | upbeat | chill | playful | epic | tech | funk | ambient | house | trap | synthwave | piano | garage | … | lullaby",
+  "music": "drama | upbeat | chill | playful | epic | tech | funk | ambient | house | trap | synthwave | piano | garage | … | lullaby | afro | chiptune",
   "timer": 20                       // optional: Stoppuhr oben rechts (0:00 bis 0:20 über alle Szenen)
 }
 ```

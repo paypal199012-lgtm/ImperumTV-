@@ -1,0 +1,41 @@
+{
+  "id": "farbthema",
+  "title": "Farbthema: die App in deiner Farbe",
+  "version": "1.0.335",
+  "hook": {
+    "h": "Deine App.<br>Deine Farbe.",
+    "s": "Gold, Grün, Pink, Blau – du entscheidest.",
+    "art": { "type": "clip", "src": "clips/app-farbthema.mp4", "from": 0.6, "speed": 3 }
+  },
+  "scenes": [
+    {
+      "n": "SCHRITT 1",
+      "h": "Einstellungen<br>→ Farbthema.",
+      "s": "Neongrün? Ein Klick – sofort überall.",
+      "art": { "type": "clip", "src": "clips/app-farbthema.mp4", "from": 0 }
+    },
+    {
+      "n": "SCHRITT 2",
+      "h": "9 Farben<br>zur Auswahl.",
+      "s": "Lieber Pink? Einfach umstellen.",
+      "art": { "type": "clip", "src": "clips/app-farbthema.mp4", "from": 4.4 }
+    },
+    {
+      "h": "Oder ganz<br>ruhig in Blau.",
+      "s": "Silber, Smaragd, Violett, Türkis, Kobalt …",
+      "art": { "type": "clip", "src": "clips/app-farbthema.mp4", "from": 8.4 }
+    },
+    {
+      "h": "Die ganze App<br>macht mit.",
+      "s": "Startseite, Menüs, Rahmen – alles in deiner Farbe.",
+      "art": { "type": "clip", "src": "clips/app-farbthema.mp4", "from": 12.2 }
+    }
+  ],
+  "end": {
+    "h": "Welche Farbe<br>nimmst du?",
+    "s": "Schreib's in die Kommentare 👇"
+  },
+  "caption": "Welche Farbe nimmst du? 🎨 In ImperumTV stellst du die ganze App auf deine Lieblingsfarbe um – mit einem Klick.",
+  "hashtags": "#firetvstick #androidtv #smarttv #techtipps #setup #fyp",
+  "music": "chiptune"
+}
