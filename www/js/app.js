@@ -307,11 +307,13 @@
             $('#loader').onclick = function () { if (Sync.skip) Sync.skip(); };   // Finger/Maus
         },
         finish: function (text, then, ms) {
-            var el = $('#loader');
+            var el = $('#loader'), label = $('#loader-text');
             this.skip = null;
+            // Lade-Bildschirm wurde inzwischen schon geschlossen (z. B. mit OK übersprungen oder neu gestartet): einfach weiter
+            if (!el || !label || !this.hint) { this.hide(); if (then) then(); return; }
             this.hint.classList.remove('show');
             this.setFill(1);
-            $('#loader-text').textContent = '✓  ' + text;
+            label.textContent = '✓  ' + text;
             el.classList.add('sy-finished');
             setTimeout(function () { Sync.hide(); if (then) then(); }, ms || 900);
         },
