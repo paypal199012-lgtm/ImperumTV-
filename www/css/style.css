@@ -2049,3 +2049,9 @@ body.oldstick #app.anim-in *, body.lite #app.anim-in * { -webkit-animation: none
 .s1-cast .s1-actor.focused { background: rgba(217,176,102,.35); color: #fff; }
 /* Suche: Schauspieler-Reihe */
 .search-actors { margin-left: 18px; }
+/* Filme/Serien-Suche: gefundener Schauspieler als erste Kachel */
+.person-tile .img { background: radial-gradient(circle at 50% 38%, rgba(217,176,102,.28), rgba(20,20,24,.95) 70%); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.person-tile .pt-photo { width: 124px; height: 124px; border-radius: 50%; background: #2a2d33 center / cover no-repeat; border: 3px solid rgba(217,176,102,.6);
+  color: #f4dc9e; font-weight: bold; font-size: 44px; display: flex; align-items: center; justify-content: center; }
+.person-tile .pt-photo.has-img { border-color: rgba(255,255,255,.3); }
+.person-tile .pt-label { margin-top: 14px; font-size: 18px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; color: #f4dc9e; }
