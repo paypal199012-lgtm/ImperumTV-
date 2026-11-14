@@ -24,6 +24,7 @@ Stile (alle passen auf das Raster: Intro 2,6 s, jede Szene 3,6 s, Abschluss 3 s)
   reggae   – One-Drop (Bass-Drum und Snare auf 3), Offbeat-Akkorde, tiefer runder Bass, entspannt
   dnb      – Drum & Bass: schnelle Breakbeats mit Sechzehntel-Hi-Hats, tiefer schwebender Reese-Bass, Flächen
   bossa    – Bossa Nova: weiche Zupf-Akkorde im Bossa-Rhythmus, Shaker, Bass auf 1 und 3, leichtes Rimshot-Muster
+  lullaby  – Spieluhr im 3/4-Takt, weiche Fläche, kein Schlagzeug – zum Einschlafen
 Ohne Stil wird er aus dem Startwert (z. B. der Video-ID) gewählt.
 """
 import sys, zlib
@@ -33,7 +34,7 @@ out, n_scenes = sys.argv[1], int(sys.argv[2])
 style = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ''
 seed_txt = sys.argv[4] if len(sys.argv) > 4 else style
 seed = zlib.crc32(seed_txt.encode()) & 0xffffffff
-STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb', 'bossa']
+STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb', 'bossa', 'lullaby']
 if style not in STYLES:
     style = STYLES[seed % len(STYLES)]
 
@@ -426,6 +427,30 @@ elif style == 'cinematic':                # 133 BPM, Streicher-Ostinato, wird na
             if sc >= 2 and k % 4 == 2: m.add(snare(0.6 * lvl), tt)
             if sc >= 4: m.add(hat(g=0.1), tt + B / 2, 1, 0.3)
     outro(prog[0], B)
+
+elif style == 'lullaby':                  # Spieluhr, 3/4-Takt, 100 BPM, 2 Takte pro Szene
+    B = 0.6; prog = [['C4', 'E4', 'G4'], ['F3', 'A3', 'C4'], ['A3', 'C4', 'E4'], ['G3', 'B3', 'D4']]
+    def mbox(freq, dur=1.4, g=0.1):        # Spieluhr-Zinke: Grundton + unharmonische Obertöne, schnell verklingend
+        n = int(SR * dur); t = np.arange(n) / SR
+        s = np.sin(2 * np.pi * freq * t) + 0.35 * np.sin(2 * np.pi * freq * 3.01 * t) * np.exp(-t * 9) + 0.15 * np.sin(2 * np.pi * freq * 5.4 * t) * np.exp(-t * 18)
+        return s * np.minimum(1, t / 0.002) * np.exp(-t * 2.6) * g
+    tune = [0, 1, 2, 1, 2, 3, 2, 1, 0, 1, 2, 0]   # Achtel-Melodie über die Akkordtöne (3 = Oktave)
+    m.add(lp(chord(notes(prog[0]), HOOK + 0.4, 0.03, 900, 'tri'), 900), 0)
+    for k, q in enumerate([2, 1, 0, 1, 2]): m.add(mbox(notes(prog[0])[q] * 2, 1.6, 0.08), 0.25 + k * B * 0.8, 1, 0.25)
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = notes(prog[sc % 4]); top = ch + [ch[0] * 2]
+        m.add(lp(chord(ch, SCENE + 0.3, 0.028, 1100, 'tri'), 1100), s0, 1, -0.1)               # weiche Fläche
+        for bar in range(2):
+            b0 = s0 + bar * 3 * B
+            m.add(lp(tone(ch[0] / 2, B * 2.6, 'sine', a=0.02, d=1.0, gain=0.3), 400), b0)      # Bass auf 1
+            for beat in (1, 2): m.add(mbox(ch[1 + beat % 2], 0.9, 0.035), b0 + beat * B, 1, -0.3)  # leise Begleitung auf 2 und 3
+        for q, i in enumerate(tune):
+            if sc % 2 and q in (10, 11): continue                                              # jede 2. Szene: kurze Atempause
+            m.add(mbox(top[i] * 2, 1.4, 0.095 if q % 2 == 0 else 0.07), s0 + q * B / 2, 1, 0.25)
+    e0 = HOOK + n_scenes * SCENE
+    m.add(lp(chord(notes(prog[0]), END, 0.035, 900, 'tri'), 900), e0)
+    for k, q in enumerate([2, 1, 0]): m.add(mbox(notes(prog[0])[q] * 2, 2.2, 0.09), e0 + k * B, 1, 0.2)
+    m.add(lp(tone(f('C3') / 2, END, 'sine', a=0.02, d=1.4, gain=0.3), 300), e0)
 
 else:                                     # garage: 2-Step mit Swing
     B = 0.45; prog = [['D3', 'F3', 'A3', 'C4'], ['G3', 'B3', 'D4', 'F4'], ['C4', 'E4', 'G4', 'B4'], ['A3', 'C4', 'E4', 'G4']]
