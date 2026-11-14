@@ -1,0 +1,41 @@
+{
+  "id": "schauspieler",
+  "title": "Schauspieler suchen: alle Filme mit ihr in deiner Liste",
+  "version": "1.0.336",
+  "hook": {
+    "h": "„Was hat die<br>noch gespielt?“",
+    "s": "ImperumTV zeigt's dir – aus deiner eigenen Liste.",
+    "art": { "type": "clip", "src": "clips/app-schauspieler.mp4", "from": 10.0 }
+  },
+  "scenes": [
+    {
+      "n": "SCHRITT 1",
+      "h": "Namen in die<br>Suche tippen.",
+      "s": "Schon nach ein paar Buchstaben: Schauspieler und ihre Filme.",
+      "art": { "type": "clip", "src": "clips/app-schauspieler.mp4", "from": 2.6 }
+    },
+    {
+      "n": "SCHRITT 2",
+      "h": "Auf das Foto.",
+      "s": "Alle Filme und Serien mit ihr – auf einen Blick.",
+      "art": { "type": "clip", "src": "clips/app-schauspieler.mp4", "from": 8.6 }
+    },
+    {
+      "h": "Geht auch<br>im Film.",
+      "s": "Unter „Besetzung“ einfach einen Namen anklicken …",
+      "art": { "type": "clip", "src": "clips/app-schauspieler.mp4", "from": 13.0 }
+    },
+    {
+      "h": "… und weiter<br>geht's.",
+      "s": "Vom einen Film zum nächsten – ohne Suchen.",
+      "art": { "type": "clip", "src": "clips/app-schauspieler.mp4", "from": 16.2 }
+    }
+  ],
+  "end": {
+    "h": "Dein Lieblings-<br>Schauspieler?",
+    "s": "Schreib ihn in die Kommentare 👇"
+  },
+  "caption": "„Was hat die noch gespielt?“ 🎬 In ImperumTV tippst du auf einen Schauspieler – und siehst alle Filme und Serien mit ihm aus deiner Liste.",
+  "hashtags": "#firetvstick #androidtv #smarttv #filme #serien #techtipps #fyp",
+  "music": "rock"
+}

@@ -27,6 +27,7 @@ Stile (alle passen auf das Raster: Intro 2,6 s, jede Szene 3,6 s, Abschluss 3 s)
   lullaby  – Spieluhr im 3/4-Takt, weiche Fläche, kein Schlagzeug – zum Einschlafen
   afro     – Afrobeats: 108 BPM, Log-Drum-Bass, Shaker, Clave-Rhythmus, helle Gitarren-Zupfer
   chiptune – 8-Bit-Videospiel: Rechteck-Melodie, schnelle Arpeggios, Rausch-Schlagzeug, 133 BPM
+  rock     – Rock: verzerrte Powerchords in Achteln, treibender Bass, Backbeat-Snare, Becken, 133 BPM
 Ohne Stil wird er aus dem Startwert (z. B. der Video-ID) gewählt.
 """
 import sys, zlib
@@ -36,7 +37,7 @@ out, n_scenes = sys.argv[1], int(sys.argv[2])
 style = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ''
 seed_txt = sys.argv[4] if len(sys.argv) > 4 else style
 seed = zlib.crc32(seed_txt.encode()) & 0xffffffff
-STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb', 'bossa', 'lullaby', 'afro', 'chiptune']
+STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb', 'bossa', 'lullaby', 'afro', 'chiptune', 'rock']
 if style not in STYLES:
     style = STYLES[seed % len(STYLES)]
 
@@ -507,6 +508,33 @@ elif style == 'chiptune':                 # 8-Bit, 133 BPM: Rechteck-Lead, Arpeg
     e0 = HOOK + n_scenes * SCENE
     for k, nn in enumerate(['C4', 'E4', 'G4', 'C5']): m.add(sq(f(nn) * 2, 0.12 if k < 3 else 1.2, 0.06, 0.25), e0 + k * 0.12)
     m.add(lp(tone(f('C3'), END, 'tri', a=0.002, d=1.2, gain=0.3), 900), e0)
+
+elif style == 'rock':                     # 133 BPM, verzerrte Powerchords, Backbeat
+    B = 0.45; prog = [['E3'], ['C3'], ['G3'], ['D3']]
+    def power(root, dur, g=0.05):
+        s = sum(tone(x, dur, 'saw', a=0.004, gain=g) + tone(x * 1.003, dur, 'saw', a=0.004, gain=g) for x in (root, root * 1.5, root * 2))
+        return lp(np.tanh(s * 6) * 0.22, 2600)
+    def gtr_root(name): return f(name) if name != 'E3' else f('E3')
+    for k in range(int(HOOK / (B / 2))):                                                                    # Intro: gedämpfte Achtel
+        m.add(lp(power(gtr_root('E3') / 2 * 2, B / 2 * 0.6, 0.03), 1500), k * B / 2, 0.7 if k < 8 else 1, -0.25)
+    m.add(riser(1.6, 0.25), HOOK - 1.7)
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; r = gtr_root(prog[sc % 4][0])
+        m.add(crash(0.26), s0); m.add(kick(True), s0)
+        for q in range(16):                                                                                 # Achtel-Powerchords
+            tt = s0 + q * B / 2
+            m.add(power(r, B / 2 * (0.95 if q % 4 == 3 else 0.7), 0.045), tt, 1, -0.3)
+            m.add(power(r * 1.002, B / 2 * 0.7, 0.04), tt + 0.012, 1, 0.3)
+            m.add(lp(tone(r / 2, B / 2 * 0.85, 'saw', a=0.004, gain=0.22), 500), tt)                       # Bass
+        for k in range(8):
+            tt = s0 + k * B
+            if k % 2 == 0: m.add(kick(), tt, 0.9)
+            else: m.add(snare(0.85), tt)
+            if k == 5: m.add(kick(), tt + B / 2, 0.7)
+            m.add(hat(op=True, g=0.09), tt + B / 2, 1, 0.3); m.add(hat(g=0.12), tt, 1, 0.3)
+    e0 = HOOK + n_scenes * SCENE
+    m.add(crash(0.32), e0); m.add(kick(True), e0); m.add(power(f('E3'), END, 0.05), e0)
+    m.add(lp(tone(f('E3') / 2, END, 'saw', a=0.004, d=1.4, gain=0.3), 400), e0)
 
 else:                                     # garage: 2-Step mit Swing
     B = 0.45; prog = [['D3', 'F3', 'A3', 'C4'], ['G3', 'B3', 'D4', 'F4'], ['C4', 'E4', 'G4', 'B4'], ['A3', 'C4', 'E4', 'G4']]

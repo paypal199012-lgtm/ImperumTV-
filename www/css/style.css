@@ -2032,3 +2032,20 @@ body.oldstick #app.anim-in *, body.lite #app.anim-in * { -webkit-animation: none
 #uplock .modal-text { white-space: normal; line-height: 1.4; }
 .uplock-state { min-height: 36px; margin-top: 18px; font-size: 26px; color: #fff; }
 #uplock .button.focused { transform: none; }
+
+/* Schauspieler-Seite (Besetzung → Filme/Serien in der eigenen Liste) */
+.actor-page { position: absolute; left: 46px; right: 30px; top: 110px; bottom: 0; }
+.actor-head { display: flex; align-items: center; margin: 6px 0 10px 24px; }
+.actor-photo { flex: none; width: 190px; height: 190px; line-height: 190px; border-radius: 50%; text-align: center; font-size: 60px; font-weight: bold;
+  color: #f4dc9e; background: #2a2d33 center / cover no-repeat; border: 3px solid rgba(217,176,102,.55); margin-right: 40px; }
+.actor-photo.has-img { border-color: rgba(255,255,255,.25); }
+.actor-info { min-width: 0; }
+.actor-name { font-size: 50px; font-weight: bold; color: #fff; line-height: 1.15; }
+.actor-desc { font-size: 25px; color: #a7a39a; margin: 8px 0 18px; max-width: 1200px; min-height: 30px; }
+.actor-status { font-size: 25px; color: #a7a39a; margin: 6px 0 0 24px; }
+.actor-results .grid { padding-top: 6px; }
+/* Serien: „Mit:“ – Namen sind anklickbar */
+.s1-cast .s1-actor { display: inline-block; margin-left: 8px; padding: 2px 12px; border-radius: 16px; color: #d8d2c4; }
+.s1-cast .s1-actor.focused { background: rgba(217,176,102,.35); color: #fff; }
+/* Suche: Schauspieler-Reihe */
+.search-actors { margin-left: 18px; }
