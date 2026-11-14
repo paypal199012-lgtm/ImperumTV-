@@ -1693,9 +1693,9 @@
         menu: function (then) {
             var self = this, cur = this.hours(), b = [];
             this.OPTS.forEach(function (h) {
-                b.push({ label: Tf("Nach {0} Std.", [h]), primary: h === cur, action: function () { Storage.set('stillHours', h); if (then) then(); } });
+                b.push({ label: (h === cur ? '✓  ' : '') + Tf("Nach {0} Std.", [h]), action: function () { Storage.set('stillHours', h); if (then) then(); } });
             });
-            b.push({ label: T("Aus"), primary: !cur, action: function () { Storage.set('stillHours', 0); if (then) then(); } });
+            b.push({ label: (!cur ? '✓  ' : '') + T("Aus"), action: function () { Storage.set('stillHours', 0); if (then) then(); } });
             Modal.open(T("Schaust du noch?"), T("Läuft etwas so lange ohne Tastendruck, fragt die App nach und stoppt sonst nach 60 Sekunden."), b);
         }
     };
