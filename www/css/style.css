@@ -2055,3 +2055,14 @@ body.oldstick #app.anim-in *, body.lite #app.anim-in * { -webkit-animation: none
   color: #f4dc9e; font-weight: bold; font-size: 44px; display: flex; align-items: center; justify-content: center; }
 .person-tile .pt-photo.has-img { border-color: rgba(255,255,255,.3); }
 .person-tile .pt-label { margin-top: 14px; font-size: 18px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; color: #f4dc9e; }
+/* Nachschauen (Catch-up) */
+.cu-page { position: absolute; left: 46px; right: 46px; top: 110px; bottom: 0; padding-bottom: 40px; }
+.cu-row { margin: 6px 24px 6px 18px; padding: 14px 20px; border-radius: 12px; background: rgba(255,255,255,.04); max-width: 1500px; }
+.cu-row .cu-time { display: inline-block; min-width: 190px; font-size: 25px; color: #f4dc9e; font-weight: bold; }
+.cu-row .cu-title { font-size: 27px; color: #fff; }
+.cu-row .cu-desc { font-size: 21px; color: #a7a39a; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cu-row.focused { background: rgba(217,176,102,.32); }
+.cu-row.focused .cu-desc { white-space: normal; }
+.lv-act { white-space: nowrap; }
+.lv-acts.five .lv-act { padding: 14px 15px; margin-right: 9px; font-size: 21px; }
+body.ios .lv-acts.five .lv-act { padding: 12px 10px; margin-right: 7px; font-size: 19px; }

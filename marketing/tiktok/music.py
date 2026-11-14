@@ -28,6 +28,7 @@ Stile (alle passen auf das Raster: Intro 2,6 s, jede Szene 3,6 s, Abschluss 3 s)
   afro     – Afrobeats: 108 BPM, Log-Drum-Bass, Shaker, Clave-Rhythmus, helle Gitarren-Zupfer
   chiptune – 8-Bit-Videospiel: Rechteck-Melodie, schnelle Arpeggios, Rausch-Schlagzeug, 133 BPM
   rock     – Rock: verzerrte Powerchords in Achteln, treibender Bass, Backbeat-Snare, Becken, 133 BPM
+  ska      – Ska: Offbeat-Gitarre (Skank), laufender Bass, Bläser-Stöße, schnelle Hi-Hats
 Ohne Stil wird er aus dem Startwert (z. B. der Video-ID) gewählt.
 """
 import sys, zlib
@@ -37,7 +38,7 @@ out, n_scenes = sys.argv[1], int(sys.argv[2])
 style = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ''
 seed_txt = sys.argv[4] if len(sys.argv) > 4 else style
 seed = zlib.crc32(seed_txt.encode()) & 0xffffffff
-STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb', 'bossa', 'lullaby', 'afro', 'chiptune', 'rock']
+STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb', 'bossa', 'lullaby', 'afro', 'chiptune', 'rock', 'ska']
 if style not in STYLES:
     style = STYLES[seed % len(STYLES)]
 
@@ -535,6 +536,26 @@ elif style == 'rock':                     # 133 BPM, verzerrte Powerchords, Back
     e0 = HOOK + n_scenes * SCENE
     m.add(crash(0.32), e0); m.add(kick(True), e0); m.add(power(f('E3'), END, 0.05), e0)
     m.add(lp(tone(f('E3') / 2, END, 'saw', a=0.004, d=1.4, gain=0.3), 400), e0)
+
+elif style == 'ska':                      # 133 BPM, Offbeat-Skank, Walking-Bass, Bläser
+    B = 0.45; prog = [['C4', 'E4', 'G4'], ['F3', 'A3', 'C4'], ['G3', 'B3', 'D4'], ['C4', 'E4', 'G4']]
+    def skank(ch, g=0.05):
+        return hp(lp(chord([x * 2 for x in ch], 0.11, g, 4200, 'sq'), 4200), 300)
+    intro(B)
+    for sc in range(n_scenes):
+        s0 = HOOK + sc * SCENE; ch = notes(prog[sc % 4])
+        m.add(crash(0.2), s0)
+        m.add(brass(ch, 0.22, 0.05), s0, 1, 0.15); m.add(brass(ch, 0.3, 0.05), s0 + 0.5 * B, 1, 0.15)    # Bläser-Stoß
+        walk = [ch[0], ch[1], ch[2], ch[1] * 1.0595]
+        for k in range(8):
+            tt = s0 + k * B
+            m.add(skank(ch), tt + B / 2, 1, -0.3)                                                         # Offbeat
+            m.add(lp(tone(walk[k % 4] / 2, B * 0.8, 'tri', a=0.005, gain=0.36), 700), tt)                # Walking-Bass
+            if k % 2 == 0: m.add(kick(), tt, 0.7)
+            else: m.add(snare(0.6), tt)
+            m.add(hat(g=0.08), tt, 1, 0.3); m.add(hat(g=0.06), tt + B / 2, 1, 0.3)
+        m.add(brass([x * 2 for x in ch[:2]], 0.35, 0.04), s0 + 6.5 * B, 1, 0.2)
+    outro(prog[0], B)
 
 else:                                     # garage: 2-Step mit Swing
     B = 0.45; prog = [['D3', 'F3', 'A3', 'C4'], ['G3', 'B3', 'D4', 'F4'], ['C4', 'E4', 'G4', 'B4'], ['A3', 'C4', 'E4', 'G4']]
