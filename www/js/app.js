@@ -4119,7 +4119,7 @@
                 }
                 // Nachschauen (Catch-up): Anbieter speichert die Sendungen der letzten Tage
                 var archD = parseInt(s.tv_archive_duration, 10) || 0;
-                if (String(s.tv_archive) === '1' && archD > 0) item.arch = archD;
+                if ((String(s.tv_archive) === '1' || s.tv_archive === true) && archD > 0) item.arch = archD;
             } else if (kind === 'movie') {
                 name = str(s.name) || Tf("Film {0}", [s.stream_id]);
                 item = { type: 'movie', id: parseInt(s.stream_id, 10), name: name, logo: str(s.stream_icon),
