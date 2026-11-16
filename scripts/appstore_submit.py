@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-ImperumTV (iPhone): hochgeladenen Build als neue App-Store-Version zur Prüfung einreichen.
+ImperumTV (iPhone oder Apple TV): hochgeladenen Build als neue App-Store-Version zur Prüfung einreichen.
+PLATFORM=IOS (Standard) oder TV_OS.
 
   1. warten, bis der Build (CFBundleVersion = BUILD_NO) fertig verarbeitet ist
   2. App-Store-Version VERSION anlegen (oder die offene nehmen), „Neu in dieser Version“ eintragen, Build zuordnen
@@ -16,6 +17,17 @@ BUNDLE = os.environ.get("BUNDLE_ID") or "tv.imperum.app"
 VERSION = os.environ["VERSION"]
 BUILD_NO = os.environ["BUILD_NO"]
 WHATS_NEW = os.environ.get("WHATS_NEW") or "Fehlerbehebungen und Verbesserungen."
+PLATFORM = os.environ.get("PLATFORM") or "IOS"
+DEVICE = "Apple-TV" if PLATFORM == "TV_OS" else "iPhone"
+# Erklärung für die Prüfer (App Review → Notizen), wird bei jeder Einreichung eingetragen
+REVIEW_NOTES = """ImperumTV is a free media player. It contains no content and sells nothing.
+
+- No In-App Purchases, no subscriptions, no paid features, no accounts. Everything in the app is free for all users.
+- The app only plays playlists (M3U or Xtream Codes) that users already have. We do not sell, provide, recommend or link to any playlists, content or content providers, and have no affiliation with any provider.
+- If the user's own playlist server reports an expiry date, the app only shows it as information ("valid until"). It is not an ImperumTV subscription and nothing in the app depends on it.
+- Adding a playlist: the user scans the QR code in the app and enters the playlist address on our website. This is free for iPhone and Apple TV, with no payment and no account.
+
+How to review: no account needed. Choose "Demo" on the start screen to play free test videos."""
 _t = {"tok": None, "at": 0}
 
 
@@ -68,7 +80,7 @@ app_id = app[0]["id"]
 # 1. Build abwarten
 build = None
 for _ in range(60):
-    d = must("GET", f"/v1/builds?filter[app]={app_id}&filter[version]={BUILD_NO}&filter[preReleaseVersion.platform]=IOS"
+    d = must("GET", f"/v1/builds?filter[app]={app_id}&filter[version]={BUILD_NO}&filter[preReleaseVersion.platform]={PLATFORM}"
                     f"&fields[builds]=version,processingState", what="Build")["data"]
     if d and d[0]["attributes"].get("processingState") == "VALID":
         build = d[0]
@@ -83,13 +95,13 @@ build_id = build["id"]
 note(f"Build {BUILD_NO} ist fertig verarbeitet")
 
 # 2. Version anlegen oder offene nehmen
-vers = must("GET", f"/v1/apps/{app_id}/appStoreVersions?filter[platform]=IOS&limit=10", what="Versionen")["data"]
+vers = must("GET", f"/v1/apps/{app_id}/appStoreVersions?filter[platform]={PLATFORM}&limit=10", what="Versionen")["data"]
 ver = next((v for v in vers if v["attributes"].get("versionString") == VERSION), None)
 if ver and ver["attributes"].get("appStoreState") not in ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED"):
     fail(f"Version {VERSION} ist schon {ver['attributes'].get('appStoreState')} – bitte VERSION erhöhen")
 if not ver:
     ver = must("POST", "/v1/appStoreVersions", {"data": {"type": "appStoreVersions",
-              "attributes": {"platform": "IOS", "versionString": VERSION},
+              "attributes": {"platform": PLATFORM, "versionString": VERSION},
               "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}}}, what="Version anlegen")["data"]
 ver_id = ver["id"]
 
@@ -99,12 +111,35 @@ for loc in must("GET", f"/v1/appStoreVersions/{ver_id}/appStoreVersionLocalizati
          what="„Neu in dieser Version“ (" + loc["attributes"].get("locale", "?") + ")")
 
 must("PATCH", f"/v1/appStoreVersions/{ver_id}/relationships/build", {"data": {"type": "builds", "id": build_id}}, what="Build zuordnen")
+# Erklärung für die Prüfer eintragen (Kontaktdaten bleiben wie in App Store Connect)
+st, rd = call("GET", f"/v1/appStoreVersions/{ver_id}/appStoreReviewDetail")
+rd_id = (rd.get("data") or {}).get("id") if st == 200 else None
+if rd_id:
+    st, d = call("PATCH", f"/v1/appStoreReviewDetails/{rd_id}", {"data": {"type": "appStoreReviewDetails", "id": rd_id,
+                 "attributes": {"notes": REVIEW_NOTES, "demoAccountRequired": False}}})
+else:
+    # Neue Version ohne Prüfungsangaben: Kontaktdaten von einer früheren Version übernehmen
+    contact = {}
+    for v in vers:
+        s2, r2 = call("GET", f"/v1/appStoreVersions/{v['id']}/appStoreReviewDetail")
+        if s2 == 200 and r2.get("data"):
+            a = r2["data"]["attributes"]
+            contact = {k: a.get(k) for k in ("contactFirstName", "contactLastName", "contactPhone", "contactEmail") if a.get(k)}
+            if contact:
+                break
+    st, d = call("POST", "/v1/appStoreReviewDetails", {"data": {"type": "appStoreReviewDetails",
+                 "attributes": {**contact, "notes": REVIEW_NOTES, "demoAccountRequired": False},
+                 "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": ver_id}}}}})
+if st in (200, 201):
+    note("Erklärung für die Prüfer eingetragen")
+else:
+    print("Hinweis: Erklärung für die Prüfer nicht gespeichert (HTTP", st, ") – bitte in App Store Connect unter „App-Prüfung → Notizen“ eintragen", flush=True)
 note(f"Version {VERSION} mit Build {BUILD_NO} vorbereitet")
 
 # 3. Einreichen (Review Submission)
-subs = must("GET", f"/v1/reviewSubmissions?filter[app]={app_id}&filter[platform]=IOS&filter[state]=READY_FOR_REVIEW", what="Einreichungen")["data"]
+subs = must("GET", f"/v1/reviewSubmissions?filter[app]={app_id}&filter[platform]={PLATFORM}&filter[state]=READY_FOR_REVIEW", what="Einreichungen")["data"]
 sub = subs[0] if subs else must("POST", "/v1/reviewSubmissions", {"data": {"type": "reviewSubmissions",
-         "attributes": {"platform": "IOS"}, "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}}}, what="Einreichung anlegen")["data"]
+         "attributes": {"platform": PLATFORM}, "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}}}, what="Einreichung anlegen")["data"]
 st, d = call("POST", "/v1/reviewSubmissionItems", {"data": {"type": "reviewSubmissionItems",
              "relationships": {"reviewSubmission": {"data": {"type": "reviewSubmissions", "id": sub["id"]}},
                                "appStoreVersion": {"data": {"type": "appStoreVersions", "id": ver_id}}}}})
@@ -113,4 +148,4 @@ if st not in (200, 201, 409):
     fail(f"Version zur Einreichung hinzufügen → HTTP {st}: {errs}")
 must("PATCH", f"/v1/reviewSubmissions/{sub['id']}", {"data": {"type": "reviewSubmissions", "id": sub["id"], "attributes": {"submitted": True}}},
      what="Zur Prüfung einreichen")
-note(f"iPhone-Version {VERSION} (Build {BUILD_NO}) ist zur Prüfung bei Apple eingereicht")
+note(f"{DEVICE}-Version {VERSION} (Build {BUILD_NO}) ist zur Prüfung bei Apple eingereicht")
