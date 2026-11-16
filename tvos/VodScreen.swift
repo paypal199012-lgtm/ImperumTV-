@@ -236,7 +236,7 @@ struct SeriesScreen: View {
                         .frame(maxWidth: 1400, alignment: .leading)
                 }
                 HStack(spacing: 18) {
-                    if let s = saved, let ep = s.episode, ep < sortedAll.count {
+                    if let s = saved, let ep = s.episodeIndex(in: sortedAll) {
                         Button { play(sortedAll[ep], startAt: s.pos) } label: {
                             pill("▶ Weiter: " + (s.episodeTitle ?? "Folge \(ep + 1)") + (s.pos > 30 ? " ab \(timeText(s.pos))" : ""))
                         }
@@ -293,7 +293,7 @@ struct SeriesScreen: View {
             episodes = r.episodes; info = r.info
             if let i = r.info { GenreBook.shared.learn(.series, series.id, genre: i.genre, plot: i.plot) }
             store.markSeriesOpened(series, count: r.episodes.count)
-            if let s = saved, let ep = s.episode, ep < sortedAll.count { season = sortedAll[ep].season } else { season = seasons.first ?? 1 }
+            if let s = saved, let ep = s.episodeIndex(in: sortedAll) { season = sortedAll[ep].season } else { season = seasons.first ?? 1 }
             loading = false
         }
     }

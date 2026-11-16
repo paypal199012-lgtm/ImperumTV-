@@ -43,6 +43,7 @@ struct RootView: View {
     @EnvironmentObject var resume: ResumeBook
     @AppStorage("tv.theme") private var theme = "gold"
     @State private var started = false
+    @Environment(\.scenePhase) private var phase
     @ObservedObject private var help = RemoteHelp.shared
     @ObservedObject private var backup = Backup.shared
 
@@ -100,6 +101,13 @@ struct RootView: View {
         .alert(help.message ?? "", isPresented: Binding(get: { help.message != nil }, set: { if !$0 { help.message = nil } })) {
             Button("OK", role: .cancel) {}
         }
+        // Abgleich „Weiterschauen/Gesehen“: App wieder vorn, Startseite, Weiterschauen (höchstens einmal pro Minute)
+        .onChange(of: phase) { _, p in
+            if p == .active { resume.syncSoon() } else if p == .background { resume.syncSoon(force: true, delay: 0) }
+        }
+        .onChange(of: nav.top) { _, t in
+            if t == .home || t == .continueWatching { resume.syncSoon() }
+        }
         .task {
             guard !started else { return }
             started = true
@@ -114,6 +122,9 @@ struct RootView: View {
             help.nav = nav; help.engine = engine; help.store = store
             if !TVStore.testMode { help.resume() }
             await store.start()
+            // Weiterschauen/Gesehen mit iPhone, Fire TV, Android … abgleichen (gleiche Zugangsdaten)
+            resume.syncHost = { [weak store] in store?.syncAccount }
+            resume.syncSoon(force: true)
             // Neue Folgen bei Favoriten und angefangenen Serien
             let src = store.sourceName
             let favIds = store.series.filter { store.isFav($0, .series) }.map(\.id)

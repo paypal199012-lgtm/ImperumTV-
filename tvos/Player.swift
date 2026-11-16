@@ -355,8 +355,11 @@ final class PlayerEngine: ObservableObject {
         guard let it = item, kind != .live, duration > 0 else { return }
         if kind == .series, index < episodes.count {
             let e = episodes[index]
+            let n = index + 1 < episodes.count ? episodes[index + 1] : nil
             book.save(source: source, kind: .series, item: it, pos: position, dur: duration, episode: index,
-                      episodeTitle: "S\(e.season) F\(e.number) · \(e.title)", episodeCount: episodes.count, episodeId: e.id)
+                      episodeTitle: "S\(e.season) F\(e.number) · \(e.title)", episodeCount: episodes.count, episodeId: e.id,
+                      season: e.season, num: e.number, epName: e.title,
+                      nextEp: n.map { (id: $0.id, season: $0.season, num: $0.number, title: $0.title) })
         } else {
             book.save(source: source, kind: .movie, item: it, pos: position, dur: duration)
         }

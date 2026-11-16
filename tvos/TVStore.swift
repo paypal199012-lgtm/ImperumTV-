@@ -261,6 +261,14 @@ final class TVStore: ObservableObject {
 
     var hasSource: Bool { source != .none }
 
+    /// Für den Abgleich „Weiterschauen/Gesehen“ mit den anderen Geräten: dieselbe Kennung wie app.js (FavSync.acc)
+    var syncAccount: (acc: String, source: String)? {
+        guard case .xtream(let a, let n) = source else { return nil }
+        var srv = a.server.trimmingCharacters(in: .whitespacesAndNewlines)
+        while srv.hasSuffix("/") { srv.removeLast() }
+        return (srv.lowercased() + "|" + a.username + "|" + a.password, n)
+    }
+
     var sourceName: String {
         switch source {
         case .none: return ""
