@@ -16,6 +16,11 @@ permissions:
 
 on:
   workflow_dispatch:
+    inputs:
+      einreichen:
+        description: 'Direkt bei Apple zur App-Store-Prüfung einreichen (nein = nur TestFlight)'
+        type: boolean
+        default: false
   push:
     branches: [web-ui]
     paths: ['tvos/STORE_UPLOAD']   # Start: Zahl in tvos/STORE_UPLOAD erhöhen und hochladen
@@ -24,6 +29,7 @@ jobs:
   upload:
     runs-on: macos-15-intel
     env:
+      TV_VERSION: '1.1'
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
     steps:
       - uses: actions/checkout@v4
@@ -47,7 +53,7 @@ jobs:
         run: |
           cd tvos
           sed -i '' "s/PRODUCT_BUNDLE_IDENTIFIER: .*/PRODUCT_BUNDLE_IDENTIFIER: $BUNDLE_ID/" project.yml
-          sed -i '' 's/MARKETING_VERSION: .*/MARKETING_VERSION: "1.1"/' project.yml
+          sed -i '' "s/MARKETING_VERSION: .*/MARKETING_VERSION: \"$TV_VERSION\"/" project.yml
           sed -i '' "s/CURRENT_PROJECT_VERSION: .*/CURRENT_PROJECT_VERSION: \"${{ github.run_number }}\"/" project.yml
       - run: brew install xcodegen
       - run: cd tvos && xcodegen generate && pod install
@@ -85,6 +91,18 @@ jobs:
             -authenticationKeyID ${{ secrets.ASC_KEY_ID }} \
             -authenticationKeyIssuerID ${{ secrets.ASC_ISSUER_ID }} >> build.log 2>&1
           echo "Hochgeladen. In App Store Connect erscheint der Build nach etwa 10–30 Minuten unter TestFlight."
+      - name: Zur Prüfung einreichen (nur auf Wunsch)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.einreichen }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          PLATFORM: TV_OS
+          VERSION: ${{ env.TV_VERSION }}
+          BUILD_NO: ${{ github.run_number }}
+        run: |
+          python3 -m pip install --quiet "pyjwt[crypto]" 2>/dev/null || python3 -m pip install --quiet --break-system-packages "pyjwt[crypto]"
+          python3 scripts/appstore_submit.py
       - name: Fehler anzeigen
         if: failure()
         run: |
