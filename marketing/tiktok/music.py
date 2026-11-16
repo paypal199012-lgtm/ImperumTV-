@@ -29,6 +29,7 @@ Stile (alle passen auf das Raster: Intro 2,6 s, jede Szene 3,6 s, Abschluss 3 s)
   chiptune – 8-Bit-Videospiel: Rechteck-Melodie, schnelle Arpeggios, Rausch-Schlagzeug, 133 BPM
   rock     – Rock: verzerrte Powerchords in Achteln, treibender Bass, Backbeat-Snare, Becken, 133 BPM
   ska      – Ska: Offbeat-Gitarre (Skank), laufender Bass, Bläser-Stöße, schnelle Hi-Hats
+  kalimba  – ruhig und freundlich: Kalimba-Melodie, weicher Beat mit Rimshot, runder Bass, 100 BPM – gut für Anleitungen
 Ohne Stil wird er aus dem Startwert (z. B. der Video-ID) gewählt.
 """
 import sys, zlib
@@ -38,7 +39,7 @@ out, n_scenes = sys.argv[1], int(sys.argv[2])
 style = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ''
 seed_txt = sys.argv[4] if len(sys.argv) > 4 else style
 seed = zlib.crc32(seed_txt.encode()) & 0xffffffff
-STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb', 'bossa', 'lullaby', 'afro', 'chiptune', 'rock', 'ska']
+STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb', 'bossa', 'lullaby', 'afro', 'chiptune', 'rock', 'ska', 'kalimba']
 if style not in STYLES:
     style = STYLES[seed % len(STYLES)]
 
@@ -555,6 +556,27 @@ elif style == 'ska':                      # 133 BPM, Offbeat-Skank, Walking-Bass
             else: m.add(snare(0.6), tt)
             m.add(hat(g=0.08), tt, 1, 0.3); m.add(hat(g=0.06), tt + B / 2, 1, 0.3)
         m.add(brass([x * 2 for x in ch[:2]], 0.35, 0.04), s0 + 6.5 * B, 1, 0.2)
+    outro(prog[0], B)
+
+elif style == 'kalimba':                  # 100 BPM, 6 Schläge pro Szene, ruhig für Anleitungen
+    B = 0.6; prog = [['C4', 'E4', 'G4'], ['A3', 'C4', 'E4'], ['F3', 'A3', 'C4'], ['G3', 'B3', 'D4']]
+    def kal(freq, g=0.1):
+        n = int(SR * 1.2); t = np.arange(n) / SR
+        s = np.sin(2 * np.pi * freq * t) * np.exp(-t * 4.5) + 0.35 * np.sin(2 * np.pi * freq * 5.4 * t) * np.exp(-t * 18)
+        return s * np.minimum(1, t / 0.002) * g
+    def rim(g=0.12): n = int(SR * 0.06); return hp(noise(n), 1800) * env(n, 0.0005, 0.012) * g
+    m.add(lp(noise(int(SR * D)), 2500) * 0.006, 0)
+    pat = [0, 2, 1, 2, 0, 1]                                   # Melodie-Muster je Szene (Tonindex)
+    t = 0.3; k = 0
+    while t < D - 0.4:
+        ch = notes(prog[(k // 6) % 4])
+        if k % 6 == 0: m.add(lp(kick(soft=True), 900), t, 0.75); m.add(lp(tone(ch[0] / 2, B * 5.5, 'sine', a=0.02, d=1.6, gain=0.4), 300), t)
+        if k % 6 == 3: m.add(rim(), t, 1, 0.2); m.add(lp(kick(soft=True), 900), t + B / 2, 0.45)
+        m.add(hat(g=0.05), t + B / 2, 1, 0.35)
+        m.add(kal(ch[pat[k % 6]] * 2, 0.11), t, 1, -0.25)
+        if k % 2: m.add(kal(ch[(k + 1) % 3] * 4, 0.045), t + B / 2, 1, 0.3)
+        if k % 12 == 0: m.add(lp(chord(ch, B * 6, 0.025, 1400, 'tri'), 1400), t, 1, 0.1)
+        t += B; k += 1
     outro(prog[0], B)
 
 else:                                     # garage: 2-Step mit Swing
