@@ -119,7 +119,8 @@
             if (!Device.validMac(Device.mac) || !Device.validKey(Device.key)) return;
             this.checkedAt = t0; this.monoAt = mono;
             var self = this, name = this.tzName(), loc = -new Date(t0).getTimezoneOffset();
-            Remote.rpc('device_clock', { p_mac: Device.mac, p_key: Device.key, p_client_ms: Math.round(t0), p_tz_min: loc, p_tz_name: name }).then(function (r) {
+            var es = 0; try { es = Math.round(EpgShift.ms / 60000); } catch (eE) { es = 0; }
+            Remote.rpc('device_clock', { p_mac: Device.mac, p_key: Device.key, p_client_ms: Math.round(t0), p_tz_min: loc, p_tz_name: name, p_epg_shift: es }).then(function (r) {
                 if (!r || !r.now_ms) return;
                 var t1 = self.raw();
                 if (t1 - t0 > 15000 || t1 < t0) return;                      // Antwort zu langsam: ungenau
@@ -4501,6 +4502,7 @@
         accountKey: function () { var a = Api.acc; return a ? (a.m3u ? 'm3u|' + a.m3u : a.server + '|' + a.username) : ''; },
         /** Nach dem Laden der Sender: gespeichertes Programm passt zum Konto? Sonst (oder älter als 20 h) neu laden */
         sync: function (force) {
+            try { EpgShift.load(); setTimeout(function () { EpgShift.detect(false); }, 30000); } catch (eS) { /* egal */ }
             if (!this.native() || !Api.acc || Api.acc.demo || !Data.channels.length || safeMode()) return;
             if (Quiet.on && !force) { Quiet.pendingEpg = true; return; }      // Vollbild läuft: später laden
             var info = this.info(), key = this.accountKey();
@@ -4531,6 +4533,7 @@
             if (!raw) return null;
             var list;
             try { list = JSON.parse(raw).map(function (x) { return { start: x[0], end: x[1], title: x[2], desc: x[3] || '' }; }); } catch (e2) { return null; }
+            EpgShift.fix(list);
             this.cache[ch.epg] = { at: Date.now(), list: list };
             return list;
         },
@@ -4555,6 +4558,7 @@
             var ids = {}, map = {};
             for (var i = 0; i < channels.length; i++) if (channels[i].epg) ids[channels[i].epg] = 1;
             try { map = JSON.parse(AB.epgNowFull(JSON.stringify(Object.keys(ids))) || '{}') || {}; } catch (e) { map = {}; }
+            if (EpgShift.ms) for (var mk in map) if (map.hasOwnProperty(mk) && map[mk]) { if (map[mk][1]) map[mk][1] += EpgShift.ms; if (map[mk][2]) map[mk][2] += EpgShift.ms; }
             this.nowFullCache = { minute: minute, list: channels, map: map };
             return map;
         },
@@ -4569,6 +4573,99 @@
             return map;
         }
     };
+    /** Programm des Anbieters um ganze Stunden verschoben (häufiger Fehler beim Anbieter)? Selbst erkennen und ausgleichen.
+     *  Anker: die 15-minütige „Tagesschau“ um 20:00 Uhr deutscher Zeit – läuft gleichzeitig auf vielen ARD-Sendern.
+     *  Ohne solche Sender in der Liste bleibt alles, wie es ist. */
+    var EpgShift = {
+        ms: 0, running: false,
+        ANCHOR: /(das erste|\bard\b|tagesschau|phoenix|3sat|\b(br|hr|mdr|ndr|rbb|sr|swr|wdr)\b)/i,
+        key: function () { return Epg.accountKey(); },
+        all: function () { var a = Storage.rawGet('epgShift', {}); return a && typeof a === 'object' ? a : {}; },
+        /** Beim Wechsel der Liste: gemerkte Verschiebung dieses Kontos laden */
+        load: function () {
+            var e = this.all()[this.key()];
+            this.set(e ? (+e.ms || 0) : 0);
+        },
+        set: function (ms) {
+            if (!isFinite(ms) || Math.abs(ms) > 3 * 3600000) ms = 0;
+            var changed = ms !== this.ms;
+            this.ms = ms;
+            try { if (AB && AB.setEpgShift) AB.setEpgShift(String(ms)); } catch (e) { /* ältere App */ }
+            if (changed) {
+                Epg.cache = {}; Epg.nowCache = null; Epg.nowFullCache = null;
+                try { Data.epgCache = {}; Data.epgFullCache = {}; } catch (e2) { /* egal */ }
+            }
+        },
+        fix: function (list) {
+            var s = this.ms;
+            if (s && list) list.forEach(function (e) { if (e.start) e.start += s; if (e.end) e.end += s; });
+            return list;
+        },
+        berlinHour: function (ms) {
+            try {
+                var p = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(ms));
+                var m = /(\d{1,2})\D(\d{2})/.exec(p);
+                return m && m[2] === '00' ? +m[1] : -1;
+            } catch (e) { return -1; }
+        },
+        /** entries: [{ch, start, end, title}] (noch unverschoben). Rückgabe: Stunden oder null (nicht sicher) */
+        decide: function (entries) {
+            var self = this, votes = {}, chans = {};
+            entries.forEach(function (e) {
+                if (!/^\s*tagesschau\s*(\(.*\))?\s*$/i.test(e.title || '')) return;
+                var len = e.end - e.start;
+                if (!(len >= 10 * 60000 && len <= 20 * 60000)) return;
+                var h = self.berlinHour(e.start), sh = 20 - h;
+                if (h < 0 || Math.abs(sh) > 2) return;
+                votes[sh] = (votes[sh] || 0) + 1;
+                (chans[sh] = chans[sh] || {})[e.ch] = 1;
+            });
+            var best = null, bestN = 0, rest = 0;
+            Object.keys(votes).forEach(function (k) { if (votes[k] > bestN) { if (best !== null) rest += bestN; best = +k; bestN = votes[k]; } else rest += votes[k]; });
+            if (best === null || bestN < 3 || Object.keys(chans[best]).length < 2 || bestN < rest * 3) return null;
+            return best;
+        },
+        /** Einmal am Tag je Konto prüfen (im Hintergrund, wenn nichts läuft) */
+        detect: function (force) {
+            if (this.running || !Api.acc || Api.acc.demo || !Data.channels.length) return;
+            var key = this.key(), all = this.all(), old = all[key];
+            if (!force && old && Date.now() - (old.at || 0) < 20 * 3600000) return;
+            var chans = Data.channels.filter(function (c) { return EpgShift.ANCHOR.test(c.name || ''); });
+            if (!chans.length) return;
+            var self = this, entries = [];
+            this.running = true;
+            var done = function () {
+                self.running = false;
+                if (self.key() !== key) return;                      // inzwischen andere Liste
+                var h = self.decide(entries);
+                if (h === null) return;
+                all = self.all(); all[key] = { ms: h * 3600000, at: Date.now() }; Storage.rawSet('epgShift', all);
+                var before = self.ms;
+                self.set(h * 3600000);
+                if (before !== self.ms) { try { TimeFix.check(true); } catch (eT) { /* egal */ } }
+            };
+            if (Epg.valid && Epg.native()) {
+                chans.filter(function (c) { return c.epg; }).slice(0, 60).forEach(function (c) {
+                    var raw = ''; try { raw = AB.epgFor(c.epg); } catch (e) { raw = ''; }
+                    if (!raw) return;
+                    try { JSON.parse(raw).forEach(function (x) { entries.push({ ch: c.epg, start: x[0], end: x[1], title: x[2] }); }); } catch (e2) { /* egal */ }
+                });
+                done();
+                return;
+            }
+            // Ohne gespeichertes Programm: beim Anbieter für ein paar Sender nachfragen
+            chans.sort(function (a, b) { var r = /das erste|\bard\b|tagesschau|phoenix/i; return (r.test(b.name) ? 1 : 0) - (r.test(a.name) ? 1 : 0); });
+            var pick = chans.slice(0, 5), left = pick.length;
+            pick.forEach(function (c) {
+                Api.call('get_short_epg', { stream_id: c.id, limit: 60 }).then(function (json) {
+                    ((json && json.epg_listings) || []).forEach(function (e) {
+                        entries.push({ ch: String(c.id), start: parseFloat(e.start_timestamp) * 1000, end: parseFloat(e.stop_timestamp) * 1000, title: b64(e.title) });
+                    });
+                }, function () { /* egal */ }).then(function () { if (--left === 0) done(); });
+            });
+        }
+    };
+
     // =====================================================================
     // Fußball: Spielplan von der Website (football-data.org) + passender Sender aus dem Programm
     // =====================================================================
@@ -4808,7 +4905,7 @@
             matches.forEach(function (m) {
                 if (m.s === 'FINISHED' || m.s === 'POSTPONED' || m.s === 'CANCELLED') return;
                 var w = me.words(m.h).concat(me.words(m.a));
-                if (w.length) q.push({ k: String(m.id), w: w, t: m.t });
+                if (w.length) q.push({ k: String(m.id), w: w, t: m.t - EpgShift.ms });
             });
             if (!q.length) { cb({}); return; }
             var id = 'fb' + (++this.searchSeq);
@@ -4836,6 +4933,7 @@
     window.__androidEpg = function (state, info) {
         if (state === 'done') {
             Epg.valid = true; Epg.cache = {}; Epg.nowCache = null; Epg.status = info;
+            setTimeout(function () { EpgShift.detect(true); }, 20000);
             var top = Nav.top();
             if (top instanceof LiveScreen || top instanceof EpgScreen) toast(Tf("Programm aktualisiert ({0} Sender)", [fmtNum(info.channels || 0)]));
         } else if (state === 'error') {
@@ -5079,6 +5177,7 @@
         /** Anmelden und Senderliste holen, ohne etwas zu ändern → { acc, list, status, expiry } */
         fetchLive: function (acc, progress) {
             Api.acc = acc;
+            try { EpgShift.load(); } catch (eS) { /* egal */ }
             Parser.worker();                                   // Hintergrund-Helfer schon starten
             // Alles gleichzeitig anfragen (spart Wartezeit); die Senderliste zählt nur, wenn die Anmeldung klappt
             var lists = Api.list('get_live_streams', 'live', LiveCats.fetch());
@@ -5118,6 +5217,7 @@
         /** Gespeicherte Listen sofort benutzen (Start ohne Warten) */
         useCache: function (acc, c) {
             Api.acc = acc;
+            try { EpgShift.load(); } catch (eS) { /* egal */ }
             Parser.worker();
             this.status = c.status || 'Active';
             this.expiry = c.expiry ? new Date(c.expiry) : null;
@@ -5246,7 +5346,7 @@
                 var now = Date.now();
                 var list = ((json && json.epg_listings) || []).map(function (e) {
                     var start = parseFloat(e.start_timestamp) * 1000, end = parseFloat(e.stop_timestamp) * 1000;
-                    return { title: b64(e.title), start: start, end: end };
+                    return { title: b64(e.title), start: start + EpgShift.ms, end: end + EpgShift.ms };
                 }).filter(function (e) { return e.title && (!e.end || e.end > now); });
                 self.epgCache[streamId] = { at: Date.now(), list: list };
                 return list;
@@ -5263,7 +5363,7 @@
                     var m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(str(e.start));
                     var ts = m ? m[1] + ':' + m[2] + '-' + m[3] : '';
                     if (!ts && start) { var d = tzFix(new Date(start)); ts = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ':' + pad2(d.getHours()) + '-' + pad2(d.getMinutes()); }
-                    return { title: b64(e.title), desc: b64(e.description || ''), start: start, end: end, ts: ts,
+                    return { title: b64(e.title), desc: b64(e.description || ''), start: start + EpgShift.ms, end: end + EpgShift.ms, ts: ts,
                         arch: e.has_archive === undefined ? null : String(e.has_archive) === '1' };
                 }).filter(function (e) {
                     if (!e.title || !e.start || !e.end || e.end > now || e.start < from || !e.ts) return false;
@@ -5286,7 +5386,7 @@
                 var list = ((json && json.epg_listings) || []).map(function (e) {
                     return {
                         title: b64(e.title), desc: b64(e.description || ''),
-                        start: parseFloat(e.start_timestamp) * 1000, end: parseFloat(e.stop_timestamp) * 1000
+                        start: parseFloat(e.start_timestamp) * 1000 + EpgShift.ms, end: parseFloat(e.stop_timestamp) * 1000 + EpgShift.ms
                     };
                 }).filter(function (e) { return e.title && e.start && e.end && e.end > e.start; });
                 list.sort(function (a, b) { return a.start - b.start; });
@@ -14746,7 +14846,7 @@
     }
     window.__pressFx = pressFx;                 // Android reicht Tasten direkt weiter (kein keydown)
     document.addEventListener('keydown', function (e) { if ((e.keyCode || e.which) === 13) pressFx(); }, true);
-    window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen, Lite: Lite, Glide: Glide, Busy: Busy, Metrics: Metrics, Free: Free, Api: Api, M3U: M3U, UpdateLock: UpdateLock, StateSync: StateSync, FavSync: FavSync, Storage: Storage };
+    window.ImperumTV = { Football: Football, VodPlayer: VodPlayer, OVpn: OVpn, NewEps: NewEps, Seen: Seen, Report: Report, Epg: Epg, Parser: Parser, Sync: Sync, Resume: Resume, Parental: Parental, Updater: Updater,  Nav: Nav, Focus: Focus, Data: Data, Player: Player, KEY: KEY, Device: Device, Remote: Remote, License: License, Clock: Clock, NetTestScreen: NetTestScreen, Lite: Lite, Glide: Glide, Busy: Busy, Metrics: Metrics, Free: Free, Api: Api, M3U: M3U, UpdateLock: UpdateLock, StateSync: StateSync, FavSync: FavSync, Storage: Storage, TimeFix: TimeFix, EpgShift: EpgShift };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();
