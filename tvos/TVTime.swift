@@ -63,7 +63,7 @@ enum TVTime {
             "p_tz_name": TimeZone.current.identifier,
             "p_epg_shift": Int(epgShift / 60)
         ]
-        guard let data = try? await Remote.rpc("device_clock", body),
+        guard let data = try? await RemoteAPI.rpc("device_clock", body),
               let r = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let nowMs = (r["now_ms"] as? NSNumber)?.doubleValue else { checkedAt = nil; return }
         let t1 = Date()
