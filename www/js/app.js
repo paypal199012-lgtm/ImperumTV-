@@ -74,17 +74,75 @@
     function tzFix(date) {
         try {
             var b = window.AndroidBridge;
+            var fix = TimeFix.tz || 0;
             if (b && b.tzMinutes) {
                 var nat = +b.tzMinutes(), loc = -date.getTimezoneOffset();
-                if (isFinite(nat) && nat !== loc) return new Date(date.getTime() + (nat - loc) * 60000);
+                if (isFinite(nat) && nat !== loc) fix += nat - loc;
             }
+            if (fix) return new Date(date.getTime() + fix * 60000);
         } catch (e) { }
         return date;
     }
+
+    /** Richtige Uhrzeit: Geht die Uhr des Geräts falsch (oder steht die Zeitzone fälschlich auf UTC), rechnet die App
+     *  mit der Uhrzeit vom Server – damit Programm (EPG), „Jetzt läuft“, Erinnerungen und „Verpasst?“ trotzdem stimmen.
+     *  Date.now() liefert danach überall die richtige Zeit; TimeFix.raw() ist die Uhr des Geräts. */
+    var TimeFix = {
+        raw: Date.now.bind(Date),
+        off: 0,             // ms: so viel geht das Gerät nach (+) bzw. vor (−)
+        tz: 0,              // Minuten: Korrektur der Zeitzone (nur wenn das Gerät auf UTC steht)
+        MIN_OFF: 90000,     // kleinere Abweichungen nicht anfassen
+        checkedAt: 0,
+        install: function () {
+            var self = this;
+            try { Date.now = function () { return self.raw() + self.off; }; } catch (e) { /* geht nicht: dann eben ohne */ }
+            var st = null;
+            try { st = JSON.parse(localStorage.getItem('imptv.timeFix') || 'null'); } catch (e2) { st = null; }
+            if (st) this.set(+st.off || 0, +st.tz || 0, false);
+        },
+        set: function (off, tz, save) {
+            if (!isFinite(off) || Math.abs(off) < this.MIN_OFF) off = 0;
+            if (!isFinite(tz) || Math.abs(tz) > 14 * 60) tz = 0;
+            this.off = Math.round(off); this.tz = Math.round(tz);
+            try { var b = window.AndroidBridge; if (b && b.setClockOffset) b.setClockOffset(String(this.off)); } catch (e) { /* ältere App */ }
+            if (save) { try { localStorage.setItem('imptv.timeFix', JSON.stringify({ off: this.off, tz: this.tz })); } catch (e2) { /* egal */ } }
+        },
+        tzName: function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { return ''; } },
+        utcLike: function (n) { return /^(etc\/)?(utc|gmt|uct|zulu|universal|greenwich)([+-]?0)?$/i.test(n || ''); },
+        /** Beim Start und danach alle 6 Stunden mit dem Server vergleichen */
+        check: function (force) {
+            var t0 = this.raw(), mono = 0;
+            try { mono = performance.now(); } catch (eP) { mono = 0; }
+            // Wurde die Uhr des Geräts inzwischen umgestellt (springt gegenüber der Laufzeit)? Dann sofort neu prüfen.
+            var jumped = this.monoAt && mono && Math.abs((t0 - this.checkedAt) - (mono - this.monoAt)) > 60000;
+            if (!force && !jumped && this.checkedAt && Math.abs(t0 - this.checkedAt) < 6 * 3600000) return;
+            if (!Device.validMac(Device.mac) || !Device.validKey(Device.key)) return;
+            this.checkedAt = t0; this.monoAt = mono;
+            var self = this, name = this.tzName(), loc = -new Date(t0).getTimezoneOffset();
+            Remote.rpc('device_clock', { p_mac: Device.mac, p_key: Device.key, p_client_ms: Math.round(t0), p_tz_min: loc, p_tz_name: name }).then(function (r) {
+                if (!r || !r.now_ms) return;
+                var t1 = self.raw();
+                if (t1 - t0 > 15000 || t1 < t0) return;                      // Antwort zu langsam: ungenau
+                var off = +r.now_ms - (t0 + t1) / 2;
+                var tz = (r.exp_tz !== null && r.exp_tz !== undefined && self.utcLike(name)) ? (+r.exp_tz - loc) : 0;
+                // Während etwas läuft nicht springen: merken und in 10 Minuten erneut prüfen
+                var playing = false; try { playing = Player.isPlaying(); } catch (e) { playing = false; }
+                var big = Math.abs((Math.abs(off) < self.MIN_OFF ? 0 : off) - self.off) > 60000 || tz !== self.tz;
+                if (playing && big) {
+                    try { localStorage.setItem('imptv.timeFix', JSON.stringify({ off: Math.abs(off) < self.MIN_OFF ? 0 : Math.round(off), tz: tz })); } catch (e2) { /* egal */ }
+                    self.checkedAt = t0 - 6 * 3600000 + 600000;
+                    return;
+                }
+                self.set(off, tz, true);
+                if (big) { try { Clock.tick(); } catch (e3) { /* egal */ } }
+            }, function () { self.checkedAt = 0; });
+        }
+    };
+    TimeFix.install();
     function fmtClock(date) { date = tzFix(date); return pad2(date.getHours()) + ':' + pad2(date.getMinutes()); }
     /** „heute“, „gestern“ oder „4.11.2026“ */
     function fmtDate(date) {
-        var d = tzFix(date), n = tzFix(new Date()), y = tzFix(new Date(Date.now() - 86400000));
+        var d = tzFix(date), n = tzFix(new Date(Date.now())), y = tzFix(new Date(Date.now() - 86400000));
         if (d.toDateString() === n.toDateString()) return T("heute");
         if (d.toDateString() === y.toDateString()) return T("gestern");
         return L10N.numDate(d.getDate(), d.getMonth() + 1, d.getFullYear());
@@ -1516,7 +1574,7 @@
         },
         tick: function () {
             clearTimeout(this.timer);
-            var self = this, n = tzFix(new Date()), sec = this.mode() === 'sec' && !Quiet.on;
+            var self = this, n = tzFix(new Date(Date.now())), sec = this.mode() === 'sec' && !Quiet.on;
             this.t.innerHTML = pad2(n.getHours()) + ':' + pad2(n.getMinutes()) + (sec ? '<span>:' + pad2(n.getSeconds()) + '</span>' : '');
             this.d.textContent = L10N.weekdayDate(this.DAYS[n.getDay()], n.getDate(), this.MONTHS[n.getMonth()]);
             // genau zum nächsten Sekunden- bzw. Minutenwechsel weiterstellen
@@ -2048,8 +2106,8 @@
         },
         dateText: function (e) {
             if (!e || !e.at) return '';
-            var d = new Date(e.at), months = [T("Januar"), T("Februar"), T("März"), T("April"), T("Mai"), T("Juni"), T("Juli"), T("August"), T("September"), T("Oktober"), T("November"), T("Dezember")];
-            return L10N.dayMonth(d.getDate(), months[d.getMonth()]) + (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '');
+            var d = tzFix(new Date(e.at)), months = [T("Januar"), T("Februar"), T("März"), T("April"), T("Mai"), T("Juni"), T("Juli"), T("August"), T("September"), T("Oktober"), T("November"), T("Dezember")];
+            return L10N.dayMonth(d.getDate(), months[d.getMonth()]) + (d.getFullYear() !== tzFix(new Date(Date.now())).getFullYear() ? ' ' + d.getFullYear() : '');
         }
     };
 
@@ -2908,7 +2966,7 @@
             var until = row.trial_until ? new Date(row.trial_until).getTime() : 0;
             var serverNow = row.server_time ? new Date(row.server_time).getTime() : Date.now();
             // Falsche Uhr am Gerät ausgleichen
-            this.offset = serverNow - Date.now();
+            this.offset = serverNow - TimeFix.raw();
             var free = row.free_until ? new Date(row.free_until).getTime() : 0;
             this.state = { activated: !!row.activated, trialUntil: until, freeUntil: free, serverActive: !!row.active, checked: Date.now() };
             Storage.set('license', this.state);
@@ -2939,7 +2997,7 @@
         known: function () { return STORE_BUILD || !!this.state; },
         /** Vom Entwickler kostenlos freigeschaltet (z. B. für 1 Jahr) */
         free: function () {
-            return !!(this.state && !this.state.activated && this.state.freeUntil && Date.now() + (this.offset || 0) < this.state.freeUntil);
+            return !!(this.state && !this.state.activated && this.state.freeUntil && TimeFix.raw() + (this.offset || 0) < this.state.freeUntil);
         },
         freeText: function () {
             var d = new Date(this.state.freeUntil);
@@ -2949,12 +3007,12 @@
         active: function () {
             if (STORE_BUILD || !this.state) return true;     // noch nie geprüft (z. B. ganz neues Gerät ohne Internet)
             if (this.state.activated) return true;
-            var t = Date.now() + (this.offset || 0);
+            var t = TimeFix.raw() + (this.offset || 0);
             return t < this.state.trialUntil || t < (this.state.freeUntil || 0);
         },
         daysLeft: function () {
             if (!this.state || this.state.activated) return 0;
-            var ms = this.state.trialUntil - (Date.now() + (this.offset || 0));
+            var ms = this.state.trialUntil - (TimeFix.raw() + (this.offset || 0));
             return Math.max(0, Math.ceil(ms / 86400000));
         },
         text: function () {
@@ -3102,7 +3160,7 @@
             this.last = now; this.lastVpn = vpn;
             var self = this;
             Remote.rpc('device_hello', { p_mac: Device.mac, p_key: Device.key, p_version: Report.version(), p_device: Report.platform(), p_vpn: vpn })
-                .then(function () { self.sig(); }, function () { /* ältere Datenbank ohne diese Funktion oder offline: egal */ });
+                .then(function () { self.sig(); TimeFix.check(false); }, function () { /* ältere Datenbank ohne diese Funktion oder offline: egal */ });
         },
         /** Echtheit: einmal pro Start den Fingerabdruck des App-Schlüssels melden (nachgebaute Apps fallen im Admin auf) */
         sigSent: false,
@@ -3418,7 +3476,7 @@
             this.open();
         },
         fmt: function (iso) {
-            var d = new Date(iso), now = new Date();
+            var d = tzFix(new Date(iso)), now = tzFix(new Date(Date.now()));
             var t = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
             return d.toDateString() === now.toDateString() ? t : d.getDate() + '.' + (d.getMonth() + 1) + '. ' + t;
         },
@@ -3492,7 +3550,7 @@
 
     /** Stick-Zustand für die Admin-Seite (Speicher, Arbeitsspeicher, WLAN, Tempo …): alle 10 Minuten, nur Android */
     var StickState = {
-        day: function () { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); },
+        day: function () { var d = new Date(Date.now()); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); },
         /** Hänger heute mitzählen (bleibt über einen Neustart der App erhalten) */
         stall: function () {
             var c = Storage.get('stallsToday', null), d = this.day();
@@ -5204,7 +5262,7 @@
                     // Startzeit so, wie der Server sie kennt („2026-11-14 20:15:00“ → „2026-11-14:20-15“)
                     var m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/.exec(str(e.start));
                     var ts = m ? m[1] + ':' + m[2] + '-' + m[3] : '';
-                    if (!ts && start) { var d = new Date(start); ts = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ':' + pad2(d.getHours()) + '-' + pad2(d.getMinutes()); }
+                    if (!ts && start) { var d = tzFix(new Date(start)); ts = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ':' + pad2(d.getHours()) + '-' + pad2(d.getMinutes()); }
                     return { title: b64(e.title), desc: b64(e.description || ''), start: start, end: end, ts: ts,
                         arch: e.has_archive === undefined ? null : String(e.has_archive) === '1' };
                 }).filter(function (e) {
@@ -5239,9 +5297,9 @@
 
         expiryText: function () {
             if (!this.expiry) return '';
-            var d = this.expiry;
+            var d = tzFix(this.expiry);
             var months = [T("Januar"), T("Februar"), T("März"), T("April"), T("Mai"), T("Juni"), T("Juli"), T("August"), T("September"), T("Oktober"), T("November"), T("Dezember")];
-            return L10N.dayMonth(d.getDate(), months[d.getMonth()]) + ' ' + d.getFullYear() + ' ' + fmtClock(d);
+            return L10N.dayMonth(d.getDate(), months[d.getMonth()]) + ' ' + d.getFullYear() + ' ' + fmtClock(this.expiry);
         }
     };
 
@@ -7267,7 +7325,8 @@
         available: function () { return !!(AB && AB.recSchedule); },
         list: function () {
             if (!this.available()) return [];
-            try { return JSON.parse(AB.recList()) || []; } catch (e) { return []; }
+            var off = TimeFix.off;
+            try { return (JSON.parse(AB.recList()) || []).map(function (r) { if (off && r) { if (r.start) r.start += off; if (r.end) r.end += off; } return r; }); } catch (e) { return []; }
         },
         storage: function () {
             try { return JSON.parse(AB.recStorage()); } catch (e) { return null; }
@@ -7282,7 +7341,7 @@
             var now = Date.now();
             var res = AB.recSchedule(JSON.stringify({
                 channelId: ch.id, channel: ch.name, title: title || ch.name, url: this.url(ch),
-                start: Math.max(now, start), end: end,
+                start: Math.max(now, start) - TimeFix.off, end: end - TimeFix.off,
                 progStart: progStart || start, progEnd: progEnd || end
             }));
             if (!res || res.charAt(0) === '!') return res ? res.slice(1) : T("Aufnahme konnte nicht geplant werden.");
@@ -7304,11 +7363,11 @@
     };
 
     function dateText(ms) {
-        var d = new Date(ms), days = L10N.daysShort;
-        var today = new Date(); today.setHours(0, 0, 0, 0);
+        var d = tzFix(new Date(ms)), days = L10N.daysShort;
+        var today = tzFix(new Date(Date.now())); today.setHours(0, 0, 0, 0);
         var diff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - today) / 86400000);
         var day = diff === 0 ? T("Heute") : diff === 1 ? T("Morgen") : diff === -1 ? T("Gestern") : days[d.getDay()] + ' ' + pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.';
-        return day + ' ' + fmtClock(d);
+        return day + ' ' + fmtClock(new Date(ms));
     }
 
     // =====================================================================
@@ -8699,7 +8758,7 @@
         _of: null, _at: 0, _ids: null,
         /** Anstoß aus dem Namen (ms) oder 0 */
         startOf: function (name) {
-            var n = String(name || ''), m, mon, d, hh, mm, y, t, now = new Date();
+            var n = String(name || ''), m, mon, d, hh, mm, y, t, now = new Date(Date.now());
             // „07-11-2026 | 20:30 (GMT)“ oder „07.11.2026 20:30“
             m = /\b(\d{1,2})[-.\/](\d{1,2})[-.\/](20\d\d)\s*\|?\s*(\d{1,2})[:.](\d{2})(?:\s*([ap]m))?(?:\s*\(?([a-z]{2,4})\)?)?/i.exec(n);
             if (m) {
@@ -9144,7 +9203,7 @@
         wrap.appendChild(status);
         root.appendChild(wrap);
         function day(t) {
-            var d = new Date(t), today = new Date(); today.setHours(0, 0, 0, 0);
+            var d = tzFix(new Date(t)), today = tzFix(new Date(Date.now())); today.setHours(0, 0, 0, 0);
             var diff = Math.round((today - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
             return diff === 0 ? T("Heute") : diff === 1 ? T("Gestern") : [T("So"), T("Mo"), T("Di"), T("Mi"), T("Do"), T("Fr"), T("Sa")][d.getDay()] + ', ' + pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.';
         }
@@ -9374,7 +9433,7 @@
         return sh.gen + '|' + (all ? all.length : 0) + '|' + Parental.sig() + '|' + HiddenCats.sig();
     };
     MoviesScreen.prototype.favType = function () { return this.kind === 'movies' ? 'movie' : 'series'; };
-    MoviesScreen.prototype.yearLabel = function () { return Tf("Filme {0}", [new Date().getFullYear()]); };
+    MoviesScreen.prototype.yearLabel = function () { return Tf("Filme {0}", [new Date(Date.now()).getFullYear()]); };
     var RESUME_CAT = T("▶ Weiter ansehen");
     var NEW_CAT = T("Zuletzt hinzugefügt");
     var NEWEP_CAT = T("Neue Folgen");
@@ -9461,7 +9520,7 @@
         var items = this.items(), all = this.allItems(), fav = this.favType(), sh = this.sh(), c = sh.cc;
         // Zählen nur, wenn sich die Liste geändert hat (bei zehntausenden Filmen spürbar)
         if (!c || c.all !== all || c.len !== items.length) {
-            var per = {}, year = 0, ids = {}, thisYear = new Date().getFullYear();
+            var per = {}, year = 0, ids = {}, thisYear = new Date(Date.now()).getFullYear();
             for (var i = 0; i < items.length; i++) {
                 var m = items[i];
                 if (m.cat) per[m.cat] = (per[m.cat] || 0) + 1;
@@ -9672,7 +9731,7 @@
             return items.filter(function (m) { return (Genre.of(m) & bit) !== 0; });
         }
         if (this.kind === 'movies' && cat === this.yearLabel()) {
-            var year = new Date().getFullYear();
+            var year = new Date(Date.now()).getFullYear();
             return items.filter(function (m) { return m.year === year; });
         }
         return items.filter(function (m) { return m.cat === cat; });
@@ -9741,7 +9800,7 @@
                 this.categories()[this.catIndex] === NEWEP_CAT ? T("Hier erscheinen Serien, die du schaust oder als Favorit hast, sobald dein Anbieter neue Folgen hinzufügt.") :
                 this.categories()[this.catIndex] === SEEN_CAT ? T("Hier erscheinen Filme, die du bis zum Ende geschaut hast.") :
                 this.catIndex === 1 ? T("Noch keine Favoriten. Drücke bei einem Poster die gelbe Taste.")
-                : (this.categories()[this.catIndex] === this.yearLabel() ? Tf("Dein Anbieter hat keine Filme mit dem Jahr {0} gekennzeichnet.", [new Date().getFullYear()]) : T("Nichts gefunden."));
+                : (this.categories()[this.catIndex] === this.yearLabel() ? Tf("Dein Anbieter hat keine Filme mit dem Jahr {0} gekennzeichnet.", [new Date(Date.now()).getFullYear()]) : T("Nichts gefunden."));
             grid.appendChild(h('div', 'empty-note', note));
         }
         if (this.savedScroll) scroll.scrollTop = this.savedScroll;
@@ -10866,7 +10925,7 @@
     };
     FootballScreen.prototype.fill = function (list, d) {
         var self = this, lastDay = '', now = Date.now();
-        var today = new Date(); today.setHours(0, 0, 0, 0);
+        var today = tzFix(new Date(Date.now())); today.setHours(0, 0, 0, 0);
         var days = [T("Sonntag"), T("Montag"), T("Dienstag"), T("Mittwoch"), T("Donnerstag"), T("Freitag"), T("Samstag")];
         var months = [T("Januar"), T("Februar"), T("März"), T("April"), T("Mai"), T("Juni"), T("Juli"), T("August"), T("September"), T("Oktober"), T("November"), T("Dezember")];
         var shown = d.matches.filter(function (m) {
@@ -10881,7 +10940,7 @@
             list.appendChild(h('div', 'fb-warn', Tf("ⓘ  Das TV-Programm wird gerade geladen oder ist noch nicht da. Sobald es da ist, erscheinen hier auch die Sender, auf denen die Spiele laufen (z. B. DAZN, Sky). Tipp: App kurz neu starten.", [])));
         }
         shown.forEach(function (m) {
-            var dt = new Date(m.t), dd = new Date(dt); dd.setHours(0, 0, 0, 0);
+            var dt = tzFix(new Date(m.t)), dd = new Date(dt); dd.setHours(0, 0, 0, 0);
             var diff = Math.round((dd - today) / 86400000);
             var label = (diff === 0 ? T("Heute · ") : diff === 1 ? T("Morgen · ") : diff === -1 ? T("Gestern · ") : '') +
                 L10N.weekdayDate(days[dt.getDay()], dt.getDate(), months[dt.getMonth()]);
@@ -11304,7 +11363,7 @@
         wrap.appendChild(this.previewBox);
         this.info = h('div', 'eg-info');
         wrap.appendChild(this.info);
-        this.clock = h('div', 'eg-clock', fmtClock(new Date()));
+        this.clock = h('div', 'eg-clock', fmtClock(new Date(Date.now())));
         wrap.appendChild(this.clock);
         this.chipsBox = h('div', 'eg-chips');
         wrap.appendChild(this.chipsBox);
@@ -11328,7 +11387,7 @@
         clearInterval(this.ticker);
         this.ticker = setInterval(function () {
             if (Nav.top() !== self || Modal.node) return;
-            self.clock.textContent = fmtClock(new Date());
+            self.clock.textContent = fmtClock(new Date(Date.now()));
             self.marks = Rec.marks();
             self.draw();
         }, 30000);
