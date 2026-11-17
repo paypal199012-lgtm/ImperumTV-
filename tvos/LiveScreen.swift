@@ -176,7 +176,7 @@ struct LiveScreen: View {
     }
 
     private var nowEntry: EPGEntry? {
-        epg.first { ($0.start ?? .distantFuture) <= Date() && ($0.end ?? .distantPast) > Date() } ?? epg.first
+        epg.first { ($0.start ?? .distantFuture) <= TVTime.now && ($0.end ?? .distantPast) > TVTime.now } ?? epg.first
     }
 
     private var preview: some View {
@@ -214,7 +214,7 @@ struct LiveScreen: View {
 
     private var nextCards: some View {
         HStack(spacing: 14) {
-            ForEach(Array(epg.filter { ($0.start ?? .distantPast) > Date() }.prefix(3))) { e in
+            ForEach(Array(epg.filter { ($0.start ?? .distantPast) > TVTime.now }.prefix(3))) { e in
                 VStack(alignment: .leading, spacing: 4) {
                     Text(e.timeRange.components(separatedBy: "–").first ?? "").font(UI.font(22, .bold)).foregroundColor(UI.gold)
                     Text(e.title).font(UI.font(22)).lineLimit(1)

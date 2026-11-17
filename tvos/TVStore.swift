@@ -333,7 +333,7 @@ final class TVStore: ObservableObject {
         }
     }
 
-    private func client(_ acc: Account) -> XtreamAPI { XtreamAPI(account: acc, userAgent: Self.userAgent) }
+    func client(_ acc: Account) -> XtreamAPI { XtreamAPI(account: acc, userAgent: Self.userAgent) }
 
     func load(_ acc: Account) async {
         loading = true
@@ -485,10 +485,10 @@ final class TVStore: ObservableObject {
         switch source {
         case .demo: return DemoData.epg()
         case .xtream(let acc, _):
-            if let c = epgCache[item.id], Date().timeIntervalSince(c.0) < 600 { return c.1 }
+            if let c = epgCache[item.id], Date().timeIntervalSince(c.0) < 600 { return TVTime.shifted(c.1) }
             let list = (try? await client(acc).shortEPG(streamId: item.id, limit: 6)) ?? []
             epgCache[item.id] = (Date(), list)
-            return list
+            return TVTime.shifted(list)
         case .m3u, .none: return []
         }
     }

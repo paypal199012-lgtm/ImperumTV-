@@ -596,7 +596,7 @@ struct PlayerScreen: View {
         .task(id: engine.item?.id) {
             guard engine.kind == .live, let it = engine.item else { epgNow = nil; return }
             let l = await store.epg(it)
-            epgNow = l.first { ($0.start ?? .distantFuture) <= Date() && ($0.end ?? .distantPast) > Date() } ?? l.first
+            epgNow = l.first { ($0.start ?? .distantFuture) <= TVTime.now && ($0.end ?? .distantPast) > TVTime.now } ?? l.first
         }
     }
 

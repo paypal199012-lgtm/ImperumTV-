@@ -68,7 +68,10 @@ struct ClockView: View {
     var body: some View {
         if mode != "off" {
         TimelineView(.periodic(from: .now, by: 1)) { ctx in
-            let c = Calendar.current.dateComponents([.hour, .minute, .second, .weekday, .day, .month], from: ctx.date)
+            let c: DateComponents = {
+                var cal = Calendar.current; cal.timeZone = TVTime.zone        // richtige Uhrzeit, auch wenn das Gerät falsch geht
+                return cal.dateComponents([.hour, .minute, .second, .weekday, .day, .month], from: ctx.date.addingTimeInterval(TVTime.off))
+            }()
             VStack(alignment: .trailing, spacing: 5) {
                 (Text(String(format: "%02d:%02d", c.hour ?? 0, c.minute ?? 0)).foregroundColor(UI.text)
                  + Text(mode == "sec" ? String(format: ":%02d", c.second ?? 0) : "").foregroundColor(UI.gold))

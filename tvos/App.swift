@@ -103,7 +103,7 @@ struct RootView: View {
         }
         // Abgleich „Weiterschauen/Gesehen“: App wieder vorn, Startseite, Weiterschauen (höchstens einmal pro Minute)
         .onChange(of: phase) { _, p in
-            if p == .active { resume.syncSoon() } else if p == .background { resume.syncSoon(force: true, delay: 0) }
+            if p == .active { resume.syncSoon(); Task { await TVTime.check(); await TVTime.detect(store) } } else if p == .background { resume.syncSoon(force: true, delay: 0) }
         }
         .onChange(of: nav.top) { _, t in
             if t == .home || t == .continueWatching { resume.syncSoon() }
@@ -121,7 +121,10 @@ struct RootView: View {
             engine.onSleep = { [weak nav] in nav?.reset(.home) }
             help.nav = nav; help.engine = engine; help.store = store
             if !TVStore.testMode { help.resume() }
+            TVTime.load()
             await store.start()
+            // Uhrzeit und Programm prüfen (falsche Uhr, UTC-Zeitzone, verschobenes Anbieter-Programm)
+            Task { await TVTime.check(); await TVTime.detect(store) }
             // Weiterschauen/Gesehen mit iPhone, Fire TV, Android … abgleichen (gleiche Zugangsdaten)
             resume.syncHost = { [weak store] in store?.syncAccount }
             resume.syncSoon(force: true)

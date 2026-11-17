@@ -205,7 +205,7 @@ struct FootballScreen: View {
     }
 
     private var days: [(String, [FMatch])] {
-        let f = DateFormatter(); f.locale = Locale(identifier: "de_DE"); f.dateFormat = "EEEE, d. MMMM"
+        let f = DateFormatter(); f.locale = Locale(identifier: "de_DE"); f.dateFormat = "EEEE, d. MMMM"; f.timeZone = TVTime.zone
         let cal = Calendar.current
         var out: [(String, [FMatch])] = []
         for m in list {
