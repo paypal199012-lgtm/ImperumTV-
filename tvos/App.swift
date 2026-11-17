@@ -83,7 +83,7 @@ struct RootView: View {
             Button("Erlauben") { help.start() }
             Button("Nein, danke", role: .cancel) {}
         } message: {
-            Text("Der Support von ImperumTV sieht dann ein Bild von ImperumTV auf deinem Bildschirm und kann die App mit einfachen Befehlen bedienen (z. B. Zurück, Live TV öffnen, Pause). Andere Apps bleiben unberührt. Die Fernhilfe endet nach spätestens 60 Minuten – oder wenn du sie beendest.")
+            Text("Wofür ist die Fernhilfe? Wenn du in ImperumTV nicht weiterkommst – z.\u{00a0}B. deine Liste lädt nicht oder du findest eine Einstellung nicht –, sieht der Support ein Bild von ImperumTV auf deinem Bildschirm und kann die App mit einfachen Befehlen bedienen (z.\u{00a0}B. Zurück, Live TV öffnen, Pause). Andere Apps bleiben unberührt. Die Fernhilfe endet nach spätestens 60 Minuten – oder wenn du sie beendest.\n\nBitte nur starten, wenn du wirklich Hilfe brauchst: höchstens 3× am Tag und frühestens 10 Minuten nach dem letzten Mal.")
         }
         .alert("Fernhilfe läuft", isPresented: $help.askingStop) {
             Button("Fernhilfe beenden", role: .destructive) { help.stop(tell: true) }
