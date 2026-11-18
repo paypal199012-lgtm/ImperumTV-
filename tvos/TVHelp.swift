@@ -39,11 +39,13 @@ final class RemoteHelp: ObservableObject {
         Task {
             let d = try? await RemoteAPI.rpc("device_help_start", ["p_mac": ids.mac, "p_key": ids.key])
             guard let o = json(d), let c = o["code"] as? String else {
-                message = "Fernhilfe ließ sich nicht starten. Prüfe die Internetverbindung."
+                // Schutz gegen Dauer-Anfragen (höchstens 3× am Tag, 10 Minuten Pause) – Text kommt vom Server
+                message = (json(d)?["error"] as? String) ?? "Fernhilfe ließ sich nicht starten. Prüfe die Internetverbindung."
                 return
             }
             code = c; ack = 0; lastSent = nil
-            UserDefaults.standard.set(["code": c, "until": Date().addingTimeInterval(3600).timeIntervalSince1970], forKey: "tv.help")
+            let mins = (o["minutes"] as? NSNumber)?.doubleValue ?? 60
+            UserDefaults.standard.set(["code": c, "until": Date().addingTimeInterval(mins * 60).timeIntervalSince1970], forKey: "tv.help")
             on = true
             message = "Fernhilfe läuft · Dein Code: \(codeText)\nNenne ihn dem Support. Beenden: Einstellungen → Fernhilfe."
             loop()

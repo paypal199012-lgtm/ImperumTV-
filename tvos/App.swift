@@ -43,6 +43,7 @@ struct RootView: View {
     @EnvironmentObject var resume: ResumeBook
     @AppStorage("tv.theme") private var theme = "gold"
     @State private var started = false
+    @Environment(\.scenePhase) private var phase
     @ObservedObject private var help = RemoteHelp.shared
     @ObservedObject private var backup = Backup.shared
 
@@ -82,7 +83,7 @@ struct RootView: View {
             Button("Erlauben") { help.start() }
             Button("Nein, danke", role: .cancel) {}
         } message: {
-            Text("Der Support von ImperumTV sieht dann ein Bild von ImperumTV auf deinem Bildschirm und kann die App mit einfachen Befehlen bedienen (z. B. Zurück, Live TV öffnen, Pause). Andere Apps bleiben unberührt. Die Fernhilfe endet nach spätestens 60 Minuten – oder wenn du sie beendest.")
+            Text("Wofür ist die Fernhilfe? Wenn du in ImperumTV nicht weiterkommst – z.\u{00a0}B. deine Liste lädt nicht oder du findest eine Einstellung nicht –, sieht der Support ein Bild von ImperumTV auf deinem Bildschirm und kann die App mit einfachen Befehlen bedienen (z.\u{00a0}B. Zurück, Live TV öffnen, Pause). Andere Apps bleiben unberührt. Die Fernhilfe endet nach spätestens 60 Minuten – oder wenn du sie beendest.\n\nBitte nur starten, wenn du wirklich Hilfe brauchst: höchstens 3× am Tag und frühestens 10 Minuten nach dem letzten Mal.")
         }
         .alert("Fernhilfe läuft", isPresented: $help.askingStop) {
             Button("Fernhilfe beenden", role: .destructive) { help.stop(tell: true) }
@@ -100,6 +101,13 @@ struct RootView: View {
         .alert(help.message ?? "", isPresented: Binding(get: { help.message != nil }, set: { if !$0 { help.message = nil } })) {
             Button("OK", role: .cancel) {}
         }
+        // Abgleich „Weiterschauen/Gesehen“: App wieder vorn, Startseite, Weiterschauen (höchstens einmal pro Minute)
+        .onChange(of: phase) { _, p in
+            if p == .active { resume.syncSoon(); Task { await TVTime.check(); await TVTime.detect(store) } } else if p == .background { resume.syncSoon(force: true, delay: 0) }
+        }
+        .onChange(of: nav.top) { _, t in
+            if t == .home || t == .continueWatching { resume.syncSoon() }
+        }
         .task {
             guard !started else { return }
             started = true
@@ -113,7 +121,13 @@ struct RootView: View {
             engine.onSleep = { [weak nav] in nav?.reset(.home) }
             help.nav = nav; help.engine = engine; help.store = store
             if !TVStore.testMode { help.resume() }
+            TVTime.load()
             await store.start()
+            // Uhrzeit und Programm prüfen (falsche Uhr, UTC-Zeitzone, verschobenes Anbieter-Programm)
+            Task { await TVTime.check(); await TVTime.detect(store) }
+            // Weiterschauen/Gesehen mit iPhone, Fire TV, Android … abgleichen (gleiche Zugangsdaten)
+            resume.syncHost = { [weak store] in store?.syncAccount }
+            resume.syncSoon(force: true)
             // Neue Folgen bei Favoriten und angefangenen Serien
             let src = store.sourceName
             let favIds = store.series.filter { store.isFav($0, .series) }.map(\.id)

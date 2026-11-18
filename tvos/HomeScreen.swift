@@ -40,7 +40,7 @@ struct HomeScreen: View {
             .place(0, 771, 1920, 126, alignment: .center)
 
             if let exp = store.expiry {
-                Text("Abo gültig bis \(exp.formatted(.dateTime.day(.twoDigits).month(.twoDigits).year()))")
+                Text("Wiedergabeliste gültig bis \(exp.formatted(.dateTime.day(.twoDigits).month(.twoDigits).year()))")
                     .font(UI.font(30, .bold))
                     .shadow(color: .black.opacity(0.7), radius: 3, y: 2)
                     .place(0, 1000, 1920, 46, alignment: .center)

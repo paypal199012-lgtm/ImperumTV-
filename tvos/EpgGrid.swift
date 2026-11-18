@@ -20,7 +20,7 @@ private func fmt(_ d: Date?) -> String {
     return hhmm.string(from: d)
 }
 
-private func isNow(_ e: EPGEntry, _ now: Date = Date()) -> Bool {
+private func isNow(_ e: EPGEntry, _ now: Date = TVTime.now) -> Bool {
     (e.start ?? .distantFuture) <= now && (e.end ?? .distantPast) > now
 }
 
@@ -39,7 +39,7 @@ struct EpgScreen: View {
     @State private var selEntry: EPGEntry?
 
     private var base: Date {
-        let now = Date().timeIntervalSince1970 + shift * 60
+        let now = TVTime.now.timeIntervalSince1970 + shift * 60
         return Date(timeIntervalSince1970: floor(now / 1800) * 1800)
     }
 
@@ -130,7 +130,7 @@ struct EpgScreen: View {
     private var info: some View {
         let e = shownEntry
         let list = (selCh ?? channels.first).flatMap { epg[$0.id] } ?? []
-        let after = list.filter { ($0.start ?? .distantPast) >= (e?.end ?? Date()) }.prefix(3)
+        let after = list.filter { ($0.start ?? .distantPast) >= (e?.end ?? TVTime.now) }.prefix(3)
         return VStack(alignment: .leading, spacing: 0) {
             Text(e?.title ?? "Kein Programm").font(UI.font(40, .heavy)).lineLimit(1)
             if let e = e {
@@ -211,7 +211,7 @@ struct EpgScreen: View {
     }
 
     private var grid: some View {
-        let nowX = CGFloat(Date().timeIntervalSince(base) / 60) * pxPerMin
+        let nowX = CGFloat(TVTime.now.timeIntervalSince(base) / 60) * pxPerMin
         return ZStack(alignment: .topLeading) {
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 8) {

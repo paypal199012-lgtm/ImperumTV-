@@ -261,6 +261,14 @@ final class TVStore: ObservableObject {
 
     var hasSource: Bool { source != .none }
 
+    /// Für den Abgleich „Weiterschauen/Gesehen“ mit den anderen Geräten: dieselbe Kennung wie app.js (FavSync.acc)
+    var syncAccount: (acc: String, source: String)? {
+        guard case .xtream(let a, let n) = source else { return nil }
+        var srv = a.server.trimmingCharacters(in: .whitespacesAndNewlines)
+        while srv.hasSuffix("/") { srv.removeLast() }
+        return (srv.lowercased() + "|" + a.username + "|" + a.password, n)
+    }
+
     var sourceName: String {
         switch source {
         case .none: return ""
@@ -325,7 +333,7 @@ final class TVStore: ObservableObject {
         }
     }
 
-    private func client(_ acc: Account) -> XtreamAPI { XtreamAPI(account: acc, userAgent: Self.userAgent) }
+    func client(_ acc: Account) -> XtreamAPI { XtreamAPI(account: acc, userAgent: Self.userAgent) }
 
     func load(_ acc: Account) async {
         loading = true
@@ -477,10 +485,10 @@ final class TVStore: ObservableObject {
         switch source {
         case .demo: return DemoData.epg()
         case .xtream(let acc, _):
-            if let c = epgCache[item.id], Date().timeIntervalSince(c.0) < 600 { return c.1 }
+            if let c = epgCache[item.id], Date().timeIntervalSince(c.0) < 600 { return TVTime.shifted(c.1) }
             let list = (try? await client(acc).shortEPG(streamId: item.id, limit: 6)) ?? []
             epgCache[item.id] = (Date(), list)
-            return list
+            return TVTime.shifted(list)
         case .m3u, .none: return []
         }
     }

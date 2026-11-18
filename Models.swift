@@ -53,6 +53,15 @@ struct EPGEntry: Identifiable, Hashable {
         return f
     }()
 
+    /// Aktuelle Uhrzeit (Apple TV setzt hier die korrigierte Uhr ein)
+    static var now: () -> Date = { Date() }
+    /// Zeitzone für die Anzeige der Sendezeiten
+    static func setZone(_ z: TimeZone) { timeFormatter.timeZone = z }
+    /// Dieselbe Sendung, zeitlich verschoben (Programm des Anbieters falsch)
+    func shifted(_ s: TimeInterval) -> EPGEntry {
+        EPGEntry(title: title, start: start?.addingTimeInterval(s), end: end?.addingTimeInterval(s), desc: desc)
+    }
+
     var timeRange: String {
         guard let start = start else { return "" }
         let s = Self.timeFormatter.string(from: start)
@@ -62,7 +71,7 @@ struct EPGEntry: Identifiable, Hashable {
 
     var progress: Double {
         guard let s = start, let e = end, e > s else { return 0 }
-        return min(max(Date().timeIntervalSince(s) / e.timeIntervalSince(s), 0), 1)
+        return min(max(Self.now().timeIntervalSince(s) / e.timeIntervalSince(s), 0), 1)
     }
 }
 

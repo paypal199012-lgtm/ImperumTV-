@@ -355,8 +355,11 @@ final class PlayerEngine: ObservableObject {
         guard let it = item, kind != .live, duration > 0 else { return }
         if kind == .series, index < episodes.count {
             let e = episodes[index]
+            let n = index + 1 < episodes.count ? episodes[index + 1] : nil
             book.save(source: source, kind: .series, item: it, pos: position, dur: duration, episode: index,
-                      episodeTitle: "S\(e.season) F\(e.number) · \(e.title)", episodeCount: episodes.count, episodeId: e.id)
+                      episodeTitle: "S\(e.season) F\(e.number) · \(e.title)", episodeCount: episodes.count, episodeId: e.id,
+                      season: e.season, num: e.number, epName: e.title,
+                      nextEp: n.map { (id: $0.id, season: $0.season, num: $0.number, title: $0.title) })
         } else {
             book.save(source: source, kind: .movie, item: it, pos: position, dur: duration)
         }
@@ -593,7 +596,7 @@ struct PlayerScreen: View {
         .task(id: engine.item?.id) {
             guard engine.kind == .live, let it = engine.item else { epgNow = nil; return }
             let l = await store.epg(it)
-            epgNow = l.first { ($0.start ?? .distantFuture) <= Date() && ($0.end ?? .distantPast) > Date() } ?? l.first
+            epgNow = l.first { ($0.start ?? .distantFuture) <= TVTime.now && ($0.end ?? .distantPast) > TVTime.now } ?? l.first
         }
     }
 
