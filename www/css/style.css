@@ -2066,3 +2066,11 @@ body.oldstick #app.anim-in *, body.lite #app.anim-in * { -webkit-animation: none
 .lv-act { white-space: nowrap; }
 .lv-acts.five .lv-act { padding: 14px 15px; margin-right: 9px; font-size: 21px; }
 body.ios .lv-acts.five .lv-act { padding: 12px 10px; margin-right: 7px; font-size: 19px; }
+
+/* Serien: Besetzung mit Fotos unter den Knöpfen */
+.detail.s1 .s1-castrow { margin-top: 4px; }
+.s1-castrow .cast-head { font-size: 22px; margin: 6px 0 2px 2px; }
+.s1-castrow .cast-inner { padding: 4px 0 4px 2px; }
+.s1-castrow .actor { width: 118px; margin-right: 6px; padding: 4px 0; }
+.s1-castrow .actor .photo { width: 84px; height: 84px; line-height: 84px; font-size: 28px; }
+.s1-castrow .actor .name { font-size: 17px; line-height: 21px; height: 42px; margin-top: 4px; }
