@@ -1,0 +1,64 @@
+{
+  "id": "neue-folgen-besetzung",
+  "title": "Neue Folgen aufräumen & Besetzung bei Serien",
+  "version": "",
+  "hook": {
+    "h": "Zu viele<br>„Neue Folgen“?",
+    "s": "Räum die Liste mit einem Klick auf.",
+    "art": {
+      "type": "clip",
+      "src": "clips/app-serien.mp4",
+      "from": 0.0,
+      "speed": 0.6
+    }
+  },
+  "scenes": [
+    {
+      "n": "SCHRITT 1",
+      "h": "Serie lange<br>OK drücken.",
+      "s": "Unter Serien → „Neue Folgen“.",
+      "art": {
+        "type": "clip",
+        "src": "clips/app-serien.mp4",
+        "from": 0.2,
+        "speed": 0.8
+      }
+    },
+    {
+      "n": "SCHRITT 2",
+      "h": "Aus der Liste<br>entfernen.",
+      "s": "Kommen neue Folgen dazu, ist sie wieder da.",
+      "art": {
+        "type": "clip",
+        "src": "clips/app-serien.mp4",
+        "from": 2.6
+      }
+    },
+    {
+      "n": "NEU",
+      "h": "Wer spielt mit?",
+      "s": "Bei jeder Serie: die Besetzung mit Fotos.",
+      "art": {
+        "type": "clip",
+        "src": "clips/app-serien.mp4",
+        "from": 6.4
+      }
+    },
+    {
+      "h": "Ein Klick auf<br>die Person.",
+      "s": "Alle Filme und Serien mit ihr aus deiner Liste.",
+      "art": {
+        "type": "clip",
+        "src": "clips/app-serien.mp4",
+        "from": 8.6
+      }
+    }
+  ],
+  "end": {
+    "h": "Jetzt im<br>Update.",
+    "s": "Neue Folgen aufräumen & Besetzung bei Serien – in ImperumTV."
+  },
+  "caption": "Serien-Fans aufgepasst 📺 „Neue Folgen“ einfach aufräumen und bei jeder Serie sehen, wer mitspielt – neu in ImperumTV.",
+  "hashtags": "#serien #firetvstick #androidtv #smarttv #techtipps #fyp",
+  "music": "boombap"
+}

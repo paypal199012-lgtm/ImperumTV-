@@ -29,6 +29,7 @@ Stile (alle passen auf das Raster: Intro 2,6 s, jede Szene 3,6 s, Abschluss 3 s)
   chiptune – 8-Bit-Videospiel: Rechteck-Melodie, schnelle Arpeggios, Rausch-Schlagzeug, 133 BPM
   rock     – Rock: verzerrte Powerchords in Achteln, treibender Bass, Backbeat-Snare, Becken, 133 BPM
   ska      – Ska: Offbeat-Gitarre (Skank), laufender Bass, Bläser-Stöße, schnelle Hi-Hats
+  boombap  – Hip-Hop der 90er: staubige Drums mit Swing, Vinyl-Knistern, warme Jazz-Klavier-Akkorde, 90 BPM-Gefühl
   kalimba  – ruhig und freundlich: Kalimba-Melodie, weicher Beat mit Rimshot, runder Bass, 100 BPM – gut für Anleitungen
 Ohne Stil wird er aus dem Startwert (z. B. der Video-ID) gewählt.
 """
@@ -39,7 +40,7 @@ out, n_scenes = sys.argv[1], int(sys.argv[2])
 style = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ''
 seed_txt = sys.argv[4] if len(sys.argv) > 4 else style
 seed = zlib.crc32(seed_txt.encode()) & 0xffffffff
-STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb', 'bossa', 'lullaby', 'afro', 'chiptune', 'rock', 'ska', 'kalimba']
+STYLES = ['drama', 'upbeat', 'chill', 'playful', 'epic', 'tech', 'funk', 'ambient', 'house', 'trap', 'synthwave', 'piano', 'garage', 'cinematic', 'latin', 'disco', 'reggae', 'jazz', 'dnb', 'bossa', 'lullaby', 'afro', 'chiptune', 'rock', 'ska', 'kalimba', 'boombap']
 if style not in STYLES:
     style = STYLES[seed % len(STYLES)]
 
@@ -578,6 +579,22 @@ elif style == 'kalimba':                  # 100 BPM, 6 Schläge pro Szene, ruhig
         if k % 12 == 0: m.add(lp(chord(ch, B * 6, 0.025, 1400, 'tri'), 1400), t, 1, 0.1)
         t += B; k += 1
     outro(prog[0], B)
+
+elif style == 'boombap':                  # 100 BPM (Raster), halbes Tempo-Gefühl, Swing, Vinyl
+    B = 0.6; prog = [['D3', 'F3', 'A3', 'C4'], ['G3', 'B3', 'D4', 'F4'], ['C3', 'E3', 'G3', 'B3'], ['A3', 'C4', 'E4', 'G4']]
+    m.add(hp(noise(int(SR * D)), 3000) * 0.01, 0)                                    # Knistern
+    sw = B / 2 * 0.22
+    t = 0.3; k = 0
+    while t < D - 0.4:
+        ch = notes(prog[(k // 6) % 4])
+        if k % 6 in (0, 4): m.add(lp(kick(), 400), t, 1.0)
+        if k % 6 == 2 or k % 6 == 5: m.add(lp(snare(0.9), 4000), t, 0.85)
+        if k % 6 == 3: m.add(lp(kick(), 400), t + B / 2 + sw, 0.6)
+        m.add(hat(g=0.1), t, 1, 0.3); m.add(hat(g=0.07), t + B / 2 + sw, 1, 0.3)
+        if k % 6 == 0: m.add(lp(epiano(ch, B * 5.5, 0.07), 2200), t, 1, -0.1)
+        if k % 3 == 0: m.add(lp(tone(ch[0] / 2, B * 2.4, 'sine', a=0.01, d=0.9, gain=0.42), 260), t)
+        t += B; k += 1
+    outro(prog[0][:3], B)
 
 else:                                     # garage: 2-Step mit Swing
     B = 0.45; prog = [['D3', 'F3', 'A3', 'C4'], ['G3', 'B3', 'D4', 'F4'], ['C4', 'E4', 'G4', 'B4'], ['A3', 'C4', 'E4', 'G4']]
