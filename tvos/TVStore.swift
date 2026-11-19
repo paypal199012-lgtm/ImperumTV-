@@ -247,6 +247,13 @@ final class TVStore: ObservableObject {
         newEpisodes.remove(s.id)
     }
 
+    /// Serie aus „Neue Folgen“ nehmen (bis wieder neue dazukommen)
+    func dismissNewEpisodes(_ s: TVItem) async {
+        let n = await episodes(s).count
+        if n > 0 { UserDefaults.standard.set(n, forKey: epCountKey(s.id)) }
+        newEpisodes.remove(s.id)
+    }
+
     func checkNewEpisodes(_ ids: [Int]) async {
         var out: Set<Int> = []
         for id in ids.prefix(25) {

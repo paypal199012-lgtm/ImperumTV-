@@ -97,7 +97,7 @@ struct VodScreen: View {
         let list = items
         ZStack(alignment: .topLeading) {
             ScreenTitle(text: title)
-            Text("OK: Öffnen · lange drücken: Favorit").font(UI.font(24)).foregroundColor(UI.muted)
+            Text(cat == "neweps" ? "OK: Öffnen · lange drücken: Entfernen / Favorit" : "OK: Öffnen · lange drücken: Favorit").font(UI.font(24)).foregroundColor(UI.muted)
                 .place(1100, 44, 570, 34, alignment: .topTrailing)
 
             ScrollView(.vertical, showsIndicators: false) {
@@ -143,6 +143,9 @@ struct VodScreen: View {
                         PosterCard(item: it, fav: store.isFav(it, kind),
                                    badge: kind == .series && store.newEpisodes.contains(it.id) ? "NEU" : (kind == .movie && resume.isSeen(src, movie: it.id) ? "✓" : nil)) { open(it) }
                             .contextMenu {
+                                if kind == .series && store.newEpisodes.contains(it.id) {
+                                    Button("Aus „Neue Folgen“ entfernen") { Task { await store.dismissNewEpisodes(it) } }
+                                }
                                 Button(store.isFav(it, kind) ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen") { store.toggleFav(it, kind) }
                                 if kind == .movie {
                                     Button(resume.isSeen(src, movie: it.id) ? "Als nicht gesehen markieren" : "Als gesehen markieren") { resume.toggleSeen(src, movie: it.id) }
@@ -252,6 +255,12 @@ struct SeriesScreen: View {
                 .padding(.top, 6)
             }
             .place(430, 130, 1440, 300)
+
+            // Besetzung mit Fotos (wie in der Android-App)
+            let castNames = CastNames.parse(info?.cast, max: 9)
+            if !castNames.isEmpty {
+                CastRow(names: castNames, photo: 80).place(430, 412, 1440, 176)
+            }
 
             if loading {
                 ProgressView().scaleEffect(1.6).tint(UI.gold).place(90, 620, 300, 100)
