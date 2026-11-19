@@ -1005,7 +1005,7 @@ body.lowfx .sy-logo { filter: none; }
 
 /* ---------- Neue Folgen ---------- */
 .circle { position: relative; }
-.circle .circle-nb { position: absolute; top: 14px; right: 10px; min-width: 56px; height: 56px; padding: 0 12px; border-radius: 28px; box-sizing: border-box;
+.circle .circle-nb { position: absolute; top: 48px; right: 48px; z-index: 2; box-shadow: 0 3px 10px rgba(0,0,0,.55); min-width: 56px; height: 56px; padding: 0 12px; border-radius: 28px; box-sizing: border-box;
     background: #e5372d; color: #fff; font-size: 28px; font-weight: bold; line-height: 50px; text-align: center; border: 3px solid #141416; }
 .poster .img .new-badge { position: absolute; left: 8px; bottom: 26px; background: #e5372d; color: #fff; font-size: 18px; font-weight: bold;
     padding: 4px 10px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.6); }
