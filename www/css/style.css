@@ -2074,3 +2074,5 @@ body.ios .lv-acts.five .lv-act { padding: 12px 10px; margin-right: 7px; font-siz
 .s1-castrow .actor { width: 118px; margin-right: 6px; padding: 4px 0; }
 .s1-castrow .actor .photo { width: 84px; height: 84px; line-height: 84px; font-size: 28px; }
 .s1-castrow .actor .name { font-size: 17px; line-height: 21px; height: 42px; margin-top: 4px; }
+/* Filme/Serien: Kategorien genauso weit vom Rand wie bei Live TV */
+.vod-r1 .col-cats .scroll { padding: 0 10px 0 30px; box-sizing: border-box; }
