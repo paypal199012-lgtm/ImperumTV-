@@ -5,6 +5,9 @@ struct PosterCard: View {
     let item: TVItem
     var fav = false
     var badge: String? = nil
+    /// Doppelte Filme: Sprachen/Qualitäten (DE, EN, 4K …) und Titel ohne Zusätze
+    var tags: [String] = []
+    var title: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -25,6 +28,19 @@ struct PosterCard: View {
                     .overlay(alignment: .topTrailing) {
                         if fav { Text("★").font(UI.font(26)).foregroundColor(UI.gold2).padding(10) }
                     }
+                    .overlay(alignment: .bottomLeading) {
+                        if !tags.isEmpty {
+                            HStack(spacing: 5) {
+                                ForEach(Array(tags.prefix(badge == nil ? 4 : 3).enumerated()), id: \.offset) { _, t in
+                                    Text(t).font(UI.font(16, .heavy)).foregroundColor(UI.gold2)
+                                        .padding(.horizontal, 7).padding(.vertical, 4)
+                                        .background(RoundedRectangle(cornerRadius: 7).fill(.black.opacity(0.82)))
+                                        .overlay(RoundedRectangle(cornerRadius: 7).stroke(UI.gold.opacity(0.75), lineWidth: 1.5))
+                                }
+                            }
+                            .padding(8)
+                        }
+                    }
                     .overlay(alignment: .bottomTrailing) {
                         if let b = badge {
                             Text(b).font(UI.font(18, .heavy)).foregroundColor(UI.dark)
@@ -32,7 +48,7 @@ struct PosterCard: View {
                                 .background(Capsule().fill(UI.gold)).padding(8)
                         }
                     }
-                Text(item.name).font(UI.font(24)).lineLimit(2).multilineTextAlignment(.leading)
+                Text(title ?? item.name).font(UI.font(24)).lineLimit(2).multilineTextAlignment(.leading)
                     .frame(width: 200, height: 62, alignment: .topLeading)
             }
             .padding(10)
@@ -55,6 +71,8 @@ struct VodScreen: View {
     @State private var query = ""
     @State private var sort = 0
     @State private var askPin = false
+    @State private var chooseFor: DupGroup? = nil
+    private var dups: MovieDups { MovieDups.shared }
 
     private static let sorts = ["Standard", "Neueste", "A–Z", "Bewertung"]
     private var title: String { kind == .movie ? "Filme" : "Serien" }
@@ -90,8 +108,17 @@ struct VodScreen: View {
         case 3: l.sort { $0.rating > $1.rating }
         default: break
         }
+        if kind == .movie { prepDups(); l = dups.collapse(l) }
         return l
     }
+
+    /// Gruppen der doppelten Filme (einmal je Liste)
+    private func prepDups() {
+        guard kind == .movie, dups.on else { return }
+        let cats = store.vodCats
+        _ = dups.groups(store.items(.movie)) { id in cats.first { $0.id == id }?.name ?? "" }
+    }
+    private func movieCount(_ l: [TVItem]) -> Int { kind == .movie ? dups.collapse(l).count : l.count }
 
     var body: some View {
         let list = items
@@ -106,11 +133,11 @@ struct VodScreen: View {
                     CatRow(name: "Sortieren: \(Self.sorts[sort])", icon: nil, gold: true) { sort = (sort + 1) % Self.sorts.count }
                         .focused($focus, equals: .sort)
                     SectionHead(text: "Für dich")
-                    row("all", "☰ Alle", store.visible(kind).count)
+                    row("all", "☰ Alle", movieCount(store.visible(kind)))
                     row("fav", "★ Favoriten", store.items(kind).filter { store.isFav($0, kind) }.count)
                     row("resume", "▶ Weiter ansehen", started.count)
                     if kind == .movie {
-                        row("seen", "✓ Gesehen", store.items(kind).filter { resume.isSeen(src, movie: $0.id) }.count)
+                        row("seen", "✓ Gesehen", movieCount(store.items(kind).filter { resume.isSeen(src, movie: $0.id) }))
                     }
                     SectionHead(text: "Neu & Stöbern")
                     if kind == .series { row("neweps", "● Neue Folgen", store.newEpisodes.count) }
@@ -140,8 +167,10 @@ struct VodScreen: View {
                 }
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(220), spacing: 22), count: 6), alignment: .leading, spacing: 26) {
                     ForEach(list) { it in
-                        PosterCard(item: it, fav: store.isFav(it, kind),
-                                   badge: kind == .series && store.newEpisodes.contains(it.id) ? "NEU" : (kind == .movie && resume.isSeen(src, movie: it.id) ? "✓" : nil)) { open(it) }
+                        let dg = kind == .movie ? dups.group(it) : nil
+                        PosterCard(item: it, fav: dg.map { g in g.items.contains { store.isFav($0, kind) } } ?? store.isFav(it, kind),
+                                   badge: kind == .series && store.newEpisodes.contains(it.id) ? "NEU" : (kind == .movie && resume.isSeen(src, movie: it.id) ? "✓" : nil),
+                                   tags: dg.map { dups.badges($0) } ?? [], title: dg.map { dups.title($0) }) { open(it) }
                             .contextMenu {
                                 if kind == .series && store.newEpisodes.contains(it.id) {
                                     Button("Aus „Neue Folgen“ entfernen") { Task { await store.dismissNewEpisodes(it) } }
@@ -165,6 +194,17 @@ struct VodScreen: View {
                 }
             }
         }
+        .confirmationDialog(chooseFor.map { dups.title($0) } ?? "", isPresented: Binding(get: { chooseFor != nil }, set: { if !$0 { chooseFor = nil } }),
+                            titleVisibility: .visible) {
+            if let g = chooseFor {
+                ForEach(dupOptions(g)) { o in
+                    Button(o.label) { chooseFor = nil; dups.remember(o.info); nav.push(.movieDetail(o.item)) }
+                }
+                Button("Abbrechen", role: .cancel) { chooseFor = nil }
+            }
+        } message: {
+            Text("Diesen Film gibt es \(chooseFor?.items.count ?? 0)× in deiner Liste. Welche Fassung möchtest du schauen?")
+        }
         .frame(width: 1920, height: 1080)
         .defaultFocus($focus, nav.lastFocus[title].flatMap { Int($0) }.map { F.item($0) } ?? .item(list.first?.id ?? 0))
         .onChange(of: focus) { _, f in
@@ -184,8 +224,18 @@ struct VodScreen: View {
             .focused($focus, equals: .cat(id))
     }
 
+    private func dupOptions(_ g: DupGroup) -> [DupOption] {
+        dups.options(g) { id in resume.entry(src, .movie, id).flatMap { e -> (pos: Double, at: Double)? in e.pos >= 30 ? (pos: e.pos, at: e.at) : nil } }
+    }
+
     private func open(_ it: TVItem) {
         if kind == .series { nav.push(.seriesDetail(it)); return }
+        // Film mehrfach vorhanden (andere Qualität/Sprache): Fassung wählen (bei „Weiter ansehen“ direkt die angefangene)
+        if cat != "resume", let g = dups.group(it) {
+            if dups.mode == .auto, let o = dupOptions(g).first { dups.remember(o.info); nav.push(.movieDetail(o.item)); return }
+            chooseFor = g
+            return
+        }
         nav.push(.movieDetail(it))
     }
 }

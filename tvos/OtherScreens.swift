@@ -179,8 +179,20 @@ struct ResultRows: View {
     @EnvironmentObject var store: TVStore
     @EnvironmentObject var nav: Nav
     @EnvironmentObject var engine: PlayerEngine
+    @EnvironmentObject var resume: ResumeBook
+    @State private var chooseFor: DupGroup? = nil
+    private var dups: MovieDups { MovieDups.shared }
+
+    /// Filme: doppelte Fassungen (Qualität/Sprache) nur einmal
+    private var shown: [TVItem] {
+        guard kind == .movie, dups.on else { return items }
+        let cats = store.vodCats
+        _ = dups.groups(store.items(.movie)) { id in cats.first { $0.id == id }?.name ?? "" }
+        return dups.collapse(items)
+    }
 
     var body: some View {
+        let items = shown
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 SectionHead(text: "\(title) · \(items.count)")
@@ -197,20 +209,44 @@ struct ResultRows: View {
                                 }
                                 .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 12)), scale: 1.05))
                             } else {
-                                PosterCard(item: it, fav: store.isFav(it, kind)) { open(it) }
+                                let dg = kind == .movie ? dups.group(it) : nil
+                                PosterCard(item: it, fav: store.isFav(it, kind), tags: dg.map { dups.badges($0) } ?? [],
+                                           title: dg.map { dups.title($0) }) { open(it) }
                             }
                         }
                     }
                     .padding(16)
                 }
             }
+            .confirmationDialog(chooseFor.map { dups.title($0) } ?? "", isPresented: Binding(get: { chooseFor != nil }, set: { if !$0 { chooseFor = nil } }),
+                                titleVisibility: .visible) {
+                if let g = chooseFor {
+                    ForEach(options(g)) { o in
+                        Button(o.label) { chooseFor = nil; dups.remember(o.info); nav.push(.movieDetail(o.item)) }
+                    }
+                    Button("Abbrechen", role: .cancel) { chooseFor = nil }
+                }
+            } message: {
+                Text("Diesen Film gibt es \(chooseFor?.items.count ?? 0)× in deiner Liste. Welche Fassung möchtest du schauen?")
+            }
         }
+    }
+
+    private func options(_ g: DupGroup) -> [DupOption] {
+        let src = store.sourceName
+        return dups.options(g) { id in resume.entry(src, .movie, id).flatMap { e -> (pos: Double, at: Double)? in e.pos >= 30 ? (pos: e.pos, at: e.at) : nil } }
     }
 
     private func open(_ it: TVItem) {
         switch kind {
         case .series: nav.push(.seriesDetail(it))
-        case .movie: nav.push(.movieDetail(it))
+        case .movie:
+            if let g = dups.group(it) {
+                if dups.mode == .auto, let o = options(g).first { dups.remember(o.info); nav.push(.movieDetail(o.item)); return }
+                chooseFor = g
+                return
+            }
+            nav.push(.movieDetail(it))
         case .live:
             guard let u = store.url(it, kind) else { return }
             if kind == .live { engine.items = items; engine.index = items.firstIndex(of: it) ?? 0 }

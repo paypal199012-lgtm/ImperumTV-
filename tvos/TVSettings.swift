@@ -197,6 +197,14 @@ struct SettingsScreen: View {
                     row("play", "Player Live TV", Self.engName(engine.liveEngine)) {
                         engine.liveEngine = Self.nextEngine(engine.liveEngine)
                     }
+                    row("list", "Doppelte Filme", MovieDups.shared.label) {
+                        MovieDups.shared.nextMode()
+                        switch MovieDups.shared.mode {
+                        case .ask: show("Gleiche Filme (4K, HD, Deutsch, Englisch …) als eine Kachel – beim Öffnen wählst du die Fassung")
+                        case .auto: show("Gleiche Filme als eine Kachel – die beste Fassung startet direkt")
+                        case .off: show("Alle Fassungen einzeln")
+                        }
+                    }
                     row("tv", "Sender zusammenfassen", store.mergeOn ? "An" : "Aus") {
                         store.mergeOn.toggle()
                         show(store.mergeOn ? "Gleiche Sender in mehreren Qualitäten stehen nur noch einmal da" : "Alle Qualitäten einzeln")
