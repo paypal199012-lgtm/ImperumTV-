@@ -2074,3 +2074,12 @@ body.ios .lv-acts.five .lv-act { padding: 12px 10px; margin-right: 7px; font-siz
 .s1-castrow .actor { width: 118px; margin-right: 6px; padding: 4px 0; }
 .s1-castrow .actor .photo { width: 84px; height: 84px; line-height: 84px; font-size: 28px; }
 .s1-castrow .actor .name { font-size: 17px; line-height: 21px; height: 42px; margin-top: 4px; }
+/* Live TV: Kategorien genauso nah am linken Rand wie bei Filme und Serien */
+.live-b .col-cats { left: 0; width: 420px; }
+.live-b .col-cats .scroll { padding: 0 10px 0 0; box-sizing: border-box; }
+
+/* Doppelte Filme zusammengefasst: Schilder mit Sprachen und Qualitäten unten rechts auf dem Poster */
+.poster .img .fass { position: absolute; right: 8px; bottom: 14px; z-index: 2; display: flex; flex-wrap: wrap-reverse; justify-content: flex-end; gap: 5px; max-width: 184px; pointer-events: none; }
+.poster .img .fass b { background: rgba(12,10,8,.84); border: 1.5px solid rgba(217,176,102,.75); color: #f4dc9e; font-size: 16px; font-weight: 800; line-height: 1; padding: 5px 8px; border-radius: 7px; letter-spacing: .4px; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.poster.seen .img .fass { bottom: 40px; }
+.similar .poster .img .fass b, .search-results .poster .img .fass b { font-size: 14px; padding: 4px 6px; }
