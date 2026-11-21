@@ -434,6 +434,7 @@ final class NativePlayer {
     private var statusObs: NSKeyValueObservation?
     private var tcsObs: NSKeyValueObservation?
     private var vlcTimer: Timer?
+    private var vlcLastT: Int32 = -1
     private var langPicked = false
     private let ua = "ImperumTV/1.0 (iPhone)"
 
@@ -565,17 +566,24 @@ final class NativePlayer {
         vlc.play()
         setBuffering(true)
         vlcTimer?.invalidate()
+        vlcLastT = -1
         vlcTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.pollVLC() }
     }
 
     private func pollVLC() {
         guard active, useVLC else { return }
-        switch vlc.state {
-        case .playing: sendReady(); emit?("time", Double(vlc.time.intValue) / 1000); pickLanguage()
-        case .buffering, .opening: if !readySent { setBuffering(true) }
+        let st = vlc.state, t = vlc.time.intValue
+        switch st {
         case .error: active = false; emit?("error", "VLC: Wiedergabe fehlgeschlagen")
         case .ended, .stopped: if readySent { active = false; emit?(isLive ? "error" : "end", isLive ? "VLC: Verbindung abgebrochen" : nil) }
-        default: break
+        default:
+            // VLC meldet bei manchen Dateien (v. a. MKV) dauerhaft „buffering“, obwohl das Bild längst läuft.
+            // Dann zählt die weiterlaufende Zeit: sonst hält die App den Film für hängend und lädt ihn alle 15 s neu.
+            let moving = vlc.isPlaying && t > 0 && t != vlcLastT
+            if st == .playing || moving {
+                vlcLastT = t
+                sendReady(); emit?("time", Double(t) / 1000); pickLanguage()
+            } else if (st == .buffering || st == .opening) && !readySent { setBuffering(true) }
         }
     }
 
