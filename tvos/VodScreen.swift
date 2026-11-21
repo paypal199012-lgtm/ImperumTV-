@@ -93,7 +93,9 @@ struct VodScreen: View {
         case "seen": l = all.filter { resume.isSeen(src, movie: $0.id) }
         case "unseen": l = all.filter { !resume.isSeen(src, movie: $0.id) }
         case "neweps": l = all.filter { store.newEpisodes.contains($0.id) }
-        case "new": l = all.sorted { $0.added > $1.added }.prefix(200).map { $0 }
+        case "new":   // immer 150 verschiedene (doppelte Filme zählen einmal)
+            prepDups()
+            l = Array(dups.collapse(all.sorted { $0.added > $1.added }, kind).prefix(150))
         case "year": let y = Calendar.current.component(.year, from: Date()); l = all.filter { $0.year == y }
         case let c where c.hasPrefix("g:"):
             let bit = 1 << (Int(c.dropFirst(2)) ?? 0)
@@ -108,17 +110,17 @@ struct VodScreen: View {
         case 3: l.sort { $0.rating > $1.rating }
         default: break
         }
-        if kind == .movie { prepDups(); l = dups.collapse(l) }
+        prepDups(); l = dups.collapse(l, kind)
         return l
     }
 
     /// Gruppen der doppelten Filme (einmal je Liste)
     private func prepDups() {
-        guard kind == .movie, dups.on else { return }
-        let cats = store.vodCats
-        _ = dups.groups(store.items(.movie)) { id in cats.first { $0.id == id }?.name ?? "" }
+        guard kind == .movie || kind == .series, dups.on else { return }
+        let cats = kind == .series ? store.seriesCats : store.vodCats
+        _ = dups.groups(store.items(kind), kind: kind) { id in cats.first { $0.id == id }?.name ?? "" }
     }
-    private func movieCount(_ l: [TVItem]) -> Int { kind == .movie ? dups.collapse(l).count : l.count }
+    private func movieCount(_ l: [TVItem]) -> Int { dups.collapse(l, kind).count }
 
     var body: some View {
         let list = items
@@ -167,7 +169,7 @@ struct VodScreen: View {
                 }
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(220), spacing: 22), count: 6), alignment: .leading, spacing: 26) {
                     ForEach(list) { it in
-                        let dg = kind == .movie ? dups.group(it) : nil
+                        let dg = dups.group(it, kind)
                         PosterCard(item: it, fav: dg.map { g in g.items.contains { store.isFav($0, kind) } } ?? store.isFav(it, kind),
                                    badge: kind == .series && store.newEpisodes.contains(it.id) ? "NEU" : (kind == .movie && resume.isSeen(src, movie: it.id) ? "✓" : nil),
                                    tags: dg.map { dups.badges($0) } ?? [], title: dg.map { dups.title($0) }) { open(it) }
@@ -198,12 +200,12 @@ struct VodScreen: View {
                             titleVisibility: .visible) {
             if let g = chooseFor {
                 ForEach(dupOptions(g)) { o in
-                    Button(o.label) { chooseFor = nil; dups.remember(o.info); nav.push(.movieDetail(o.item)) }
+                    Button(o.label) { chooseFor = nil; dups.remember(o.info); nav.push(kind == .series ? .seriesDetail(o.item) : .movieDetail(o.item)) }
                 }
                 Button("Abbrechen", role: .cancel) { chooseFor = nil }
             }
         } message: {
-            Text("Diesen Film gibt es \(chooseFor?.items.count ?? 0)× in deiner Liste. Welche Fassung möchtest du schauen?")
+            Text((kind == .series ? "Diese Serie" : "Diesen Film") + " gibt es \(chooseFor?.items.count ?? 0)× in deiner Liste. Welche Fassung möchtest du schauen?")
         }
         .frame(width: 1920, height: 1080)
         .defaultFocus($focus, nav.lastFocus[title].flatMap { Int($0) }.map { F.item($0) } ?? .item(list.first?.id ?? 0))
@@ -225,14 +227,13 @@ struct VodScreen: View {
     }
 
     private func dupOptions(_ g: DupGroup) -> [DupOption] {
-        dups.options(g) { id in resume.entry(src, .movie, id).flatMap { e -> (pos: Double, at: Double)? in e.pos >= 30 ? (pos: e.pos, at: e.at) : nil } }
+        dups.options(g, series: kind == .series) { id in resume.entry(src, kind, id).flatMap { e -> (pos: Double, at: Double)? in (kind == .series || e.pos >= 30) ? (pos: e.pos, at: e.at) : nil } }
     }
 
     private func open(_ it: TVItem) {
-        if kind == .series { nav.push(.seriesDetail(it)); return }
-        // Film mehrfach vorhanden (andere Qualität/Sprache): Fassung wählen (bei „Weiter ansehen“ direkt die angefangene)
-        if cat != "resume", let g = dups.group(it) {
-            if dups.mode == .auto, let o = dupOptions(g).first { dups.remember(o.info); nav.push(.movieDetail(o.item)); return }
+        // Film/Serie mehrfach vorhanden (andere Qualität/Sprache): Fassung wählen (bei „Weiter ansehen“ direkt die angefangene)
+        if cat != "resume" && cat != "neweps", let g = dups.group(it, kind) {
+            if dups.mode == .auto, let o = dupOptions(g).first { dups.remember(o.info); nav.push(kind == .series ? .seriesDetail(o.item) : .movieDetail(o.item)); return }
             chooseFor = g
             return
         }
