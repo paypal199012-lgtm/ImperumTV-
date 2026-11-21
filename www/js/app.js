@@ -9542,7 +9542,9 @@
         SKIP: { HEVC: 1, H265: 1, X265: 1, H264: 1, X264: 1, HDR: 1, HDR10: 1, DV: 1, DOLBY: 1, ATMOS: 1, '10BIT': 1, SUB: 1, SUBS: 1, VOD: 1 },
         // Quelle/Streamingdienst („AMZ - Film“, „4K-A+ - Film“, „NF | Film“): nur in GROSSSCHRIFT, sonst wären „Sky“, „Prime“, „Max“ im Titel betroffen
         SVC: { AMZ: 1, AMAZON: 1, PRIME: 1, NF: 1, NFLX: 1, NETFLIX: 1, APLUS: 1, ATV: 1, ATVP: 1, APPLE: 1, DPLUS: 1, DSNP: 1, DISNEY: 1, HMAX: 1, MAX: 1, HBO: 1,
-            SKY: 1, WOW: 1, PPLUS: 1, PMTP: 1, PARAMOUNT: 1, RTLPLUS: 1, JOYN: 1, MAGENTA: 1, MGM: 1, PCOK: 1, PEACOCK: 1, HULU: 1, CRAV: 1, STAN: 1, iT: 1, WEB: 1, WEBDL: 1, WEBRIP: 1, BLURAY: 1, BD: 1, REMUX: 1, CAM: 1, TS: 1 },
+            SKY: 1, WOW: 1, PPLUS: 1, PMTP: 1, PARAMOUNT: 1, RTLPLUS: 1, JOYN: 1, MAGENTA: 1, MGM: 1, PCOK: 1, PEACOCK: 1, HULU: 1, CRAV: 1, STAN: 1, iT: 1, WEB: 1, WEBDL: 1, WEBRIP: 1, BLURAY: 1, BD: 1, REMUX: 1, CAM: 1, TS: 1,
+            // Rubriken des Anbieters („TOP - Film“, „4K-TOP - Film“, „AS - Film“)
+            TOP: 1, VIP: 1, HOT: 1, NEW: 1, NEU: 1, AS: 1, KINO: 1, CINEMA: 1 },
         RANK: { '8K': 5, '4K': 4, FHD: 3, HD: 2, SD: 1 },
         mode: function () { var m = Storage.get('dupMode', 'ask'); return m === 'auto' || m === 'off' ? m : 'ask'; },
         on: function () { return this.mode() !== 'off'; },
@@ -9568,13 +9570,19 @@
         },
         tagsRaw: function (txt) {
             // „A+“, „D+“, „RTL+“ (Apple TV+, Disney+ …) als ein Wort
-            var parts = String(txt).replace(/\b([A-Za-z]{1,8})\+/g, '$1PLUS').split(/[\s\/,+&_.\-]+/), out = [];
+            var parts = String(txt).replace(/\b([A-Za-z]{1,8})\+/g, '$1PLUS').split(/[\s\/,+&_.\-]+/), out = [], known = false, odd = 0;
             for (var i = 0; i < parts.length; i++) {
                 if (!parts[i]) continue;
                 var t = this.tag(parts[i]);
-                if (!t) return null;
+                if (!t) {
+                    // unbekanntes Kürzel neben einer Qualität/Sprache („4K-XYZ“): nur GROSS, 2–5 Buchstaben
+                    if (/^[A-Z]{2,5}$/.test(parts[i])) { odd++; continue; }
+                    return null;
+                }
+                if (t.q || t.l) known = true;
                 out.push(t);
             }
+            if (odd && !known) return null;
             return out.length ? out : null;
         },
         add: function (p, list) {
@@ -9642,6 +9650,13 @@
             var k = s.toLowerCase();
             if (/[^\x00-\x7f]/.test(k)) { try { k = k.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) { /* alte Geräte */ } k = k.replace(/ß/g, 'ss'); }
             p.key = (' ' + k.replace(/[^a-z0-9]+/g, ' ') + ' ').replace(/ (und|and|et) /g, ' ').trim();
+            // „Eiserne Wildnis: Heart of the Beast“: beide Teile merken (gleicher Film unter dem anderen Titel)
+            var ci = k.indexOf(': ');
+            if (ci > 0) {
+                var norm = function (x) { return (' ' + x.replace(/[^a-z0-9]+/g, ' ') + ' ').replace(/ (und|and|et) /g, ' ').trim(); };
+                var a1 = norm(k.slice(0, ci)), a2 = norm(k.slice(ci + 2));
+                p.alt = [a1, a2].filter(function (x) { return x.length >= 8 && x.indexOf(' ') > 0; });
+            }
             if (!p.langs.length) { var cl = this.langOfCat(m.cat); if (cl) { p.langs.push(cl); p.fromCat = true; } }
             return p;
         },
@@ -9658,6 +9673,31 @@
                 if (!p.key) continue;
                 var k = p.key + '|' + (p.year || '');
                 (byKey[k] || (byKey[k] = [])).push({ m: m, p: p });
+            }
+            // Doppeltitel: „Eiserne Wildnis: Heart of the Beast (2026)“ zu „Heart of the Beast (2026)“ (nur mit gleichem Jahr)
+            var moved = {};
+            for (var ka in byKey) {
+                if (!byKey.hasOwnProperty(ka) || moved[ka] || /\|$/.test(ka)) continue;
+                var arrA = byKey[ka], yr = ka.slice(ka.lastIndexOf('|'));
+                for (i = 0; i < arrA.length; i++) {
+                    var alts = arrA[i].p.alt;
+                    if (!alts) continue;
+                    for (j = 0; j < alts.length; j++) {
+                        var kb = alts[j] + yr;
+                        if (kb !== ka && byKey[kb] && !moved[kb]) {
+                            byKey[kb] = byKey[kb].concat(arrA); moved[ka] = 1; delete byKey[ka]; break;
+                        }
+                    }
+                    if (moved[ka]) break;
+                }
+            }
+            // ohne Jahr („TOP - Film“) zu der einzigen Fassung mit Jahr („4K-TOP - Film (2015)“)
+            var withYear = {};
+            for (var ky in byKey) if (byKey.hasOwnProperty(ky) && !/\|$/.test(ky)) { var tk = ky.slice(0, ky.lastIndexOf('|')); (withYear[tk] || (withYear[tk] = [])).push(ky); }
+            for (var kn in byKey) {
+                if (!byKey.hasOwnProperty(kn) || !/\|$/.test(kn)) continue;
+                var wy = withYear[kn.slice(0, -1)];
+                if (wy && wy.length === 1) { byKey[wy[0]] = byKey[wy[0]].concat(byKey[kn]); delete byKey[kn]; }
             }
             for (var k2 in byKey) {
                 if (!byKey.hasOwnProperty(k2)) continue;

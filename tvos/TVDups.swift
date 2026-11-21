@@ -10,6 +10,8 @@ struct DupInfo {
     var langs: [String] = []
     var q = ""
     var d3 = false
+    /// „Eiserne Wildnis: Heart of the Beast“ → beide Teile (gleicher Film unter anderem Titel)
+    var alt: [String] = []
     var sig: String { langs.joined(separator: "+") + "|" + q + "|" + (d3 ? "1" : "0") }
 }
 
@@ -68,7 +70,9 @@ final class MovieDups {
     /// Quelle/Streamingdienst („AMZ - Film“, „4K-A+ - Film“): nur in GROSSSCHRIFT (sonst wären „Sky“, „Prime“ im Titel betroffen)
     private static let SVC: Set<String> = ["AMZ", "AMAZON", "PRIME", "NF", "NFLX", "NETFLIX", "APLUS", "ATV", "ATVP", "APPLE", "DPLUS", "DSNP", "DISNEY", "HMAX", "MAX", "HBO",
                                            "SKY", "WOW", "PPLUS", "PMTP", "PARAMOUNT", "RTLPLUS", "JOYN", "MAGENTA", "MGM", "PCOK", "PEACOCK", "HULU", "CRAV", "STAN",
-                                           "WEB", "WEBDL", "WEBRIP", "BLURAY", "BD", "REMUX", "CAM", "TS"]
+                                           "WEB", "WEBDL", "WEBRIP", "BLURAY", "BD", "REMUX", "CAM", "TS",
+                                           // Rubriken des Anbieters („TOP - Film“, „4K-TOP - Film“, „AS - Film“)
+                                           "TOP", "VIP", "HOT", "NEW", "NEU", "AS", "KINO", "CINEMA"]
     static let RANK: [String: Int] = ["8K": 5, "4K": 4, "FHD": 3, "HD": 2, "SD": 1]
     static let langName: [String: String] = [
         "DE": "Deutsch", "EN": "Englisch", "FR": "Französisch", "TR": "Türkisch", "IT": "Italienisch", "ES": "Spanisch", "NL": "Niederländisch",
@@ -95,9 +99,18 @@ final class MovieDups {
         let norm = String(t).replacingOccurrences(of: "\\b([A-Za-z]{1,8})\\+", with: "$1PLUS", options: .regularExpression)
         let parts = norm.split(whereSeparator: { " /,+&_.-".contains($0) })
         if parts.isEmpty { return nil }
-        var out: [Tag] = []
-        for p in parts { guard let x = tag(p) else { return nil }; out.append(x) }
-        return out
+        var out: [Tag] = [], known = false, odd = 0
+        for p in parts {
+            guard let x = tag(p) else {
+                // unbekanntes Kürzel neben einer Qualität/Sprache („4K-XYZ“): nur GROSS, 2–5 Buchstaben
+                if (2...5).contains(p.count), p.allSatisfy({ $0.isASCII && $0.isUppercase }) { odd += 1; continue }
+                return nil
+            }
+            switch x { case .l(_), .q(_): known = true; case .s: break }
+            out.append(x)
+        }
+        if odd > 0 && !known { return nil }
+        return out.isEmpty ? nil : out
     }
 
     private static func add(_ p: inout DupInfo, _ list: [Tag]) {
@@ -202,6 +215,13 @@ final class MovieDups {
         let folded = disp.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).lowercased().replacingOccurrences(of: "ß", with: "ss")
         let words = folded.split(whereSeparator: { !(($0.isASCII && ($0.isLetter || $0.isNumber))) })
         p.key = words.filter { $0 != "und" && $0 != "and" && $0 != "et" }.joined(separator: " ")
+        if let r = folded.range(of: ": ") {
+            func norm(_ x: Substring) -> String {
+                x.split(whereSeparator: { !(($0.isASCII && ($0.isLetter || $0.isNumber))) })
+                    .filter { $0 != "und" && $0 != "and" && $0 != "et" }.joined(separator: " ")
+            }
+            p.alt = [norm(folded[..<r.lowerBound]), norm(folded[r.upperBound...])].filter { $0.count >= 8 && $0.contains(" ") }
+        }
         if p.langs.isEmpty, let l = langOfCat(it.cat, catName) { p.langs.append(l) }
         return p
     }
@@ -223,6 +243,20 @@ final class MovieDups {
             let p = parse(m, catName: cn)
             if p.key.isEmpty { continue }
             byKey[p.key + "|" + (p.year > 0 ? String(p.year) : ""), default: []].append((m, p))
+        }
+        // Doppeltitel: „Eiserne Wildnis: Heart of the Beast (2026)“ zu „Heart of the Beast (2026)“ (nur mit gleichem Jahr)
+        for ka in Array(byKey.keys) where !ka.hasSuffix("|") {
+            guard let arrA = byKey[ka], let bar = ka.lastIndex(of: "|") else { continue }
+            let yr = String(ka[bar...])
+            var target: String? = nil
+            for e in arrA { for a in e.1.alt { let kb = a + yr; if kb != ka && byKey[kb] != nil { target = kb; break } }; if target != nil { break } }
+            if let kb = target { byKey[kb, default: []].append(contentsOf: arrA); byKey[ka] = nil }
+        }
+        // ohne Jahr („TOP - Film“) zu der einzigen Fassung mit Jahr („4K-TOP - Film (2015)“)
+        var withYear: [String: [String]] = [:]
+        for k in byKey.keys where !k.hasSuffix("|") { if let bar = k.lastIndex(of: "|") { withYear[String(k[..<bar]), default: []].append(k) } }
+        for kn in Array(byKey.keys) where kn.hasSuffix("|") {
+            if let wy = withYear[String(kn.dropLast())], wy.count == 1, let arr = byKey[kn] { byKey[wy[0], default: []].append(contentsOf: arr); byKey[kn] = nil }
         }
         var out: [Int: DupGroup] = [:], num = 0
         for (k, arr) in byKey where arr.count > 1 {
