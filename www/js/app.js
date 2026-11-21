@@ -12901,6 +12901,7 @@
         }
         row('lists', 'list', T("Wiedergabelisten"), T("Wechseln"), function () { Nav.push(new PlaylistsScreen()); });
         row('backup', 'up', T("Sicherung"), Backup.missing ? T("nicht eingerichtet") : (Storage.get('backupAt', 0) ? Tf("Gesichert · {0} Uhr", [fmtClock(new Date(Storage.get('backupAt', 0)))]) : T("Favoriten, Profile …")), function () { Nav.push(new BackupScreen()); });
+        row('guide', 'list', T("Was kann ImperumTV?"), T("Alle Funktionen erklärt"), function () { Nav.push(new GuideScreen()); });
         if (Chat.available()) row('chat', 'user', T("Support-Chat"), Chat.unread ? Chat.unread + ' neue Nachricht' + (Chat.unread > 1 ? 'en' : '') : T("Schreib uns"), function () { Chat.open(); });
         if (Help.available()) row('help', 'shield', T("Fernhilfe"), Help.on ? Tf("Läuft · Code {0}", [Help.codeText()]) : T("Support hilft aus der Ferne"), function () { if (Help.on) Help.menu(); else Help.ask(false); });
         if (!STORE_BUILD) row('account', 'user', T("Konto"), License.activated() ? T("Aktiviert") : (License.free() ? License.freeText() : License.text()), function () { Nav.push(new AccountScreen()); });
@@ -13018,6 +13019,87 @@
             for (i = 0; i < list.length; i++) if (!/#{2,}|^\s*[-=*#]|[-=*]{3,}/.test(list[i].name || '')) return list[i];
             return null;
         }
+    };
+
+    // =====================================================================
+    // Leitfaden „Was kann ImperumTV?“: alle Funktionen kurz erklärt – und wo man sie findet
+    // =====================================================================
+    function GuideScreen(sec) { this.sec = sec || 0; }
+    GuideScreen.sections = function () {
+        var android = !!(AB && AB.appVersion) && !/iPhone|iPad|iOS/i.test(Report.platform());
+        function on(cond, item) { return cond ? [item] : []; }
+        return [
+            [T("Live TV"), 'tv', [
+                ['📺', T("Vorschau und Vollbild"), T("OK auf einen Sender zeigt ihn rechts klein, noch einmal OK schaltet auf Vollbild."), T("Live TV")],
+                ['📅', T("Programm (EPG)"), T("Was läuft jetzt und später? „Ganzes Programm“ zeigt alle Sender auf einen Blick. Uhrzeit und Programm stellt die App selbst richtig."), T("Live TV → Ganzes Programm")],
+                ['⏱', T("Zuletzt gesehen"), T("Die Sender, die du zuletzt geschaut hast – der neueste steht oben."), T("Live TV → Zuletzt gesehen")],
+                ['↺', T("Sendung verpasst?"), T("Bei Sendern mit Aufzeichnung beim Anbieter: Sendungen der letzten Tage von Anfang an schauen."), T("Live TV → ↺ Verpasst?")],
+                ['🔁', T("Ersatzsender"), T("Zeigt ein Sender kein Bild, wechselt die App von selbst auf eine andere Qualität desselben Senders."), T("Einstellungen → Ersatzsender")],
+                ['🚦', T("Sender-Ampel"), T("Der Punkt neben dem Sender zeigt, ob er zuletzt gut lief: grün, gelb oder rot."), T("Live TV")],
+                ['⏭', T("Zum Live-Bild"), T("Hängt ein Sender hinterher, springt der Knopf neben der Senderliste zum aktuellen Bild."), T("Im Player")]
+            ].concat(on(Rec.available(), ['⏺', T("Aufnehmen"), T("Sendungen im Programm zum Aufnehmen vormerken und später in Ruhe ansehen."), T("Startseite → Aufnahmen")]))
+             .concat([['⚽', T("Sport"), T("Welche Spiele heute laufen und auf welchem Sender – Fußball, Formel 1, Eishockey und mehr."), T("Startseite → Sport")]])],
+            [T("Filme & Serien"), 'film', [
+                ['▶', T("Weiterschauen auf allen Geräten"), T("Am Fernseher angefangen, am Handy weiter. Weiterschauen, „Gesehen“ und Favoriten sind auf allen Geräten gleich."), T("Filme / Serien → Weiter ansehen")],
+                ['🎬', T("Doppelte Filme & Serien"), T("Gibt es einen Film oder eine Serie mehrmals (4K, HD, Deutsch, Englisch …), steht er nur einmal da. Beim Öffnen wählst du die Fassung."), T("Einstellungen → Doppelte Filme & Serien")],
+                ['🎭', T("Schauspieler"), T("Bei jedem Film und jeder Serie die Besetzung mit Fotos. Ein Klick zeigt alles mit dieser Person aus deiner Liste."), T("Film oder Serie öffnen → Besetzung")],
+                ['🆕', T("Neue Folgen"), T("Serien, die du schaust, erscheinen hier, sobald es neue Folgen gibt. OK lang entfernt eine Serie aus der Liste."), T("Serien → Neue Folgen")],
+                ['📊', T("Serien-Fortschritt"), T("„Staffel 2: 5 von 10 gesehen“. Folge lange OK drücken: als gesehen oder ungesehen markieren."), T("Serie öffnen")],
+                ['⏩', T("Nächste Folge und Intro"), T("Die nächste Folge startet von selbst, das Intro lässt sich mit einem Knopf überspringen."), T("Einstellungen → Wiedergabe")],
+                ['🗂', T("Genres und Sortieren"), T("Filme und Serien nach Genre ansehen und nach Neuheit, Jahr, Bewertung oder A–Z sortieren."), T("Filme / Serien → Genres, Sortieren")],
+                ['★', T("Favoriten"), T("OK lange drücken auf Sender, Film oder Serie merkt sie als Favorit."), T("Startseite → Favoriten")]
+            ]],
+            [T("Bedienung"), 'search', [
+                ['🔍', T("Suche"), T("Sender, Filme, Serien und Schauspieler auf einmal finden."), T("Startseite → Suche")],
+                ['🌍', T("Sprache"), T("ImperumTV gibt es auf Deutsch, Englisch und Französisch."), T("Einstellungen → Sprache")],
+                ['🎨', T("Farbthema"), T("Gold, Blau, Pink und weitere Farben für die ganze App."), T("Einstellungen → Farbthema")],
+                ['💤', T("Schlaf-Timer"), T("Die Wiedergabe stoppt nach der gewählten Zeit – praktisch zum Einschlafen."), T("Einstellungen → Schlaf-Timer")],
+                ['👀', T("Schaust du noch?"), T("Läuft lange etwas ohne Tastendruck, fragt die App nach und stoppt sonst."), T("Einstellungen → Schaust du noch?")]
+            ].concat(on(android, ['🗣️', T("Alexa-Sprachbefehle"), T("„Alexa, Pause“, „Alexa, weiter“, „Alexa, nächster“ – auf dem Fire TV Stick mit Sprachfernbedienung."), T("Fire TV")]))
+             .concat(on(android, ['📴', T("Fernseher aus? Die App hält an"), T("Schaltest du nur den Fernseher aus, hält die App an. Filme gehen danach an derselben Stelle weiter."), T("Automatisch")]))],
+            [T("Familie & Konto"), 'users', [
+                ['👥', T("Profile"), T("Jedes Familienmitglied mit eigenen Favoriten und eigenem Weiterschauen."), T("Einstellungen → Profile")],
+                ['🔒', T("Kindersicherung"), T("Kategorien mit einer PIN sperren. Das Kinder-Profil zeigt nur, was du freigibst."), T("Einstellungen → Kindersicherung")],
+                ['📋', T("Wiedergabelisten"), T("Mehrere Listen speichern und wechseln. Neue Liste: QR-Code scannen und auf der Website eintragen."), T("Einstellungen → Wiedergabelisten")]
+            ]],
+            [T("Hilfe"), 'shield', [].concat(
+                on(Chat.available(), ['💬', T("Support-Chat"), T("Schreib uns direkt aus der App – die Antwort kommt hier an."), T("Einstellungen → Support-Chat")]),
+                on(Help.available(), ['🛟', T("Fernhilfe"), T("Kommst du nicht weiter, sieht der Support ImperumTV auf deinem Bildschirm und hilft dir."), T("Einstellungen → Fernhilfe")]),
+                [['📶', T("Verbindungstest"), T("Prüft Internet, Geschwindigkeit und den Server deines Anbieters."), T("Einstellungen → Verbindungstest")],
+                 ['🧠', T("Speicher"), T("Oben in den Einstellungen siehst du, wie viel Speicher dein Gerät frei hat."), T("Einstellungen")]])]
+        ];
+    };
+    GuideScreen.prototype.render = function (root) {
+        var self = this, secs = GuideScreen.sections();
+        if (this.sec >= secs.length) this.sec = 0;
+        root.appendChild(topbar(T("Was kann ImperumTV?"), T("Links Bereich wählen · rechts blättern")));
+        var cols = h('div', 'columns vod-r1 guide');
+        var left = h('div', 'col col-cats'), ls = h('div', 'scroll');
+        secs.forEach(function (sc, i) {
+            var c = h('div', 'cat with-n' + (i === self.sec ? ' active' : ''));
+            c.innerHTML = icon(sc[1], 28) + '<span class="cat-name"></span><span class="cat-n"></span>';
+            c.querySelector('.cat-name').textContent = ' ' + sc[0];
+            c.querySelector('.cat-n').textContent = sc[2].length;
+            focusable(c, 'gd-sec-' + i, function () { self.sec = i; self.focusKey = 'gd-0'; Nav.show(self); }, 'cats');
+            ls.appendChild(c);
+        });
+        left.appendChild(ls);
+        var right = h('div', 'col col-grid'), rs = h('div', 'scroll'), grid = h('div', 'gd-grid');
+        secs[this.sec][2].forEach(function (it, i) {
+            var card = h('div', 'gd-card');
+            card.appendChild(h('div', 'gd-ic', it[0]));
+            var tx = h('div', 'gd-tx');
+            tx.appendChild(h('div', 'gd-t', it[1]));
+            tx.appendChild(h('div', 'gd-d', it[2]));
+            tx.appendChild(h('div', 'gd-w', '📍 ' + it[3]));
+            card.appendChild(tx);
+            focusable(card, 'gd-' + i, null, 'grid');
+            grid.appendChild(card);
+        });
+        rs.appendChild(grid); right.appendChild(rs);
+        cols.appendChild(left); cols.appendChild(right);
+        root.appendChild(cols);
+        if (!this.focusKey) this.focusKey = 'gd-sec-' + this.sec;
     };
 
     function NetTestScreen() { this.result = null; }
