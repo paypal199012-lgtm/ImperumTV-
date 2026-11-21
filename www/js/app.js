@@ -6609,6 +6609,11 @@
         }
         head.appendChild(h('div', 'pl-title', T("Wiedergabelisten")));
         var vpnBtn = OVpn.button('pl-vpn', 'plhead');
+        // Sprache gleich hier: schon vor dem Einrichten umstellbar
+        var lb = h('div', 'vpn-badge vpn-btn lang-btn' + (!Help.available() && !vpnBtn ? ' last' : ''));
+        lb.innerHTML = icon('globe', 34) + '<span></span>';
+        lb.lastChild.textContent = LANG_NAMES[LANG_UI] || 'Deutsch';
+        head.appendChild(focusable(lb, 'pl-lang', function () { LangPick.open(); }, 'plhead'));
         // Fernhilfe gleich hier: hilft auch, wenn noch keine Liste geht
         if (Help.available()) {
             var hb = h('div', 'vpn-badge vpn-btn help-btn' + (Help.on ? ' on' : '') + (vpnBtn ? '' : ' last'));
