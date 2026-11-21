@@ -93,7 +93,9 @@ struct VodScreen: View {
         case "seen": l = all.filter { resume.isSeen(src, movie: $0.id) }
         case "unseen": l = all.filter { !resume.isSeen(src, movie: $0.id) }
         case "neweps": l = all.filter { store.newEpisodes.contains($0.id) }
-        case "new": l = all.sorted { $0.added > $1.added }.prefix(200).map { $0 }
+        case "new":   // immer 150 verschiedene (doppelte Filme zählen einmal)
+            prepDups()
+            l = Array(dups.collapse(all.sorted { $0.added > $1.added }).prefix(150))
         case "year": let y = Calendar.current.component(.year, from: Date()); l = all.filter { $0.year == y }
         case let c where c.hasPrefix("g:"):
             let bit = 1 << (Int(c.dropFirst(2)) ?? 0)

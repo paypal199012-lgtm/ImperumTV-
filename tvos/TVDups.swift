@@ -62,16 +62,20 @@ final class MovieDups {
         "PT": "PT", "POR": "PT", "AL": "AL", "ALB": "AL",
         "MULTI": "MULTI", "MULTISUB": "MULTI", "MULTI-SUB": "MULTI", "DUAL": "MULTI", "OMU": "OMU", "OV": "OV"
     ]
-    private static let QUAL: [String: String] = ["4K": "4K", "UHD": "4K", "2160P": "4K", "FHD": "FHD", "FULLHD": "FHD", "1080P": "FHD",
+    private static let QUAL: [String: String] = ["8K": "8K", "4320P": "8K", "4K": "4K", "UHD": "4K", "2160P": "4K", "FHD": "FHD", "FULLHD": "FHD", "1080P": "FHD",
                                                  "HD": "HD", "720P": "HD", "SD": "SD", "480P": "SD", "3D": "3D"]
     private static let SKIP: Set<String> = ["HEVC", "H265", "X265", "H264", "X264", "HDR", "HDR10", "DV", "DOLBY", "ATMOS", "10BIT", "SUB", "SUBS", "VOD"]
-    static let RANK: [String: Int] = ["4K": 4, "FHD": 3, "HD": 2, "SD": 1]
+    /// Quelle/Streamingdienst („AMZ - Film“, „4K-A+ - Film“): nur in GROSSSCHRIFT (sonst wären „Sky“, „Prime“ im Titel betroffen)
+    private static let SVC: Set<String> = ["AMZ", "AMAZON", "PRIME", "NF", "NFLX", "NETFLIX", "APLUS", "ATV", "ATVP", "APPLE", "DPLUS", "DSNP", "DISNEY", "HMAX", "MAX", "HBO",
+                                           "SKY", "WOW", "PPLUS", "PMTP", "PARAMOUNT", "RTLPLUS", "JOYN", "MAGENTA", "MGM", "PCOK", "PEACOCK", "HULU", "CRAV", "STAN",
+                                           "WEB", "WEBDL", "WEBRIP", "BLURAY", "BD", "REMUX", "CAM", "TS"]
+    static let RANK: [String: Int] = ["8K": 5, "4K": 4, "FHD": 3, "HD": 2, "SD": 1]
     static let langName: [String: String] = [
         "DE": "Deutsch", "EN": "Englisch", "FR": "Französisch", "TR": "Türkisch", "IT": "Italienisch", "ES": "Spanisch", "NL": "Niederländisch",
         "PL": "Polnisch", "RU": "Russisch", "AR": "Arabisch", "GR": "Griechisch", "PT": "Portugiesisch", "AL": "Albanisch",
         "MULTI": "Mehrsprachig", "OMU": "Original mit Untertiteln", "OV": "Originalfassung"
     ]
-    static let qualName: [String: String] = ["4K": "4K Ultra HD", "FHD": "Full HD", "HD": "HD", "SD": "SD"]
+    static let qualName: [String: String] = ["8K": "8K", "4K": "4K Ultra HD", "FHD": "Full HD", "HD": "HD", "SD": "SD"]
 
     /// Zwei Buchstaben zählen nur in Großschrift (sonst wäre „Es“ Spanisch)
     private static func tag(_ w: Substring) -> Tag? {
@@ -81,12 +85,15 @@ final class MovieDups {
         if let q = QUAL[u] { return .q(q) }
         if let l = LANG[u] { return .l(l) }
         if SKIP.contains(u) { return .s }
+        if SVC.contains(u) && String(w) == u { return .s }
         return nil
     }
 
     /// „DE 4K“, „GER/ENG“, „4K-HDR“: nur wenn alle Teile bekannte Zusätze sind
     private static func tags(_ t: Substring) -> [Tag]? {
-        let parts = t.split(whereSeparator: { " /,+&_.-".contains($0) })
+        // „A+“, „D+“, „RTL+“ (Apple TV+, Disney+ …) als ein Wort
+        let norm = String(t).replacingOccurrences(of: "\\b([A-Za-z]{1,8})\\+", with: "$1PLUS", options: .regularExpression)
+        let parts = norm.split(whereSeparator: { " /,+&_.-".contains($0) })
         if parts.isEmpty { return nil }
         var out: [Tag] = []
         for p in parts { guard let x = tag(p) else { return nil }; out.append(x) }

@@ -9537,10 +9537,13 @@
             ES: 'ES', ESP: 'ES', SPA: 'ES', SPANISH: 'ES', SPANISCH: 'ES', NL: 'NL', DUTCH: 'NL', PL: 'PL', POLISH: 'PL', RU: 'RU', RUS: 'RU', RUSSIAN: 'RU',
             AR: 'AR', ARA: 'AR', ARABIC: 'AR', GR: 'GR', GRE: 'GR', GREEK: 'GR', GRIECHISCH: 'GR', PT: 'PT', POR: 'PT', AL: 'AL', ALB: 'AL',
             MULTI: 'MULTI', MULTISUB: 'MULTI', 'MULTI-SUB': 'MULTI', DUAL: 'MULTI', OMU: 'OMU', OV: 'OV' },
-        QUAL: { '4K': '4K', UHD: '4K', '2160P': '4K', FHD: 'FHD', FULLHD: 'FHD', '1080P': 'FHD', HD: 'HD', '720P': 'HD', SD: 'SD', '480P': 'SD', '3D': '3D' },
+        QUAL: { '8K': '8K', '4320P': '8K', '4K': '4K', UHD: '4K', '2160P': '4K', FHD: 'FHD', FULLHD: 'FHD', '1080P': 'FHD', HD: 'HD', '720P': 'HD', SD: 'SD', '480P': 'SD', '3D': '3D' },
         // Zusätze ohne Bedeutung für die Auswahl (werden nur entfernt)
         SKIP: { HEVC: 1, H265: 1, X265: 1, H264: 1, X264: 1, HDR: 1, HDR10: 1, DV: 1, DOLBY: 1, ATMOS: 1, '10BIT': 1, SUB: 1, SUBS: 1, VOD: 1 },
-        RANK: { '4K': 4, FHD: 3, HD: 2, SD: 1 },
+        // Quelle/Streamingdienst („AMZ - Film“, „4K-A+ - Film“, „NF | Film“): nur in GROSSSCHRIFT, sonst wären „Sky“, „Prime“, „Max“ im Titel betroffen
+        SVC: { AMZ: 1, AMAZON: 1, PRIME: 1, NF: 1, NFLX: 1, NETFLIX: 1, APLUS: 1, ATV: 1, ATVP: 1, APPLE: 1, DPLUS: 1, DSNP: 1, DISNEY: 1, HMAX: 1, MAX: 1, HBO: 1,
+            SKY: 1, WOW: 1, PPLUS: 1, PMTP: 1, PARAMOUNT: 1, RTLPLUS: 1, JOYN: 1, MAGENTA: 1, MGM: 1, PCOK: 1, PEACOCK: 1, HULU: 1, CRAV: 1, STAN: 1, iT: 1, WEB: 1, WEBDL: 1, WEBRIP: 1, BLURAY: 1, BD: 1, REMUX: 1, CAM: 1, TS: 1 },
+        RANK: { '8K': 5, '4K': 4, FHD: 3, HD: 2, SD: 1 },
         mode: function () { var m = Storage.get('dupMode', 'ask'); return m === 'auto' || m === 'off' ? m : 'ask'; },
         on: function () { return this.mode() !== 'off'; },
         label: function () { var m = this.mode(); return m === 'off' ? T("Aus") : m === 'auto' ? T("Zusammenfassen · automatisch") : T("Zusammenfassen · fragen"); },
@@ -9552,6 +9555,7 @@
             if (this.QUAL[u]) return { q: this.QUAL[u] };
             if (this.LANG[u]) return { l: this.LANG[u] };
             if (this.SKIP[u]) return { s: 1 };
+            if (this.SVC[u] && w === u) return { s: 1 };
             return null;
         },
         /** „DE 4K“, „GER/ENG“, „4K-HDR“: nur wenn alle Teile bekannte Zusätze sind (Ergebnis gemerkt – Zusätze wiederholen sich) */
@@ -9563,7 +9567,8 @@
             return (this._tc[txt] = this.tagsRaw(txt));
         },
         tagsRaw: function (txt) {
-            var parts = String(txt).split(/[\s\/,+&_.\-]+/), out = [];
+            // „A+“, „D+“, „RTL+“ (Apple TV+, Disney+ …) als ein Wort
+            var parts = String(txt).replace(/\b([A-Za-z]{1,8})\+/g, '$1PLUS').split(/[\s\/,+&_.\-]+/), out = [];
             for (var i = 0; i < parts.length; i++) {
                 if (!parts[i]) continue;
                 var t = this.tag(parts[i]);
@@ -9698,7 +9703,7 @@
                 PL: T("Polnisch"), RU: T("Russisch"), AR: T("Arabisch"), GR: T("Griechisch"), PT: T("Portugiesisch"), AL: T("Albanisch"),
                 MULTI: T("Mehrsprachig"), OMU: T("Original mit Untertiteln"), OV: T("Originalfassung") }[c] || c;
         },
-        QUAL_NAME: { '4K': '4K Ultra HD', FHD: 'Full HD', HD: 'HD', SD: 'SD' },
+        QUAL_NAME: { '8K': '8K', '4K': '4K Ultra HD', FHD: 'Full HD', HD: 'HD', SD: 'SD' },
         /** Meist gewählte Sprache zuerst; ohne Verlauf die Sprache der App */
         langScore: function (langs) {
             var h = Storage.get('dupLang', {}) || {}, best = 0;
@@ -9842,13 +9847,21 @@
     function liveCat(cat) { return cat === RESUME_CAT || cat === NEWEP_CAT || cat === SEEN_CAT || cat === UNSEEN_CAT; }
     /** Die neuesten Titel des Anbieters (nach Datum, sonst nach Reihenfolge der Liste) */
     MoviesScreen.prototype.newItems = function () {
-        return this.memo('newItems', this.memoKey(), this.newItemsRaw);
+        return this.memo('newItems', this.memoKey() + '|' + (this.kind === 'movies' ? Dups.mode() : ''), this.newItemsRaw);
     };
     MoviesScreen.prototype.newItemsRaw = function () {
         var items = this.items();
         var dated = items.filter(function (m) { return m.added > 0; });
-        if (dated.length < items.length / 2) return items.slice(-150).reverse();
-        return dated.slice().sort(function (a, b) { return b.added - a.added; }).slice(0, 150);
+        var src = dated.length < items.length / 2 ? items.slice().reverse() : dated.slice().sort(function (a, b) { return b.added - a.added; });
+        if (this.kind !== 'movies' || !Dups.on()) return src.slice(0, 150);
+        // doppelte Filme zählen einmal: trotzdem immer 150 verschiedene Filme
+        var map = Dups.groups(Data.movies), used = {}, out = [];
+        for (var i = 0; i < src.length && out.length < 150; i++) {
+            var g = map[src[i].id];
+            if (g) { if (used[g.n]) continue; used[g.n] = 1; }
+            out.push(src[i]);
+        }
+        return out;
     };
     /** Angefangene Filme bzw. Serien, zuletzt geschaute zuerst */
     MoviesScreen.prototype.resumeItems = function () {
