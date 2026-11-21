@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum TVRoute: Hashable {
-    case home, live, epg, movies, series, seriesDetail(TVItem), movieDetail(TVItem), continueWatching, player, playlists, settings, favorites, search, football, profiles, nettest, lockCats, backup
+    case home, live, epg, movies, series, seriesDetail(TVItem), movieDetail(TVItem), continueWatching, player, playlists, settings, favorites, search, football, profiles, nettest, lockCats, backup, guide
 }
 
 /// Bildschirm-Stapel wie auf Android: Menü-Taste der Fernbedienung = Zurück
@@ -160,6 +160,7 @@ struct RootView: View {
         case .nettest: NetTestScreen()
         case .lockCats: LockCatsScreen()
         case .backup: BackupScreen()
+        case .guide: GuideScreen()
         }
     }
 
