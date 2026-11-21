@@ -29,7 +29,7 @@ jobs:
     runs-on: macos-15-intel
     env:
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
-      APP_VERSION: '1.8'            # neue App-Store-Version: bei jedem Einreichen erhöhen
+      APP_VERSION: '1.9'            # neue App-Store-Version: bei jedem Einreichen erhöhen
       WHATS_NEW: |
         • Neues Farbthema: Neongrün (Einstellungen → Farbthema).
         • Support-Chat: Nachrichten kommen jetzt deutlich schneller an.
