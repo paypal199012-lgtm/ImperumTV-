@@ -12,7 +12,9 @@ struct DupInfo {
     var d3 = false
     /// „Eiserne Wildnis: Heart of the Beast“ → beide Teile (gleicher Film unter anderem Titel)
     var alt: [String] = []
-    var sig: String { langs.joined(separator: "+") + "|" + q + "|" + (d3 ? "1" : "0") }
+    /// Quelle („Disney+“, „Netflix“ …), falls im Namen
+    var src = ""
+    var sig: String { langs.joined(separator: "+") + "|" + q + "|" + (d3 ? "1" : "0") + "|" + src }
 }
 
 final class DupGroup {
@@ -38,7 +40,7 @@ final class MovieDups {
 
     var mode: Mode {
         get { Mode(rawValue: UserDefaults.standard.string(forKey: "tv.dupMode") ?? "") ?? .ask }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: "tv.dupMode"); sig = "" }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "tv.dupMode"); sigs = [:] }
     }
     var on: Bool { mode != .off }
     var label: String {
@@ -50,11 +52,11 @@ final class MovieDups {
     }
     func nextMode() { mode = mode == .ask ? .auto : mode == .auto ? .off : .ask }
 
-    private enum Tag { case l(String), q(String), s }
+    private enum Tag { case l(String), q(String), s(String?) }
 
     private static let LANG: [String: String] = [
         "DE": "DE", "GER": "DE", "GERMAN": "DE", "DEUTSCH": "DE", "DEU": "DE",
-        "EN": "EN", "ENG": "EN", "ENGLISH": "EN", "ENGLISCH": "EN", "UK": "EN", "US": "EN",
+        "EN": "EN", "ENG": "EN", "ENGLISH": "EN", "ENGLISCH": "EN",
         "FR": "FR", "FRE": "FR", "FRA": "FR", "FRENCH": "FR", "FRANÇAIS": "FR", "FRANCAIS": "FR", "FRANZÖSISCH": "FR", "VF": "FR", "VFF": "FR", "VOSTFR": "FR",
         "TR": "TR", "TUR": "TR", "TURKISH": "TR", "TÜRKISCH": "TR", "TÜRK": "TR",
         "IT": "IT", "ITA": "IT", "ITALIAN": "IT", "ITALIENISCH": "IT",
@@ -73,6 +75,15 @@ final class MovieDups {
                                            "WEB", "WEBDL", "WEBRIP", "BLURAY", "BD", "REMUX", "CAM", "TS",
                                            // Rubriken des Anbieters („TOP - Film“, „4K-TOP - Film“, „AS - Film“)
                                            "TOP", "VIP", "HOT", "NEW", "NEU", "AS", "KINO", "CINEMA"]
+    /// Anzeigename der Quelle in der Fassungs-Auswahl
+    private static let srcName: [String: String] = [
+        "AMZ": "Amazon", "AMAZON": "Amazon", "PRIME": "Amazon", "NF": "Netflix", "NFLX": "Netflix", "NETFLIX": "Netflix", "APLUS": "Apple TV+", "ATV": "Apple TV+",
+        "ATVP": "Apple TV+", "APPLE": "Apple TV+", "DPLUS": "Disney+", "DSNP": "Disney+", "DISNEY": "Disney+", "HMAX": "HBO Max", "MAX": "HBO Max", "HBO": "HBO",
+        "SKY": "Sky", "WOW": "WOW", "PPLUS": "Paramount+", "PMTP": "Paramount+", "PARAMOUNT": "Paramount+", "RTLPLUS": "RTL+", "JOYN": "Joyn", "MAGENTA": "MagentaTV",
+        "MGM": "MGM+", "PCOK": "Peacock", "PEACOCK": "Peacock", "HULU": "Hulu"
+    ]
+    /// Kürzel, die der Anbieter mit einer Qualität verbindet („4K-MRVL - Film“ → „MRVL - Film“ ist dieselbe Rubrik)
+    private static var learned: Set<String> = []
     static let RANK: [String: Int] = ["8K": 5, "4K": 4, "FHD": 3, "HD": 2, "SD": 1]
     static let langName: [String: String] = [
         "DE": "Deutsch", "EN": "Englisch", "FR": "Französisch", "TR": "Türkisch", "IT": "Italienisch", "ES": "Spanisch", "NL": "Niederländisch",
@@ -88,8 +99,8 @@ final class MovieDups {
         if w.count <= 2 && String(w) != u && !w.contains(where: { $0.isNumber }) { return nil }
         if let q = QUAL[u] { return .q(q) }
         if let l = LANG[u] { return .l(l) }
-        if SKIP.contains(u) { return .s }
-        if SVC.contains(u) && String(w) == u { return .s }
+        if SKIP.contains(u) { return .s(nil) }
+        if (SVC.contains(u) || learned.contains(u)) && String(w) == u { return .s(srcName[u] ?? (learned.contains(u) ? u : nil)) }
         return nil
     }
 
@@ -106,7 +117,7 @@ final class MovieDups {
                 if (2...5).contains(p.count), p.allSatisfy({ $0.isASCII && $0.isUppercase }) { odd += 1; continue }
                 return nil
             }
-            switch x { case .l(_), .q(_): known = true; case .s: break }
+            switch x { case .l(_), .q(_): known = true; case .s(_): break }
             out.append(x)
         }
         if odd > 0 && !known { return nil }
@@ -119,7 +130,7 @@ final class MovieDups {
             case .l(let l): if !p.langs.contains(l) { p.langs.append(l) }
             case .q(let q):
                 if q == "3D" { p.d3 = true } else if p.q.isEmpty || (RANK[q] ?? 0) > (RANK[p.q] ?? 0) { p.q = q }
-            case .s: break
+            case .s(let src): if let v = src, p.src.isEmpty { p.src = v }
             }
         }
     }
@@ -179,6 +190,8 @@ final class MovieDups {
                                 out += " "; i = s.index(after: close); continue
                             }
                             if let t = Self.tags(Substring(tr)) { Self.add(&p, t); out += " "; i = s.index(after: close); continue }
+                            // Herkunftsland „(US)“, „(CA)“
+                            if tr.count == 2, tr.allSatisfy({ $0.isASCII && $0.isUppercase }) { out += " "; i = s.index(after: close); continue }
                         }
                     }
                 }
@@ -228,13 +241,35 @@ final class MovieDups {
 
     // MARK: Gruppen
 
-    private var map: [Int: DupGroup] = [:]
-    private var sig = ""
+    private var maps: [String: [Int: DupGroup]] = [:]
+    private var sigs: [String: String] = [:]
 
-    /// Gruppen bilden (einmal je Liste): Film-ID → Gruppe – nur Filme, die es mehrfach gibt
-    func groups(_ all: [TVItem], catName: (String) -> String) -> [Int: DupGroup] {
-        let s = "\(all.count)|\(all.first?.id ?? 0)|\(all.last?.id ?? 0)"
-        if s == sig { return map }
+    /// „4K-MRVL“ → MRVL ist ein Kürzel des Anbieters
+    private static func learn(_ all: [TVItem]) {
+        learned = []
+        var found = Set<String>()
+        let re = try? NSRegularExpression(pattern: "^[\\s\\[(|]*([A-Za-z0-9+]{2,6})[-_]([A-Za-z0-9+]{2,6})\\s*(?:[\\])|:]|\\s-\\s)")
+        for m in all {
+            let n = m.name as NSString
+            guard let r = re?.firstMatch(in: m.name, range: NSRange(location: 0, length: n.length)), r.numberOfRanges == 3 else { continue }
+            let a = n.substring(with: r.range(at: 1)), b = n.substring(with: r.range(at: 2))
+            for (x, y) in [(a, b), (b, a)] {
+                guard let t = tag(Substring(x)) else { continue }
+                switch t {
+                case .l(_), .q(_):
+                    if (2...5).contains(y.count), y.allSatisfy({ $0.isASCII && $0.isUppercase }), tag(Substring(y)) == nil { found.insert(y) }
+                case .s(_): break
+                }
+            }
+        }
+        learned = found
+    }
+
+    /// Gruppen bilden (einmal je Liste): ID → Gruppe – nur Filme/Serien, die es mehrfach gibt
+    func groups(_ all: [TVItem], kind: MediaKind = .movie, catName: (String) -> String) -> [Int: DupGroup] {
+        let k0 = "\(kind)", s = "\(all.count)|\(all.first?.id ?? 0)|\(all.last?.id ?? 0)"
+        if sigs[k0] == s, let m = maps[k0] { return m }
+        Self.learn(all)
         var byKey: [String: [(TVItem, DupInfo)]] = [:]
         var names: [String: String] = [:]
         for m in all {
@@ -274,19 +309,19 @@ final class MovieDups {
             for m in g.items { out[m.id] = g }
             for id in extra { out[id] = g }
         }
-        map = out
-        sig = s
+        maps[k0] = out
+        sigs[k0] = s
         return out
     }
 
-    func group(_ it: TVItem) -> DupGroup? {
-        guard on, let g = map[it.id], g.items.count > 1 else { return nil }
+    func group(_ it: TVItem, _ kind: MediaKind = .movie) -> DupGroup? {
+        guard on, let g = maps["\(kind)"]?[it.id], g.items.count > 1 else { return nil }
         return g
     }
 
-    /// Liste kürzen: von jedem Film nur die erste Fassung (Reihenfolge bleibt)
-    func collapse(_ list: [TVItem]) -> [TVItem] {
-        guard on, list.count > 1, !map.isEmpty else { return list }
+    /// Liste kürzen: von jedem Film / jeder Serie nur die erste Fassung (Reihenfolge bleibt)
+    func collapse(_ list: [TVItem], _ kind: MediaKind = .movie) -> [TVItem] {
+        guard on, list.count > 1, let map = maps["\(kind)"], !map.isEmpty else { return list }
         var used = Set<Int>()
         return list.filter { m in
             guard let g = map[m.id] else { return true }
@@ -324,7 +359,7 @@ final class MovieDups {
     }
 
     /// Fassungen in der Reihenfolge, in der sie angeboten werden: angefangene zuerst, dann Lieblingssprache, dann Qualität
-    func options(_ g: DupGroup, resume: (Int) -> (pos: Double, at: Double)?) -> [DupOption] {
+    func options(_ g: DupGroup, series: Bool = false, resume: (Int) -> (pos: Double, at: Double)?) -> [DupOption] {
         let h = langHist
         var rows = g.items.indices.map { i -> (TVItem, DupInfo, (pos: Double, at: Double)?, Int) in (g.items[i], g.info[i], resume(g.items[i].id), i) }
         rows.sort { a, b in
@@ -342,9 +377,10 @@ final class MovieDups {
             if !p.langs.isEmpty { parts.append(p.langs.map { Self.langName[$0] ?? $0 }.joined(separator: " + ")) }
             if !p.q.isEmpty { parts.append(Self.qualName[p.q] ?? p.q) }
             if p.d3 { parts.append("3D") }
+            if !p.src.isEmpty { parts.append(p.src) }
             if parts.isEmpty { parts.append("Standard") }
             if let c = cat { parts.append(c) }
-            if let s = pos { parts.append("weiter bei " + Self.time(s)) }
+            if let s = pos { parts.append(series ? "angefangen" : "weiter bei " + Self.time(s)) }
             return parts.joined(separator: " · ")
         }
         var count: [String: Int] = [:]

@@ -185,10 +185,10 @@ struct ResultRows: View {
 
     /// Filme: doppelte Fassungen (Qualität/Sprache) nur einmal
     private var shown: [TVItem] {
-        guard kind == .movie, dups.on else { return items }
-        let cats = store.vodCats
-        _ = dups.groups(store.items(.movie)) { id in cats.first { $0.id == id }?.name ?? "" }
-        return dups.collapse(items)
+        guard kind == .movie || kind == .series, dups.on else { return items }
+        let cats = kind == .series ? store.seriesCats : store.vodCats
+        _ = dups.groups(store.items(kind), kind: kind) { id in cats.first { $0.id == id }?.name ?? "" }
+        return dups.collapse(items, kind)
     }
 
     var body: some View {
@@ -209,7 +209,7 @@ struct ResultRows: View {
                                 }
                                 .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 12)), scale: 1.05))
                             } else {
-                                let dg = kind == .movie ? dups.group(it) : nil
+                                let dg = dups.group(it, kind)
                                 PosterCard(item: it, fav: store.isFav(it, kind), tags: dg.map { dups.badges($0) } ?? [],
                                            title: dg.map { dups.title($0) }) { open(it) }
                             }
@@ -222,31 +222,30 @@ struct ResultRows: View {
                                 titleVisibility: .visible) {
                 if let g = chooseFor {
                     ForEach(options(g)) { o in
-                        Button(o.label) { chooseFor = nil; dups.remember(o.info); nav.push(.movieDetail(o.item)) }
+                        Button(o.label) { chooseFor = nil; dups.remember(o.info); nav.push(kind == .series ? .seriesDetail(o.item) : .movieDetail(o.item)) }
                     }
                     Button("Abbrechen", role: .cancel) { chooseFor = nil }
                 }
             } message: {
-                Text("Diesen Film gibt es \(chooseFor?.items.count ?? 0)× in deiner Liste. Welche Fassung möchtest du schauen?")
+                Text((kind == .series ? "Diese Serie" : "Diesen Film") + " gibt es \(chooseFor?.items.count ?? 0)× in deiner Liste. Welche Fassung möchtest du schauen?")
             }
         }
     }
 
     private func options(_ g: DupGroup) -> [DupOption] {
         let src = store.sourceName
-        return dups.options(g) { id in resume.entry(src, .movie, id).flatMap { e -> (pos: Double, at: Double)? in e.pos >= 30 ? (pos: e.pos, at: e.at) : nil } }
+        return dups.options(g, series: kind == .series) { id in resume.entry(src, kind, id).flatMap { e -> (pos: Double, at: Double)? in (kind == .series || e.pos >= 30) ? (pos: e.pos, at: e.at) : nil } }
     }
 
     private func open(_ it: TVItem) {
         switch kind {
-        case .series: nav.push(.seriesDetail(it))
-        case .movie:
-            if let g = dups.group(it) {
-                if dups.mode == .auto, let o = options(g).first { dups.remember(o.info); nav.push(.movieDetail(o.item)); return }
+        case .series, .movie:
+            if let g = dups.group(it, kind) {
+                if dups.mode == .auto, let o = options(g).first { dups.remember(o.info); nav.push(kind == .series ? .seriesDetail(o.item) : .movieDetail(o.item)); return }
                 chooseFor = g
                 return
             }
-            nav.push(.movieDetail(it))
+            nav.push(kind == .series ? .seriesDetail(it) : .movieDetail(it))
         case .live:
             guard let u = store.url(it, kind) else { return }
             if kind == .live { engine.items = items; engine.index = items.firstIndex(of: it) ?? 0 }
