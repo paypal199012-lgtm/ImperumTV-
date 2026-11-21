@@ -6609,11 +6609,6 @@
         }
         head.appendChild(h('div', 'pl-title', T("Wiedergabelisten")));
         var vpnBtn = OVpn.button('pl-vpn', 'plhead');
-        // Sprache gleich hier: schon vor dem Einrichten umstellbar
-        var lb = h('div', 'vpn-badge vpn-btn lang-btn' + (!Help.available() && !vpnBtn ? ' last' : ''));
-        lb.innerHTML = icon('globe', 34) + '<span></span>';
-        lb.lastChild.textContent = LANG_NAMES[LANG_UI] || 'Deutsch';
-        head.appendChild(focusable(lb, 'pl-lang', function () { LangPick.open(); }, 'plhead'));
         // Fernhilfe gleich hier: hilft auch, wenn noch keine Liste geht
         if (Help.available()) {
             var hb = h('div', 'vpn-badge vpn-btn help-btn' + (Help.on ? ' on' : '') + (vpnBtn ? '' : ' last'));
@@ -6692,6 +6687,11 @@
             var open = h('div', 'button', T("Website öffnen"));
             buttons.appendChild(focusable(open, 'pl-open', function () { AB.openUrl(Device.link()); }, 'side'));
         }
+        // Sprache schon vor dem Einrichten umstellbar (Name in der eigenen Sprache, damit man ihn immer findet)
+        var lang = h('div', 'button pl-lang');
+        lang.innerHTML = icon('globe', 30) + '<span></span>';
+        lang.lastChild.textContent = LANG_NAMES[LANG_UI] || 'Deutsch';
+        buttons.appendChild(focusable(lang, 'pl-lang', function () { LangPick.open(); }, 'side'));
         col3.appendChild(buttons);
         sideIn.appendChild(col1);
         sideIn.appendChild(col2);

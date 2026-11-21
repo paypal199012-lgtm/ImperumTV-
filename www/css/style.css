@@ -2095,7 +2095,5 @@ body.ios .lv-acts.five .lv-act { padding: 12px 10px; margin-right: 7px; font-siz
 .guide .gd-w { font-size: 19px; color: #a7a39a; margin-top: 10px; }
 body.ios .guide .gd-card { width: 100%; }
 .guide .col-cats .cat svg { margin-right: 12px; flex: none; }
-/* Wiedergabelisten: Sprache oben rechts neben der Fernhilfe (schon vor dem Einrichten umstellbar) */
-.pl-head .vpn-badge.lang-btn { margin-left: auto; margin-right: 16px; }
-.pl-head .vpn-badge.lang-btn.last { margin-right: 210px; }
-.pl-head .lang-btn ~ .help-btn { margin-left: 0; }
+.pl-buttons .pl-lang svg { margin-right: 12px; vertical-align: -7px; }
+.pl-head .pl-title { margin-right: 28px; white-space: nowrap; }   /* Titel nie an Fernhilfe/VPN kleben */
