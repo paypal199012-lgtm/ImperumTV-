@@ -2083,3 +2083,18 @@ body.ios .lv-acts.five .lv-act { padding: 12px 10px; margin-right: 7px; font-siz
 .poster .img .fass b { background: rgba(12,10,8,.84); border: 1.5px solid rgba(217,176,102,.75); color: #f4dc9e; font-size: 16px; font-weight: 800; line-height: 1; padding: 5px 8px; border-radius: 7px; letter-spacing: .4px; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
 .poster.seen .img .fass { bottom: 40px; }
 .similar .poster .img .fass b, .search-results .poster .img .fass b { font-size: 14px; padding: 4px 6px; }
+
+/* Leitfaden „Was kann ImperumTV?“ */
+.guide .gd-grid { display: flex; flex-wrap: wrap; gap: 22px; padding: 20px 40px 60px 20px; }
+.guide .gd-card { width: 680px; box-sizing: border-box; display: flex; gap: 20px; align-items: flex-start; padding: 22px 26px; border-radius: 16px;
+    background: rgba(255,255,255,.05); border: 2px solid rgba(255,255,255,.08); transition: transform .15s, border-color .15s, background .15s; }
+.guide .gd-card.focused { border-color: #d9b066; background: rgba(217,176,102,.12); transform: scale(1.02); }
+.guide .gd-ic { font-size: 44px; line-height: 54px; width: 60px; text-align: center; flex: none; }
+.guide .gd-t { font-size: 28px; font-weight: 800; color: #f4dc9e; margin-bottom: 6px; }
+.guide .gd-d { font-size: 22px; line-height: 30px; color: #e9e4d8; }
+.guide .gd-w { font-size: 19px; color: #a7a39a; margin-top: 10px; }
+body.ios .guide .gd-card { width: 100%; }
+.guide .col-cats .cat svg { margin-right: 12px; flex: none; }
+.pl-buttons .pl-lang svg { margin-right: 12px; vertical-align: -7px; }
+.pl-head .pl-title { margin-right: 28px; white-space: nowrap; }   /* Titel nie an Fernhilfe/VPN kleben */
+.pl-head .pl-back, .pl-head .pl-logo, .pl-head .vpn-badge { flex: none; }

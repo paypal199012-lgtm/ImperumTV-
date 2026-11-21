@@ -261,6 +261,7 @@ struct SettingsScreen: View {
                 section("shield", "Konto") {
                     row("list", "Wiedergabelisten", "Wechseln") { nav.push(.playlists) }
                     row("up", "Sicherung", backup.missing ? "nicht eingerichtet" : backup.lastText) { nav.push(.backup) }
+                    row("list", "Was kann ImperumTV?", "") { nav.push(.guide) }
                     row("shield", "Fernhilfe", help.on ? "Läuft · Code \(help.codeText)" : "Support hilft") {
                         if help.on { help.askingStop = true } else { help.asking = true }
                     }
