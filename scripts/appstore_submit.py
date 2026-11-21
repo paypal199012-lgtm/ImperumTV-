@@ -97,6 +97,20 @@ note(f"Build {BUILD_NO} ist fertig verarbeitet")
 # 2. Version anlegen oder offene nehmen
 vers = must("GET", f"/v1/apps/{app_id}/appStoreVersions?filter[platform]={PLATFORM}&limit=10", what="Versionen")["data"]
 ver = next((v for v in vers if v["attributes"].get("versionString") == VERSION), None)
+# Austauschen: wartet dieselbe Version noch auf die Prüfung, Einreichung zurückziehen und mit dem neuen Build neu einreichen
+if ver and ver["attributes"].get("appStoreState") == "WAITING_FOR_REVIEW":
+    waiting = must("GET", f"/v1/reviewSubmissions?filter[app]={app_id}&filter[platform]={PLATFORM}&filter[state]=WAITING_FOR_REVIEW",
+                   what="Wartende Einreichung")["data"]
+    for w in waiting:
+        must("PATCH", f"/v1/reviewSubmissions/{w['id']}", {"data": {"type": "reviewSubmissions", "id": w["id"], "attributes": {"canceled": True}}},
+             what="Wartende Einreichung zurückziehen")
+    note(f"Version {VERSION} wartete noch auf die Prüfung – zurückgezogen, wird mit Build {BUILD_NO} neu eingereicht")
+    for _ in range(40):
+        time.sleep(15)
+        ver = must("GET", f"/v1/appStoreVersions/{ver['id']}", what="Version")["data"]
+        if ver["attributes"].get("appStoreState") in ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED"):
+            break
+        print("Zurückziehen läuft …", ver["attributes"].get("appStoreState"), flush=True)
 if ver and ver["attributes"].get("appStoreState") not in ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED"):
     fail(f"Version {VERSION} ist schon {ver['attributes'].get('appStoreState')} – bitte VERSION erhöhen")
 if not ver:

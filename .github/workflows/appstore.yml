@@ -31,9 +31,10 @@ jobs:
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
       APP_VERSION: '1.9'            # neue App-Store-Version: bei jedem Einreichen erhöhen
       WHATS_NEW: |
-        • Neues Farbthema: Neongrün (Einstellungen → Farbthema).
-        • Support-Chat: Nachrichten kommen jetzt deutlich schneller an.
-        • Genres von Filmen und Serien werden zuverlässiger gesammelt.
+        • Doppelte Filme und Serien stehen nur noch einmal da – beim Öffnen wählst du Sprache und Qualität.
+        • Neu: „Was kann ImperumTV?“ – alle Funktionen kurz erklärt (Einstellungen).
+        • ImperumTV gibt es jetzt auch auf Italienisch. Die Sprache lässt sich schon vor dem Einrichten wählen.
+        • Neues Farbthema Neongrün, schnellerer Support-Chat.
         • Fehlerbehebungen und Verbesserungen.
     steps:
       - uses: actions/checkout@v4
