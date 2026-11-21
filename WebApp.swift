@@ -485,8 +485,10 @@ final class NativePlayer {
         place(r, in: bounds, full: full)
         let ext = url.pathExtension.lowercased()
         let eng = isLive ? liveEngine : vodEngine
-        let wantVLC = !forceAVNext && (forceVLCNext || eng == "vlc" || (!isLive && eng != "apple" && ["mkv", "avi", "wmv", "flv", "ts", "divx", "webm"].contains(ext)))
-        if forceAVNext || (eng == "apple" && !forceVLCNext) { triedVLC = true }   // ausdrücklich Apple-Player: nicht still auf VLC wechseln
+        // MKV, AVI usw. kann der Apple-Player gar nicht öffnen („Cannot Open“): Filme und Serien in diesen Formaten immer mit VLC
+        let vlcOnly = !isLive && ["mkv", "avi", "wmv", "flv", "divx", "webm"].contains(ext)
+        let wantVLC = vlcOnly || (!forceAVNext && (forceVLCNext || eng == "vlc" || (!isLive && eng != "apple" && ext == "ts")))
+        if !vlcOnly && (forceAVNext || (eng == "apple" && !forceVLCNext)) { triedVLC = true }   // ausdrücklich Apple-Player: nicht still auf VLC wechseln
         forceVLCNext = false; forceAVNext = false
         if wantVLC { playVLC(url) } else { playAV(isLive && ext == "ts" ? Self.asHLS(url) : url) }
     }
