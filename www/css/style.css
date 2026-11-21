@@ -2097,3 +2097,4 @@ body.ios .guide .gd-card { width: 100%; }
 .guide .col-cats .cat svg { margin-right: 12px; flex: none; }
 .pl-buttons .pl-lang svg { margin-right: 12px; vertical-align: -7px; }
 .pl-head .pl-title { margin-right: 28px; white-space: nowrap; }   /* Titel nie an Fernhilfe/VPN kleben */
+.pl-head .pl-back, .pl-head .pl-logo, .pl-head .vpn-badge { flex: none; }
