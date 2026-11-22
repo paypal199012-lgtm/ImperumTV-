@@ -77,7 +77,7 @@ if STEP == "testgruppe":
     st, d = call("POST", "/v1/betaTesters", {"data": {"type": "betaTesters",
         "attributes": {"email": EMAIL, "firstName": FIRST, "lastName": LAST},
         "relationships": {"betaGroups": {"data": [{"type": "betaGroups", "id": g["id"]}]}}}})
-    if st in (200, 201, 409):
+    if st in (200, 201):
         print("::notice::In die interne TestFlight-Gruppe „" + g["attributes"].get("name", "?") + "“ aufgenommen.", flush=True)
     else:
         print(f"::error::Testgruppe → HTTP {st}: {errs(d)}", flush=True); sys.exit(1)
@@ -90,3 +90,16 @@ if STEP == "build":
     for g in [g for g in d.get("data", []) if g["attributes"].get("isInternalGroup")]:
         st2, d2 = call("POST", f"/v1/betaGroups/{g['id']}/relationships/builds", {"data": [{"type": "builds", "id": b["id"]}]})
         print("::notice::Build " + b["attributes"]["version"] + " → interne Gruppe „" + g["attributes"].get("name", "?") + "“: HTTP " + str(st2) + ("" if st2 in (200, 201, 204, 409) else " " + errs(d2)), flush=True)
+
+if STEP == "pruefen" and EMAIL:
+    from urllib.parse import quote
+    st, d = call("GET", "/v1/users?filter[username]=" + quote(EMAIL) + "&limit=5")
+    print("::notice::Benutzer im Team: HTTP " + str(st) + ", gefunden: " + str(len(d.get("data", []))) + (" · Rollen: " + ",".join(d["data"][0]["attributes"].get("roles", [])) if d.get("data") else ""), flush=True)
+    st, d = call("GET", "/v1/userInvitations?filter[email]=" + quote(EMAIL) + "&limit=5")
+    print("::notice::Offene Einladungen: HTTP " + str(st) + ", " + str(len(d.get("data", []))), flush=True)
+    st, d = call("GET", "/v1/betaTesters?filter[email]=" + quote(EMAIL) + "&include=betaGroups&limit=5")
+    for t in d.get("data", []):
+        gs = [x["attributes"].get("name") for x in d.get("included", []) if x["type"] == "betaGroups"]
+        print("::notice::Tester gefunden: Einladungsart " + str(t["attributes"].get("inviteType")) + ", Status " + str(t["attributes"].get("state")) + ", Gruppen: " + ",".join(map(str, gs)), flush=True)
+    if not d.get("data"):
+        print("::notice::Kein TestFlight-Tester mit dieser Adresse (HTTP " + str(st) + ")", flush=True)
