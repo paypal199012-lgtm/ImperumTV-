@@ -14023,10 +14023,13 @@
         if (Nav.top() !== this || !Player.isPlaying() || Net.off) { this.lastProgress = Date.now(); return; }
         // Lief der Sender nach dem letzten Neuladen wieder 90 s sauber: neue Hänger dürfen wieder repariert werden
         if (this.retries && Date.now() - (this.retryAt || 0) > 90000 && Date.now() - this.lastProgress < 5000) this.retries = 0;
-        if (Date.now() - this.lastProgress > 15000 && this.retries < 3) {
+        // iPhone/iPad, Filme und Serien mit VLC: bei langsamem Internet lädt VLC nach – nicht schon nach 15 s neu starten (das wirft den Vorrat weg)
+        var vodVlc = this.kind !== 'live' && !!(AB && AB.usingVlc && (function () { try { return AB.usingVlc(); } catch (e) { return false; } })());
+        var limit = vodVlc ? 45000 : 15000;
+        if (Date.now() - this.lastProgress > limit && this.retries < 3) {
             this.retries++;
             this.retryAt = Date.now();
-            Report.stall(this.item(), 'Kein Bild-Fortschritt seit 15 s – Sender neu geladen', this.openedAt);
+            Report.stall(this.item(), 'Kein Bild-Fortschritt seit ' + (limit / 1000) + ' s – Sender neu geladen', this.openedAt);
             if (this.noteStall()) return;                      // schon auf einen Ersatzsender umgeschaltet
             toast(T("Sender hängt – wird neu geladen …"));
             this.start();

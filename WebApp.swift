@@ -559,7 +559,10 @@ final class NativePlayer {
         avView.isHidden = true; vlcView.isHidden = false
         let media = VLCMedia(url: url)
         media.addOption(":http-user-agent=\(ua)")
-        media.addOption(":network-caching=" + (bufferMode == "small" ? "1000" : bufferMode == "large" ? "5000" : "2500"))
+        // Filme und Serien: viel größerer Vorrat als bei Live TV – bei langsamem Internet läuft der Film so länger durch, statt alle paar Sekunden zu stocken
+        let cache = isLive ? (bufferMode == "small" ? "1000" : bufferMode == "large" ? "5000" : "2500")
+                           : (bufferMode == "small" ? "3000" : bufferMode == "large" ? "20000" : "10000")
+        media.addOption(":network-caching=" + cache)
         vlc.drawable = vlcView
         vlc.media = media
         applyGravity()
