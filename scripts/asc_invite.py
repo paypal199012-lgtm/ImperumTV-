@@ -20,16 +20,17 @@ print("::notice::Öffentlicher Schlüssel: " + base64.b64encode(pub).decode(), f
 
 DATA = (os.environ.get("DATA") or "").strip()
 STEP = os.environ.get("STEP") or "einladen"
-if not DATA:
+if not DATA and STEP != "build":
     sys.exit(0)
 
-raw = base64.b64decode(DATA)
-eph = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), raw[:65])
-key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b"imperumtv-invite").derive(priv.exchange(ec.ECDH(), eph))
-info = json.loads(AESGCM(key).decrypt(raw[65:77], raw[77:], None))
-for v in info.values():
-    print("::add-mask::" + str(v), flush=True)
-EMAIL, FIRST, LAST = info["email"], info["first"], info["last"]
+EMAIL = FIRST = LAST = None
+if DATA:
+    raw = base64.b64decode(DATA)
+    eph = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), raw[:65])
+    key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b"imperumtv-invite").derive(priv.exchange(ec.ECDH(), eph))
+    info = json.loads(AESGCM(key).decrypt(raw[65:77], raw[77:], None))
+    print("::add-mask::" + info["email"], flush=True)
+    EMAIL, FIRST, LAST = info["email"], info["first"], info["last"]
 
 
 def token():
@@ -80,3 +81,12 @@ if STEP == "testgruppe":
         print("::notice::In die interne TestFlight-Gruppe „" + g["attributes"].get("name", "?") + "“ aufgenommen.", flush=True)
     else:
         print(f"::error::Testgruppe → HTTP {st}: {errs(d)}", flush=True); sys.exit(1)
+
+if STEP == "build":
+    # neuesten fertigen iPhone-Build in die interne Gruppe legen
+    st, d = call("GET", f"/v1/builds?filter[app]={app_id}&filter[preReleaseVersion.platform]=IOS&sort=-uploadedDate&limit=3&fields[builds]=version,processingState")
+    b = next((x for x in d.get("data", []) if x["attributes"].get("processingState") == "VALID"), None)
+    st, d = call("GET", f"/v1/apps/{app_id}/betaGroups?limit=50")
+    for g in [g for g in d.get("data", []) if g["attributes"].get("isInternalGroup")]:
+        st2, d2 = call("POST", f"/v1/betaGroups/{g['id']}/relationships/builds", {"data": [{"type": "builds", "id": b["id"]}]})
+        print("::notice::Build " + b["attributes"]["version"] + " → interne Gruppe „" + g["attributes"].get("name", "?") + "“: HTTP " + str(st2) + ("" if st2 in (200, 201, 204, 409) else " " + errs(d2)), flush=True)
