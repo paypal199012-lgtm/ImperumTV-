@@ -29,13 +29,9 @@ jobs:
     runs-on: macos-15-intel
     env:
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
-      APP_VERSION: '1.9'            # neue App-Store-Version: bei jedem Einreichen erhöhen
+      APP_VERSION: '1.10'            # neue App-Store-Version: bei jedem Einreichen erhöhen
       WHATS_NEW: |
-        • Doppelte Filme und Serien stehen nur noch einmal da – beim Öffnen wählst du Sprache und Qualität.
-        • Neu: „Was kann ImperumTV?“ – alle Funktionen kurz erklärt (Einstellungen).
-        • ImperumTV gibt es jetzt auch auf Italienisch. Die Sprache lässt sich schon vor dem Einrichten wählen.
-        • Filme und Serien im MKV-Format laufen auf dem iPad wieder flüssig.
-        • Neues Farbthema Neongrün, schnellerer Support-Chat.
+        • Filme und Serien laufen bei langsamem Internet flüssiger: größerer Vorrat und kein unnötiges Neuladen mehr.
         • Fehlerbehebungen und Verbesserungen.
     steps:
       - uses: actions/checkout@v4

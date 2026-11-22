@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import WebKit
 import AVFoundation
+import CoreImage
 import MobileVLCKit
 
 // =====================================================================
@@ -209,6 +210,10 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         case "setLiveEngine": UserDefaults.standard.set(["vlc", "apple"].contains(s(0)) ? s(0) : "exo", forKey: "web.liveEngine")
         case "setVodEngine": UserDefaults.standard.set(["vlc", "apple"].contains(s(0)) ? s(0) : "exo", forKey: "web.vodEngine")
         case "setNextEngine": player.forceVLCNext = s(0) == "vlc"; player.forceAVNext = s(0) == "apple"
+        case "videoFrame":
+            player.grabFrame(width: Int(d(0)), quality: Int(d(1))) { [weak self] b64 in
+                self?.js("window.__helpFrame && window.__helpFrame(" + Self.jsString(b64 ?? "") + ")")
+            }
         case "keepAwake": UIApplication.shared.isIdleTimerDisabled = (a.first as? Bool) ?? true
         case "openUrl": if let u = URL(string: s(0)) { UIApplication.shared.open(u) }
         case "log":
@@ -317,6 +322,7 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
             getVodEngine: function () { return S.vodEngine; },
             setVodEngine: function (m) { S.vodEngine = m === 'vlc' || m === 'apple' ? m : 'exo'; post('setVodEngine', [S.vodEngine]); },
             setNextEngine: P('setNextEngine'),
+            videoFrame: function (w, q) { post('videoFrame', [w, q]); },
             keepAwake: P('keepAwake'),
             openUrl: P('openUrl')
           };
@@ -436,6 +442,7 @@ final class NativePlayer {
     private var vlcTimer: Timer?
     private var vlcLastT: Int32 = -1
     private var langPicked = false
+    private var videoOut: AVPlayerItemVideoOutput?
     private let ua = "ImperumTV/1.0 (iPhone)"
 
     init(host: UIView) {
@@ -515,6 +522,9 @@ final class NativePlayer {
         avView.isHidden = false; vlcView.isHidden = true
         let asset = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": ["User-Agent": ua]])
         let item = AVPlayerItem(asset: asset)
+        // Für die Fernhilfe: Videobild abgreifen können (nur auf Anfrage, kostet sonst nichts)
+        let out = AVPlayerItemVideoOutput(pixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])
+        item.add(out); videoOut = out
         item.preferredForwardBufferDuration = bufferMode == "small" ? 1 : bufferMode == "large" ? 8 : 3
         statusObs = item.observe(\.status, options: [.new]) { [weak self] it, _ in
             DispatchQueue.main.async {
@@ -559,7 +569,10 @@ final class NativePlayer {
         avView.isHidden = true; vlcView.isHidden = false
         let media = VLCMedia(url: url)
         media.addOption(":http-user-agent=\(ua)")
-        media.addOption(":network-caching=" + (bufferMode == "small" ? "1000" : bufferMode == "large" ? "5000" : "2500"))
+        // Filme und Serien: viel größerer Vorrat als bei Live TV – bei langsamem Internet läuft der Film so länger durch, statt alle paar Sekunden zu stocken
+        let cache = isLive ? (bufferMode == "small" ? "1000" : bufferMode == "large" ? "5000" : "2500")
+                           : (bufferMode == "small" ? "3000" : bufferMode == "large" ? "20000" : "10000")
+        media.addOption(":network-caching=" + cache)
         vlc.drawable = vlcView
         vlc.media = media
         applyGravity()
@@ -568,6 +581,36 @@ final class NativePlayer {
         vlcTimer?.invalidate()
         vlcLastT = -1
         vlcTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.pollVLC() }
+    }
+
+    // ---------- Videobild für die Fernhilfe (kleines JPEG, Base64) ----------
+    func grabFrame(width: Int, quality: Int, done: @escaping (String?) -> Void) {
+        guard active else { done(nil); return }
+        let w = max(160, min(960, width)), q = CGFloat(max(20, min(90, quality))) / 100
+        if useVLC {
+            let path = NSTemporaryDirectory() + "help-frame.png"
+            try? FileManager.default.removeItem(atPath: path)
+            vlc.saveVideoSnapshot(at: path, withWidth: Int32(w), andHeight: 0)
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.35) {
+                var res: String?
+                if let img = UIImage(contentsOfFile: path), let d = img.jpegData(compressionQuality: q) { res = d.base64EncodedString() }
+                try? FileManager.default.removeItem(atPath: path)
+                DispatchQueue.main.async { done(res) }
+            }
+            return
+        }
+        guard let out = videoOut, let item = av.currentItem else { done(nil); return }
+        let t = item.currentTime()
+        guard let pb = out.copyPixelBuffer(forItemTime: t, itemTimeForDisplay: nil) else { done(nil); return }
+        DispatchQueue.global(qos: .utility).async {
+            let ci = CIImage(cvPixelBuffer: pb)
+            let sc = CGFloat(w) / max(1, ci.extent.width)
+            let small = ci.transformed(by: CGAffineTransform(scaleX: sc, y: sc))
+            var res: String?
+            if let cg = CIContext(options: nil).createCGImage(small, from: small.extent),
+               let d = UIImage(cgImage: cg).jpegData(compressionQuality: q) { res = d.base64EncodedString() }
+            DispatchQueue.main.async { done(res) }
+        }
     }
 
     private func pollVLC() {
