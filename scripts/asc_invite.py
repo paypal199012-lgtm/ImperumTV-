@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""
+App Store Connect: Person einladen (Rolle Marketing, nur ImperumTV) und danach in die interne TestFlight-Gruppe setzen.
+Die Angaben zur Person kommen verschlüsselt (das Repository ist öffentlich) und werden nie ausgegeben.
+Ohne Daten gibt das Skript nur den öffentlichen Schlüssel zum Verschlüsseln aus.
+"""
+import base64, json, os, sys, time, urllib.error, urllib.request
+import jwt
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+API = "https://api.appstoreconnect.apple.com"
+BUNDLE = os.environ.get("BUNDLE_ID") or "tv.imperum.app"
+P8 = os.environ["ASC_KEY_P8"]
+priv = serialization.load_pem_private_key(P8.encode(), password=None)
+pub = priv.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+print("::notice::Öffentlicher Schlüssel: " + base64.b64encode(pub).decode(), flush=True)
+
+DATA = (os.environ.get("DATA") or "").strip()
+STEP = os.environ.get("STEP") or "einladen"
+if not DATA:
+    sys.exit(0)
+
+raw = base64.b64decode(DATA)
+eph = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), raw[:65])
+key = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b"imperumtv-invite").derive(priv.exchange(ec.ECDH(), eph))
+info = json.loads(AESGCM(key).decrypt(raw[65:77], raw[77:], None))
+for v in info.values():
+    print("::add-mask::" + str(v), flush=True)
+EMAIL, FIRST, LAST = info["email"], info["first"], info["last"]
+
+
+def token():
+    now = int(time.time())
+    return jwt.encode({"iss": os.environ["ASC_ISSUER_ID"], "iat": now, "exp": now + 900, "aud": "appstoreconnect-v1"},
+                      P8, algorithm="ES256", headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"})
+
+
+def call(method, path, body=None):
+    req = urllib.request.Request(API + path, method=method, data=json.dumps(body).encode() if body is not None else None)
+    req.add_header("Authorization", "Bearer " + token()); req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            b = r.read(); return r.status, (json.loads(b) if b else {})
+    except urllib.error.HTTPError as e:
+        b = e.read()
+        try: return e.code, json.loads(b)
+        except Exception: return e.code, {}
+
+
+def errs(d):
+    return "; ".join((x.get("title", "") + ": " + x.get("detail", "")) for x in d.get("errors", [])) or "?"
+
+
+st, d = call("GET", f"/v1/apps?filter[bundleId]={BUNDLE}")
+app_id = d["data"][0]["id"]
+
+if STEP == "einladen":
+    st, d = call("POST", "/v1/userInvitations", {"data": {"type": "userInvitations",
+        "attributes": {"email": EMAIL, "firstName": FIRST, "lastName": LAST, "roles": ["MARKETING"],
+                       "allAppsVisible": False, "provisioningAllowed": False},
+        "relationships": {"visibleApps": {"data": [{"type": "apps", "id": app_id}]}}}})
+    if st in (200, 201):
+        print("::notice::Einladung verschickt (Rolle Marketing, nur ImperumTV). Die Person muss sie per E-Mail annehmen.", flush=True)
+    else:
+        print(f"::error::Einladen → HTTP {st}: {errs(d)}", flush=True); sys.exit(1)
+
+if STEP == "testgruppe":
+    st, d = call("GET", f"/v1/apps/{app_id}/betaGroups?limit=50")
+    groups = [g for g in d.get("data", []) if g["attributes"].get("isInternalGroup")]
+    if not groups:
+        print("::error::Keine interne TestFlight-Gruppe gefunden", flush=True); sys.exit(1)
+    g = groups[0]
+    st, d = call("POST", "/v1/betaTesters", {"data": {"type": "betaTesters",
+        "attributes": {"email": EMAIL, "firstName": FIRST, "lastName": LAST},
+        "relationships": {"betaGroups": {"data": [{"type": "betaGroups", "id": g["id"]}]}}}})
+    if st in (200, 201, 409):
+        print("::notice::In die interne TestFlight-Gruppe „" + g["attributes"].get("name", "?") + "“ aufgenommen.", flush=True)
+    else:
+        print(f"::error::Testgruppe → HTTP {st}: {errs(d)}", flush=True); sys.exit(1)

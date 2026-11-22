@@ -1,0 +1,35 @@
+name: App Store Connect – Person einladen
+
+# Lädt eine Person als Tester ein (Rolle Marketing, nur ImperumTV) und setzt sie danach in die interne TestFlight-Gruppe.
+# Die Angaben kommen nur verschlüsselt an (öffentliches Repository) und werden nie ausgegeben.
+on:
+  push:
+    branches: ['werkzeug/asc-einladen']
+    paths: ['.github/workflows/asc-invite.yml', 'scripts/asc_invite.py']
+  workflow_dispatch:
+    inputs:
+      daten:
+        description: 'Verschlüsselte Angaben'
+        required: false
+      schritt:
+        description: 'einladen oder testgruppe'
+        default: 'einladen'
+
+permissions:
+  contents: read
+
+jobs:
+  invite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet "pyjwt[crypto]" cryptography
+      - name: Ausführen
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
+          DATA: ${{ inputs.daten }}
+          STEP: ${{ inputs.schritt }}
+        run: python3 scripts/asc_invite.py
