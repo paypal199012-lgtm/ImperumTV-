@@ -58,6 +58,15 @@ def errs(d):
 st, d = call("GET", f"/v1/apps?filter[bundleId]={BUNDLE}")
 app_id = d["data"][0]["id"]
 
+if STEP == "zurueck" and EMAIL:
+    from urllib.parse import quote
+    st, d = call("GET", "/v1/userInvitations?filter[email]=" + quote(EMAIL) + "&limit=5")
+    for inv in d.get("data", []):
+        st2, _ = call("DELETE", "/v1/userInvitations/" + inv["id"])
+        print("::notice::Einladung zurückgezogen: HTTP " + str(st2), flush=True)
+    if not d.get("data"):
+        print("::notice::Keine offene Einladung gefunden", flush=True)
+
 if STEP == "neu" and EMAIL:
     from urllib.parse import quote
     st, d = call("GET", "/v1/userInvitations?filter[email]=" + quote(EMAIL) + "&limit=5")
