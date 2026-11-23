@@ -31,6 +31,7 @@ jobs:
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
       APP_VERSION: '1.10'            # neue App-Store-Version: bei jedem Einreichen erhöhen
       WHATS_NEW: |
+        • iPad: ImperumTV nutzt jetzt den ganzen Bildschirm – keine schwarzen Ränder mehr oben und unten.
         • Filme und Serien laufen bei langsamem Internet flüssiger: größerer Vorrat und kein unnötiges Neuladen mehr.
         • Fehlerbehebungen und Verbesserungen.
     steps:
