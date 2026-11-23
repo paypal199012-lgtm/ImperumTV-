@@ -264,7 +264,10 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
     private func bridgeScript() -> String {
         let ids = DeviceIdentity.load()
         let ver = Int(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "") ?? 0
-        let device = UIDevice.current.model + " · iOS " + UIDevice.current.systemVersion
+        // Genaues Modell (z. B. „iPad13,16“) für die Admin-Seite; im Simulator kommt „arm64“ → dann nur „iPad“/„iPhone“
+        var sys = utsname(); uname(&sys)
+        let ident = withUnsafePointer(to: &sys.machine) { $0.withMemoryRebound(to: CChar.self, capacity: 1) { String(cString: $0) } }
+        let device = (ident.hasPrefix("iPhone") || ident.hasPrefix("iPad") || ident.hasPrefix("iPod") ? ident : UIDevice.current.model) + " · iOS " + UIDevice.current.systemVersion
         let buffer = UserDefaults.standard.string(forKey: "web.buffer") ?? "normal"
         let engine = UserDefaults.standard.string(forKey: "web.liveEngine") ?? "exo"
         let vodEngine = UserDefaults.standard.string(forKey: "web.vodEngine") ?? "exo"
