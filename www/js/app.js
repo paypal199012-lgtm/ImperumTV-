@@ -7734,7 +7734,7 @@
             this.on = true; this.fails = 0;
             this.showBanner();
             clearInterval(this.timer);
-            this.timer = setInterval(function () { self.tick(); }, 500);   // schaut der Support zu: alle 0,5 s, sonst alle 1,5 s
+            this.timer = setInterval(function () { self.tick(); }, 250);   // schaut der Support zu: alle 0,25 s, sonst alle 1,5 s
             this.tick(true);
         },
         stop: function (tell) {
@@ -7806,7 +7806,7 @@
                     self.ack = n; ran = true;
                     try { self.run(String(list[i].c || '')); } catch (e) { /* egal */ }
                 }
-                if (ran) setTimeout(function () { self.tick(true); }, 150);   // Ergebnis gleich zeigen
+                if (ran) setTimeout(function () { self.tick(true); }, 60);    // Ergebnis gleich zeigen
             }, function () {
                 self.busy = false;
                 if (++self.fails > 200) self.stop(false);   // gut 5 Minuten ohne Verbindung
