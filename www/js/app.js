@@ -530,6 +530,18 @@
     var scale = 1, offX = 0, offY = 0;
     // Breite der Oberfläche: 1920 (16:9). Breitere Bildschirme (Handys 19,5:9 / 20:9) bekommen mehr Breite statt Ränder.
     var SW = 1920, wideStyle = null;
+    // Höhe der Oberfläche: 1080 (16:9). Höhere Bildschirme (iPad 4:3, Tablets 16:10) bekommen mehr Höhe statt Ränder oben und unten.
+    var SH = 1080, tallStyle = null;
+    function setStageHeight(sh) {
+        SH = sh;
+        if (!tallStyle) { tallStyle = document.createElement('style'); (document.head || document.documentElement).appendChild(tallStyle); }
+        var d = Math.round((sh - 1080) / 2);
+        tallStyle.textContent = sh === 1080 ? '' :
+            '#stage,#app,#app::before,.detail-bg,.detail-shade,#player-ui,#loader,.pl,.eg,#modal,.trailer,.trailer-frame,.pf,.live-bg,#app .home-sparks,#uplock{height:' + sh + 'px !important}' +
+            // Startseite, Ladebild und Fenster: Inhalt in die Mitte der größeren Fläche
+            '#app.is-home>*:not(.home-sparks),#loader>*,#modal>*,#uplock>*,.pl>*{transform:translateY(' + d + 'px)}';
+        if (document.body) document.body.classList.toggle('tall', sh > 1080);
+    }
     function setStageWidth(sw) {
         SW = sw;
         if (!wideStyle) { wideStyle = document.createElement('style'); (document.head || document.documentElement).appendChild(wideStyle); }
@@ -554,9 +566,12 @@
         // breiter als 16:9 (Handy 20:9, PC-Monitor 21:9 oder 32:9): Oberfläche wird breiter statt grauer Ränder
         var sw = uw / hh > 16 / 9 + 0.03 ? Math.min(3840, Math.round(1080 * uw / hh)) : 1920;
         if (sw !== SW) setStageWidth(sw);
-        scale = Math.min(uw / SW, hh / 1080);
+        // höher als 16:9 (iPad 4:3, Tablet 16:10): Oberfläche wird höher statt schwarzer Ränder oben und unten
+        var sh = uw / hh < 16 / 9 - 0.03 ? Math.min(1600, Math.round(1920 * hh / uw)) : 1080;
+        if (sh !== SH) setStageHeight(sh);
+        scale = Math.min(uw / SW, hh / SH);
         offX = il + Math.round((uw - SW * scale) / 2);
-        offY = Math.round((hh - 1080 * scale) / 2);
+        offY = Math.round((hh - SH * scale) / 2);
         var st = $('#stage');
         st.style.transform = 'scale(' + scale + ')';
         st.style.left = offX + 'px';
@@ -5587,7 +5602,7 @@
                 AB.setRect(fr.x, fr.y, fr.w, fr.h);
                 return;
             }
-            var r = rect || { x: 0, y: 0, w: SW, h: 1080 };
+            var r = rect || { x: 0, y: 0, w: SW, h: SH };
             var node = this.tizen ? $('#av-player') : this.video;
             node.style.left = (offX + r.x * scale) + 'px';
             node.style.top = (offY + r.y * scale) + 'px';
@@ -5681,7 +5696,7 @@
         applyAspect: function (mode) {
             // Festes Seitenverhältnis (16:9, 4:3, 21:9): Bildfläche mittig in genau diesem Format, Bild darin strecken
             var ratio = this.ratioOf(mode);
-            var area = this.curRect || { x: 0, y: 0, w: SW, h: 1080 };
+            var area = this.curRect || { x: 0, y: 0, w: SW, h: SH };
             if (ratio) {
                 var bw = area.w, bh = area.w / ratio;
                 if (bh > area.h) { bh = area.h; bw = area.h * ratio; }
@@ -9298,7 +9313,7 @@
     /** Goldener Hintergrund überall, nur über dem Vorschaubild frei (dort liegt das Video) */
     function placeHoleBg(bg, box) {
         if (!bg || !box) return;
-        var r = stageRect(box), W = SW, H = 1080;          // Handy: Oberfläche kann breiter als 1920 sein
+        var r = stageRect(box), W = SW, H = SH;          // Handy: Oberfläche kann breiter als 1920 sein
         var x = Math.round(r.x), y = Math.round(r.y), w = Math.round(r.w), hh = Math.round(r.h);
         // Vier Stücke rund um das Vorschaubild (funktioniert auch auf älteren Geräten)
         // Teile überlappen sich um 2 px (unter dem Goldrahmen der Vorschau), damit beim Verkleinern
