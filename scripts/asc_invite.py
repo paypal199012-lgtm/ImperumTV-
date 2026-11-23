@@ -58,6 +58,20 @@ def errs(d):
 st, d = call("GET", f"/v1/apps?filter[bundleId]={BUNDLE}")
 app_id = d["data"][0]["id"]
 
+if STEP == "entfernen" and EMAIL:
+    # alles zu dieser Adresse entfernen: offene Einladung, Team-Zugang, TestFlight-Tester
+    from urllib.parse import quote
+    st, d = call("GET", "/v1/userInvitations?filter[email]=" + quote(EMAIL) + "&limit=5")
+    for inv in d.get("data", []):
+        st2, _ = call("DELETE", "/v1/userInvitations/" + inv["id"]); print("::notice::Einladung zurückgezogen: HTTP " + str(st2), flush=True)
+    st, d = call("GET", "/v1/users?filter[username]=" + quote(EMAIL) + "&limit=5")
+    for u in d.get("data", []):
+        st2, _ = call("DELETE", "/v1/users/" + u["id"]); print("::notice::Team-Zugang entfernt: HTTP " + str(st2), flush=True)
+    st, d = call("GET", "/v1/betaTesters?filter[email]=" + quote(EMAIL) + "&limit=5")
+    for t in d.get("data", []):
+        st2, d2 = call("DELETE", "/v1/betaTesters/" + t["id"]); print("::notice::TestFlight-Tester entfernt: HTTP " + str(st2) + ("" if st2 in (200, 204) else " " + errs(d2)), flush=True)
+    print("::notice::Fertig", flush=True)
+
 if STEP == "zurueck" and EMAIL:
     from urllib.parse import quote
     st, d = call("GET", "/v1/userInvitations?filter[email]=" + quote(EMAIL) + "&limit=5")
