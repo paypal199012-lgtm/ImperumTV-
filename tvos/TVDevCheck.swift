@@ -28,6 +28,12 @@ enum DevCheck {
     /// 4K-Fassungen zuerst? (ohne Check: ja, wie bisher)
     static var prefer4k: Bool { saved?.pref4k ?? true }
 
+    /// Admin: „Geräte-Check neu“
+    static func reset() {
+        UserDefaults.standard.removeObject(forKey: key)
+        shown = false
+    }
+
     static func save(_ r: DevCheckResult) {
         if let d = try? JSONEncoder().encode(r) { UserDefaults.standard.set(d, forKey: key) }
         Report.send("diagnose", "Geräte-Check (Apple TV): Bildschirm \(r.maxH)p · HEVC \(r.hevc ? "ja" : "nein") · HDR \(r.hdr ? "ja" : "nein")"
@@ -192,5 +198,49 @@ struct DevCheckScreen: View {
         } catch { if n == 0 { return 0 } }
         let secs = max(0.05, Date().timeIntervalSince(t0))
         return Double(n) * 8 / secs / 1_000_000
+    }
+}
+
+// MARK: - Befehle aus dem Admin (Geräte-Check neu, Fernhilfe anfragen, Neu laden) – wie auf Android
+
+@MainActor
+enum RemoteFlags {
+    private static var started = false
+
+    /// Beim Start nach 1 s, dann alle 2 s bis die Verbindung steht (VPN, Anmeldung); danach alle 30 s
+    static func start(nav: Nav, store: TVStore) {
+        guard !started, !TVStore.testMode else { return }
+        started = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            for _ in 0..<20 {
+                if await poll(nav: nav, store: store) { break }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+            while true {
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+                _ = await poll(nav: nav, store: store)
+            }
+        }
+    }
+
+    private static func poll(nav: Nav, store: TVStore) async -> Bool {
+        let ids = DeviceIdentity.load()
+        guard !ids.mac.isEmpty, !ids.key.isEmpty else { return false }
+        let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        guard let d = try? await RemoteAPI.rpc("device_flags", ["p_mac": ids.mac, "p_key": ids.key, "p_version": "tvOS " + v]),
+              let o = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
+              (o["ok"] as? Bool) == true else { return false }
+        if let c = o["cmd"] as? String { run(c, nav: nav, store: store) }
+        return true
+    }
+
+    private static func run(_ c: String, nav: Nav, store: TVStore) {
+        switch c {
+        case "devcheck": DevCheck.reset(); DevCheck.firstRun(nav: nav, store: store)
+        case "help": if !RemoteHelp.shared.on { RemoteHelp.shared.asking = true }
+        case "reload", "clearcache": Task { await store.reload() }
+        default: break
+        }
     }
 }
