@@ -29,10 +29,10 @@ jobs:
   upload:
     runs-on: macos-15-intel
     env:
-      TV_VERSION: '1.3'
+      TV_VERSION: '1.4'
       WHATS_NEW: |
-        • Doppelte Filme und Serien stehen nur noch einmal da – beim Öffnen wählst du Sprache und Qualität.
-        • Neu: „Was kann ImperumTV?“ – alle Funktionen kurz erklärt (Einstellungen).
+        • Neu: Geräte-Check beim ersten Start – ImperumTV prüft Bildschirm, Videoformate und Internet und stellt sich passend ein.
+        • Doppelte Filme und Serien: die passende Qualität für dein Apple TV steht zuerst.
         • Fehlerbehebungen und Verbesserungen.
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
     steps:
