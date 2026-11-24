@@ -462,7 +462,7 @@
             finished = true;
             whenQuiet(function () { Epg.sync(false); }, skipped ? 15000 : 6000, 3000, 60000);   // Programm erst nach den Listen, wenn gerade niemand bedient
             whenQuiet(function () { NewEps.check(); }, skipped ? 25000 : 15000, 4000, 120000);   // neue Folgen bei verfolgten Serien
-            var okThen = function () { onOk(); try { if (!(Api.acc && Api.acc.demo)) DevCheck.firstRun(); } catch (e) { /* egal */ } };
+            var okThen = function () { onOk(); try { DevCheck.firstRun(); } catch (e) { /* egal */ } };
             if (skipped) { Sync.hide(); okThen(); return; }
             Sync.finish(mvOk && srOk ? T("Alles aktuell") : T("Live TV ist bereit"), okThen, 1100);
         }
@@ -13213,13 +13213,17 @@
         },
         /** Nach dem ersten erfolgreichen Laden einmal zeigen */
         firstRun: function () {
-            if (this.done() || this._shown) return;
+            if (this.done() || this._shown || (Api.acc && Api.acc.demo)) return;
             this._shown = true;
-            setTimeout(function () {
+            // warten, bis die Startseite steht und kein Fenster offen ist (z. B. „Neu in dieser Version“) – höchstens 5 Minuten
+            var tries = 0, t = setInterval(function () {
+                tries++;
+                if (DevCheck.done() || tries > 200) { clearInterval(t); return; }
                 var top = Nav.top();
-                if (top && top instanceof HomeScreen && !Modal.node) Nav.push(new DevCheckScreen(true));
-                else DevCheck._shown = false;
-            }, 1200);
+                if (!top || Modal.node || !(top instanceof HomeScreen)) return;
+                clearInterval(t);
+                Nav.push(new DevCheckScreen(true));
+            }, 1500);
         }
     };
 
@@ -15401,6 +15405,7 @@
                 if (Remote.gone) return;                 // Liste wurde inzwischen gelöscht: die Auswahl bleibt stehen
                 Nav.replace(new HomeScreen());
                 Updater.autoCheck();
+                DevCheck.firstRun();
             });
             Data.refreshQuiet(acc, pending || Data.fetchLive(acc, null)).then(function () {
                 whenQuiet(function () { Epg.sync(false); }, 6000, 3000, 60000);
@@ -15420,6 +15425,7 @@
                     if (Remote.gone) return;             // Liste wurde inzwischen gelöscht: die Auswahl bleibt stehen
                     Nav.replace(new HomeScreen());
                     Updater.autoCheck();
+                    DevCheck.firstRun();
                 }, function (e) {
                     if (Remote.gone) return;
                     var i = OVpn.native() ? OVpn.info() : {};
