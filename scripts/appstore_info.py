@@ -11,7 +11,7 @@ def get(path):
         return json.loads(r.read())
 for app in get("/v1/apps?limit=20")["data"]:
     a = app["attributes"]
-    vers = get(f"/v1/apps/{app['id']}/appStoreVersions?limit=5")["data"]
+    vers = get(f"/v1/apps/{app['id']}/appStoreVersions?limit=12")["data"]
     st = ", ".join(f"{v['attributes'].get('platform')} {v['attributes'].get('versionString')}: {v['attributes'].get('appStoreState')}" for v in vers)
     print(f"::notice::App {a.get('name')} · Bundle {a.get('bundleId')} · ID {app['id']} · https://apps.apple.com/app/id{app['id']} · {st}")
     for plat in ("IOS", "TV_OS"):

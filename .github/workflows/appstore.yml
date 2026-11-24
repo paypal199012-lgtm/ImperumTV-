@@ -29,11 +29,10 @@ jobs:
     runs-on: macos-15-intel
     env:
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
-      APP_VERSION: '1.10'            # neue App-Store-Version: bei jedem Einreichen erhöhen
+      APP_VERSION: '1.11'            # neue App-Store-Version: bei jedem Einreichen erhöhen
       WHATS_NEW: |
-        • iPad: ImperumTV nutzt jetzt den ganzen Bildschirm – keine schwarzen Ränder mehr oben und unten.
-        • Filme und Serien laufen bei langsamem Internet flüssiger: größerer Vorrat und kein unnötiges Neuladen mehr.
         • Neu: Geräte-Check beim ersten Start – ImperumTV prüft Bildschirm, Videoformate und Internet und stellt sich passend ein.
+        • Fernhilfe reagiert schneller.
         • Fehlerbehebungen und Verbesserungen.
     steps:
       - uses: actions/checkout@v4
