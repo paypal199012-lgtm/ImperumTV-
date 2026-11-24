@@ -7152,10 +7152,13 @@
         waiter: null,
         forced: false,          // Admin hat das Update für dieses Gerät erzwungen (dann kein „Später“)
         /** Beim Start und alle 10 Minuten: Muss dieses Gerät aktualisieren? (Admin-Seite → „Update erzwingen“) */
-        flags: function () {
+        flags: function (tries) {
             var self = this;
-            if (!this.available() || !Device.validMac(Device.mac) || !Device.validKey(Device.key)) return;
+            // beim Start: Gerät noch nicht angemeldet oder VPN/Internet noch nicht da → alle 3 s erneut (höchstens „tries“-mal)
+            var again = function () { if (tries > 0) setTimeout(function () { self.flags(tries - 1); }, 3000); };
+            if (!this.available() || !Device.validMac(Device.mac) || !Device.validKey(Device.key)) { again(); return; }
             Remote.rpc('device_flags', { p_mac: Device.mac, p_key: Device.key, p_version: Report.version() }).then(function (r) {
+                if (!r || r.ok === false) { again(); return; }
                 if (r && r.cmd) RemoteCmd.run(r.cmd);
                 if (r && r.lic) License.remoteRev(r.lic);
                 if (!r || !r.force) return;
@@ -7167,7 +7170,7 @@
                 self.forced = true;
                 self.dismissed = 0;
                 if (self.latest) UpdateLock.show(); else self.check(false);
-            }, function () { /* Datenbank ohne diese Funktion oder offline: egal */ });
+            }, function () { again(); /* offline oder Datenbank ohne diese Funktion */ });
         },
         /** Gleich beim App-Start nachsehen (läuft parallel zum Laden der Listen) */
         autoCheck: function () {
@@ -15269,7 +15272,7 @@
         // (die erste Minute lang immer wieder nachsehen: beim Schnellstart wird die gemerkte Liste kurz darauf durch die frische ersetzt)
         (function warmLater(n) { setTimeout(function () { try { if (Data.channels && Data.channels.length) Merge.warm(); } catch (e) { /* egal */ } if (n < 240) warmLater(n + 1); }, 250); })(0);
         setTimeout(function () { try { Backup.startup(); } catch (e) { /* egal */ } }, 25000);   // Sicherung: übertragene prüfen, täglich sichern   // Genres im Hintergrund sammeln (nur wenn nichts läuft)
-        setTimeout(function () { Updater.flags(); }, 3000);     // vom Admin erzwungenes Update / Befehle (z. B. Geräte-Check neu)?
+        setTimeout(function () { Updater.flags(10); }, 3000);     // vom Admin erzwungenes Update / Befehle (z. B. Geräte-Check neu)?
         setTimeout(function () { try { Help.resume(); } catch (e) { /* egal */ } }, 6000);
         setTimeout(function () { try { Chat.start(); } catch (e) { /* egal */ } }, 5000);   // Support-Chat: neue Nachrichten   // Fernhilfe lief vor dem Neustart
         setTimeout(function () { Report.flushNative(); }, 8000);   // Absturzbericht vom letzten Mal an die Website
