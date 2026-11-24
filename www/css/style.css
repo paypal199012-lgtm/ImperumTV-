@@ -2132,3 +2132,6 @@ body.ios .guide .gd-card { width: 100%; }
 .news-row { display: grid; grid-template-columns: 64px 1fr; gap: 6px 20px; align-items: start; padding: 20px 24px; margin-bottom: 12px; border-radius: 16px; background: rgba(0,0,0,.35); border: 2px solid rgba(255,255,255,.08); }
 .news-row.latest { border-color: rgba(217,176,102,.45); background: linear-gradient(160deg, rgba(217,176,102,.14), rgba(0,0,0,.3)); }
 .news-row.focused { border-color: #d9b066; background: rgba(217,176,102,.22); }
+.tile.tile-two .icon { margin-top: 12px; }
+.tile.tile-two .label { margin-top: 6px; }
+.tile .tile-sub { font-size: 17px; color: #f4dc9e; margin-top: 3px; white-space: nowrap; }
