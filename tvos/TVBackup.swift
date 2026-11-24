@@ -472,7 +472,7 @@ struct BackupScreen: View {
         }
         .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 18)), normal: .black.opacity(0.35), focusFill: UI.tan(0.3),
                                border: UI.tan(0.5), borderWidth: 2))
-        .focused($focus, equals: key)
+        .remoteFocused($focus, equals: key)
     }
 
     private func pillButton(_ t: String, gold: Bool = false, _ act: @escaping () -> Void) -> some View {

@@ -97,12 +97,12 @@ struct DevCheckScreen: View {
                     Text(first ? "Los geht’s" : "Fertig").font(UI.font(28, .bold)).padding(.horizontal, 50).frame(height: 70)
                 }
                 .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: UI.gold, ring: false, solid: true))
-                .focused($focus, equals: "go")
+                .remoteFocused($focus, equals: "go")
                 Button { Task { await run() } } label: {
                     Text("Erneut prüfen").font(UI.font(28, .bold)).padding(.horizontal, 50).frame(height: 70)
                 }
                 .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .black.opacity(0.4), border: UI.tan(0.6), borderWidth: 2))
-                .focused($focus, equals: "again")
+                .remoteFocused($focus, equals: "again")
             }
             .opacity(running ? 0 : 1)
             .disabled(running)

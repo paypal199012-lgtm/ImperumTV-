@@ -67,17 +67,17 @@ struct MovieDetailScreen: View {
                         pill(saved.map { "▶ Fortsetzen ab \(timeText($0.pos))" } ?? "▶ Abspielen")
                     }
                     .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: UI.gold, ring: false, solid: true))
-                    .focused($focus, equals: .play)
+                    .remoteFocused($focus, equals: .play)
                     if saved != nil {
                         Button { play(from: 0) } label: { pill("↺ Von vorne") }
                             .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .white.opacity(0.1), ring: false, solid: true))
-                            .focused($focus, equals: .restart)
+                            .remoteFocused($focus, equals: .restart)
                     }
                     Button { store.toggleFav(movie, .movie) } label: {
                         pill(store.isFav(movie, .movie) ? "★ Favorit entfernen" : "☆ Favorit")
                     }
                     .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .white.opacity(0.1), ring: false, solid: true))
-                    .focused($focus, equals: .fav)
+                    .remoteFocused($focus, equals: .fav)
                 }
                 .padding(.top, 14)
             }

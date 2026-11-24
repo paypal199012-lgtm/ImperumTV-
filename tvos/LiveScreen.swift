@@ -85,15 +85,15 @@ struct LiveScreen: View {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     TextField("Suchen", text: $query)
                         .font(UI.font(27, .medium))
-                        .focused($focus, equals: .search)
+                        .remoteFocused($focus, equals: .search)
                     CatRow(name: "☰ Alle", count: store.visible(.live).count, active: cat == "all") { cat = "all" }
-                        .focused($focus, equals: .cat("all"))
+                        .remoteFocused($focus, equals: .cat("all"))
                     CatRow(name: "★ Favoriten", count: store.live.filter { store.isFav($0, .live) }.count, active: cat == "fav") { cat = "fav" }
-                        .focused($focus, equals: .cat("fav"))
+                        .remoteFocused($focus, equals: .cat("fav"))
                     ForEach(store.visibleCats(.live)) { c in
                         CatRow(name: (store.catLocked(.live, c.id) ? "🔒 " : "") + c.name, count: store.live.lazy.filter { $0.cat == c.id }.count,
                                active: cat == c.id) { cat = c.id; if store.catLocked(.live, c.id) { askPin = true } }
-                            .focused($focus, equals: .cat(c.id))
+                            .remoteFocused($focus, equals: .cat(c.id))
                     }
                 }
                 .padding(.vertical, 20).padding(.horizontal, 10)
@@ -122,7 +122,7 @@ struct LiveScreen: View {
                             .frame(height: 86)
                         }
                         .buttonStyle(GoldStyle(active: engine.kind == .live && g.variants.contains { $0.id == engine.item?.id }))
-                        .focused($focus, equals: .ch(ch.id))
+                        .remoteFocused($focus, equals: .ch(ch.id))
                         .contextMenu {
                             if g.variants.count > 1 { Button("◎ Qualität wählen") { qualityFor = g } }
                             Button(store.isFav(ch, .live) ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen") { store.toggleFav(ch, .live) }
@@ -252,15 +252,15 @@ struct LiveScreen: View {
         HStack(spacing: 16) {
             Button { if let it = info { full(it) } } label: { pill("▶ Vollbild") }
                 .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: UI.gold, ring: false, solid: true))
-                .focused($focus, equals: .full)
+                .remoteFocused($focus, equals: .full)
             Button { if let it = info { store.toggleFav(it, .live) } } label: {
                 pill(info.map { store.isFav($0, .live) } == true ? "★ Favorit entfernen" : "★ Favorit")
             }
             .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .white.opacity(0.08), ring: false, solid: true))
-            .focused($focus, equals: .fav)
+            .remoteFocused($focus, equals: .fav)
             Button { showProgram.toggle() } label: { pill(showProgram ? "☰ Weniger" : "☰ Programm") }
                 .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .white.opacity(0.08), ring: false, solid: true))
-                .focused($focus, equals: .prog)
+                .remoteFocused($focus, equals: .prog)
             if let g = group(of: info) {
                 Button { qualityFor = g } label: { pill("◎ " + store.qualityLabel(g.rep)) }
                     .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .white.opacity(0.08), ring: false, solid: true))

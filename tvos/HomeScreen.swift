@@ -15,9 +15,9 @@ struct HomeScreen: View {
 
             // Oben rechts: Knöpfe mit Text (wie auf Android), unter „Aktualisieren“ der Stand der Liste
             HStack(spacing: 18) {
-                textButton("search", "Suchen", nil) { nav.push(.search) }.focused($focus, equals: "top-search")
-                textButton("refresh", "Aktualisieren", freshText) { Task { await store.reload() } }.focused($focus, equals: "top-reload")
-                RoundButton(icon: "users") { nav.push(.profiles) }.focused($focus, equals: "top-profile")
+                textButton("search", "Suchen", nil) { nav.push(.search) }.remoteFocused($focus, equals: "top-search")
+                textButton("refresh", "Aktualisieren", freshText) { Task { await store.reload() } }.remoteFocused($focus, equals: "top-reload")
+                RoundButton(icon: "users") { nav.push(.profiles) }.remoteFocused($focus, equals: "top-profile")
             }
             .place(640, 26, 1000, 92, alignment: .topTrailing)
 
@@ -62,7 +62,7 @@ struct HomeScreen: View {
         }
         .buttonStyle(GoldStyle(shape: AnyShape(Circle()), normal: .black.opacity(0.42), focusFill: UI.tan(0.38),
                                border: .white.opacity(0.7), borderWidth: 3, scale: 1.06))
-        .focused($focus, equals: key)
+        .remoteFocused($focus, equals: key)
     }
 
     /// „Stand 08:44 Uhr“ (heute) bzw. „Stand 23.11.“; während des Ladens „wird aktualisiert …“
@@ -101,6 +101,6 @@ struct HomeScreen: View {
         }
         .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 12, style: .continuous)), normal: .black.opacity(0.45),
                                focusFill: UI.tan(0.38), border: .white.opacity(0.5), borderWidth: 2))
-        .focused($focus, equals: key)
+        .remoteFocused($focus, equals: key)
     }
 }

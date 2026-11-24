@@ -131,7 +131,7 @@ struct PlaylistsScreen: View {
         }
         .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 14)), normal: .black.opacity(0.4),
                                focusFill: UI.tan(0.42), border: .white.opacity(0.15), borderWidth: 1.5, scale: 1.04))
-        .focused($focus, equals: spot)
+        .remoteFocused($focus, equals: spot)
     }
 
     private func choose(_ f: () async -> Void) async {

@@ -368,7 +368,7 @@ struct SettingsScreen: View {
             .padding(.horizontal, 20).frame(width: 545, height: 56)
         }
         .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 10)), normal: .black.opacity(0.3), focusFill: UI.tan(0.3)))
-        .focused($focus, equals: title)
+        .remoteFocused($focus, equals: title)
     }
 
     private func action(_ icon: String, _ title: String, _ sub: String, _ act: @escaping () -> Void) -> some View {
@@ -385,7 +385,7 @@ struct SettingsScreen: View {
         }
         .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 16)), normal: .black.opacity(0.35), focusFill: UI.tan(0.3),
                                border: UI.tan(0.5), borderWidth: 2))
-        .focused($focus, equals: title)
+        .remoteFocused($focus, equals: title)
     }
 
     private var appVersion: String {

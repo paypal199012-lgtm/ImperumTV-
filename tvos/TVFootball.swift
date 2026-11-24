@@ -228,7 +228,7 @@ struct FootballScreen: View {
                     ForEach(FB.leagues, id: \.0) { lg in
                         let n = lg.0 == "__live" ? data.matches.filter(\.isLive).count : (lg.0.isEmpty ? data.matches.count : data.matches.filter { $0.c == lg.0 }.count)
                         CatRow(name: lg.1, count: n, active: league == lg.0) { league = lg.0 }
-                            .focused($focus, equals: .lg(lg.0))
+                            .remoteFocused($focus, equals: .lg(lg.0))
                     }
                 }
                 .padding(.vertical, 20).padding(.horizontal, 10)
@@ -247,7 +247,7 @@ struct FootballScreen: View {
                     ForEach(days, id: \.0) { day in
                         SectionHead(text: day.0).padding(.top, 10)
                         ForEach(day.1) { m in
-                            row(m).focused($focus, equals: .m(m.id))
+                            row(m).remoteFocused($focus, equals: .m(m.id))
                         }
                     }
                 }

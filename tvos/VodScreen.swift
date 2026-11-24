@@ -131,9 +131,9 @@ struct VodScreen: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 4) {
-                    TextField("Suchen", text: $query).font(UI.font(27, .medium)).focused($focus, equals: .search)
+                    TextField("Suchen", text: $query).font(UI.font(27, .medium)).remoteFocused($focus, equals: .search)
                     CatRow(name: "Sortieren: \(Self.sorts[sort])", icon: nil, gold: true) { sort = (sort + 1) % Self.sorts.count }
-                        .focused($focus, equals: .sort)
+                        .remoteFocused($focus, equals: .sort)
                     SectionHead(text: "Für dich")
                     row("all", "☰ Alle", movieCount(store.visible(kind)))
                     row("fav", "★ Favoriten", store.items(kind).filter { store.isFav($0, kind) }.count)
@@ -182,7 +182,7 @@ struct VodScreen: View {
                                     Button(resume.isSeen(src, movie: it.id) ? "Als nicht gesehen markieren" : "Als gesehen markieren") { resume.toggleSeen(src, movie: it.id) }
                                 }
                             }
-                            .focused($focus, equals: .item(it.id))
+                            .remoteFocused($focus, equals: .item(it.id))
                     }
                 }
                 .padding(.vertical, 20).padding(.horizontal, 14)
@@ -223,7 +223,7 @@ struct VodScreen: View {
             cat = id
             if store.catLocked(kind, id) { askPin = true }
         }
-            .focused($focus, equals: .cat(id))
+            .remoteFocused($focus, equals: .cat(id))
     }
 
     private func dupOptions(_ g: DupGroup) -> [DupOption] {
@@ -295,13 +295,13 @@ struct SeriesScreen: View {
                             pill("▶ Weiter: " + (s.episodeTitle ?? "Folge \(ep + 1)") + (s.pos > 30 ? " ab \(timeText(s.pos))" : ""))
                         }
                         .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: UI.gold, ring: false, solid: true))
-                        .focused($focus, equals: .resume)
+                        .remoteFocused($focus, equals: .resume)
                     }
                     Button { store.toggleFav(series, .series) } label: {
                         pill(store.isFav(series, .series) ? "★  Favorit entfernen" : "☆  Zu Favoriten")
                     }
                     .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .white.opacity(0.08), ring: false, solid: true))
-                    .focused($focus, equals: .fav)
+                    .remoteFocused($focus, equals: .fav)
                 }
                 .padding(.top, 6)
             }
@@ -324,7 +324,7 @@ struct SeriesScreen: View {
                                 Text("Staffel \(s)").font(UI.font(26)).padding(.horizontal, 26).frame(height: 55)
                             }
                             .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: s == season ? UI.tan(0.45) : .white.opacity(0.08), ring: false, solid: true))
-                            .focused($focus, equals: .season(s))
+                            .remoteFocused($focus, equals: .season(s))
                         }
                     }
                     .padding(.horizontal, 4).padding(.vertical, 8)
@@ -337,7 +337,7 @@ struct SeriesScreen: View {
                         ForEach(Array(current.enumerated()), id: \.element.id) { i, e in
                             EpisodeCard(ep: e, color: Self.colors[(e.number - 1 + Self.colors.count * 10) % Self.colors.count],
                                         minutes: store.episodeMinutes(e), seen: resume.isSeen(store.sourceName, episode: e.id)) { play(e) }
-                                .focused($focus, equals: .ep(e.id))
+                                .remoteFocused($focus, equals: .ep(e.id))
                         }
                     }
                     .padding(.horizontal, 8).padding(.vertical, 14)

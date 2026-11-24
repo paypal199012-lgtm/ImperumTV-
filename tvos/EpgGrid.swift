@@ -157,7 +157,7 @@ struct EpgScreen: View {
                     Text("▶ Ansehen").font(UI.font(22, .heavy)).padding(.horizontal, 26).frame(height: 48)
                 }
                 .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: UI.gold, ring: false, solid: true))
-                .focused($focus, equals: .watch)
+                .remoteFocused($focus, equals: .watch)
                 Text("mit OK oder Klick").font(UI.font(19)).foregroundColor(UI.muted)
             }
             .padding(.top, 30)
@@ -195,7 +195,7 @@ struct EpgScreen: View {
             Text(t).font(UI.font(21, .bold)).padding(.horizontal, 20).frame(height: 43)
         }
         .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: active ? UI.tan(0.45) : .white.opacity(0.08), ring: false, solid: true))
-        .focused($focus, equals: .chip(key))
+        .remoteFocused($focus, equals: .chip(key))
     }
 
     // MARK: Zeitleiste und Raster
@@ -252,7 +252,7 @@ struct EpgScreen: View {
             }
             .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 8)), normal: .white.opacity(0.05),
                                    active: selCh?.id == c.id, activeFill: UI.tan(0.3)))
-            .focused($focus, equals: .ch(c.id))
+            .remoteFocused($focus, equals: .ch(c.id))
 
             programs(c).frame(width: 1440, height: rowH, alignment: .leading).clipped()
         }
@@ -312,7 +312,7 @@ struct EpgScreen: View {
         .buttonStyle(GoldStyle(shape: AnyShape(RoundedRectangle(cornerRadius: 8)), normal: now ? UI.tan(0.22) : .white.opacity(0.06),
                                focusFill: UI.tan(0.4)))
         .frame(width: width, alignment: .leading)
-        .focused($focus, equals: .cell(c.id, e.start?.timeIntervalSince1970 ?? 0))
+        .remoteFocused($focus, equals: .cell(c.id, e.start?.timeIntervalSince1970 ?? 0))
     }
 
     // MARK: Fußzeile

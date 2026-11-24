@@ -196,7 +196,6 @@ enum FocusMover {
         let all = items(in: win)
         NSLog("IMPTVFOCUS move %@: %d Elemente, Fokus %@ %@", dir, all.count, String(describing: fs.focusedItem.map { type(of: $0) }),
               String(describing: fs.focusedItem.flatMap { frame(of: $0, in: win) }))
-        for (it, f) in all.prefix(30) { NSLog("IMPTVFOCUS  - %@ %@", String(describing: type(of: it)), NSCoder.string(for: f)) }
         guard !all.isEmpty else { return false }
         guard let cur = fs.focusedItem, let cf = frame(of: cur, in: win) ?? all.first(where: { $0.item === cur })?.frame else {
             fs.requestFocusUpdate(to: all[0].item); fs.updateFocusIfNeeded(); return true
@@ -217,9 +216,12 @@ enum FocusMover {
             let score = main + side * 2.2
             if best == nil || score < best!.1 { best = (it, score) }
         }
-        guard let target = best?.0 else { NSLog("IMPTVFOCUS kein Ziel"); return false }
+        guard let target = best?.0, let tf = all.first(where: { $0.item === target })?.frame else { NSLog("IMPTVFOCUS kein Ziel"); return false }
         fs.requestFocusUpdate(to: target)
         fs.updateFocusIfNeeded()
+        // SwiftUI übernimmt Fokuswechsel von außen nicht: der Knopf an dieser Stelle setzt sich selbst (remoteFocused)
+        RemoteFocus.shared.target = tf
+        Task { @MainActor in try? await Task.sleep(nanoseconds: 400_000_000); RemoteFocus.shared.target = nil }
         NSLog("IMPTVFOCUS Ziel %@ → jetzt %@", String(describing: type(of: target)), String(describing: fs.focusedItem.map { type(of: $0) }))
         return true
     }
@@ -268,5 +270,36 @@ struct HelpBanner: View {
                 .shadow(color: .black.opacity(0.5), radius: 12, y: 4)
                 .allowsHitTesting(false)
         }
+    }
+}
+
+
+/// Fernhilfe-Pfeile: Ziel-Rahmen, an dem sich der passende Knopf selbst den Fokus holt
+@MainActor
+final class RemoteFocus: ObservableObject {
+    static let shared = RemoteFocus()
+    @Published var target: CGRect?
+}
+
+extension View {
+    /// Wie .focused(_:equals:), dazu hört der Knopf auf die Fernhilfe-Pfeile (setzt den Fokus selbst, wenn das Ziel hier liegt)
+    func remoteFocused<V: Hashable>(_ binding: FocusState<V>.Binding, equals value: V) -> some View {
+        self.focused(binding, equals: value)
+            .background(RemoteFocusProbe(binding: binding, value: value))
+    }
+}
+
+private struct RemoteFocusProbe<V: Hashable>: View {
+    var binding: FocusState<V>.Binding
+    let value: V
+    var body: some View {
+        GeometryReader { g in
+            Color.clear.onReceive(RemoteFocus.shared.$target) { t in
+                guard let t = t else { return }
+                let f = g.frame(in: .global)
+                if abs(f.midX - t.midX) < 16, abs(f.midY - t.midY) < 16 { binding.wrappedValue = value }
+            }
+        }
+        .allowsHitTesting(false)
     }
 }

@@ -50,7 +50,7 @@ struct GuideScreen: View {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(Array(guideSections.enumerated()), id: \.offset) { i, s in
                     CatRow(name: s.0, count: s.2.count, active: sec == i, size: 28) { sec = i }
-                        .focused($focus, equals: "sec\(i)")
+                        .remoteFocused($focus, equals: "sec\(i)")
                 }
             }
             .padding(.vertical, 20).padding(.horizontal, 10)
