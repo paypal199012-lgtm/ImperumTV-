@@ -13217,14 +13217,16 @@
             if (this.done() || this._shown || (Api.acc && Api.acc.demo)) return;
             this._shown = true;
             // warten, bis die Startseite steht und kein Fenster offen ist (z. B. „Neu in dieser Version“) – höchstens 5 Minuten
-            var tries = 0, t = setInterval(function () {
+            // sobald die Startseite fertig ist: kurz (0,7 s) stehen lassen, dann der Check
+            var tries = 0, ready = 0, t = setInterval(function () {
                 tries++;
-                if (DevCheck.done() || tries > 200) { clearInterval(t); return; }
+                if (DevCheck.done() || tries > 1200) { clearInterval(t); return; }
                 var top = Nav.top();
-                if (!top || Modal.node || !(top instanceof HomeScreen)) return;
+                if (!top || Modal.node || !(top instanceof HomeScreen)) { ready = 0; return; }
+                if (++ready < 3) return;
                 clearInterval(t);
                 Nav.push(new DevCheckScreen(true));
-            }, 1500);
+            }, 250);
         }
     };
 
@@ -15267,7 +15269,7 @@
         // (die erste Minute lang immer wieder nachsehen: beim Schnellstart wird die gemerkte Liste kurz darauf durch die frische ersetzt)
         (function warmLater(n) { setTimeout(function () { try { if (Data.channels && Data.channels.length) Merge.warm(); } catch (e) { /* egal */ } if (n < 240) warmLater(n + 1); }, 250); })(0);
         setTimeout(function () { try { Backup.startup(); } catch (e) { /* egal */ } }, 25000);   // Sicherung: übertragene prüfen, täglich sichern   // Genres im Hintergrund sammeln (nur wenn nichts läuft)
-        setTimeout(function () { Updater.flags(); }, 8000);     // vom Admin erzwungenes Update?
+        setTimeout(function () { Updater.flags(); }, 3000);     // vom Admin erzwungenes Update / Befehle (z. B. Geräte-Check neu)?
         setTimeout(function () { try { Help.resume(); } catch (e) { /* egal */ } }, 6000);
         setTimeout(function () { try { Chat.start(); } catch (e) { /* egal */ } }, 5000);   // Support-Chat: neue Nachrichten   // Fernhilfe lief vor dem Neustart
         setTimeout(function () { Report.flushNative(); }, 8000);   // Absturzbericht vom letzten Mal an die Website
