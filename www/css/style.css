@@ -2119,3 +2119,19 @@ body.ios .guide .gd-card { width: 100%; }
 .dc-foot { position: absolute; left: 110px; right: 110px; bottom: 80px; display: flex; align-items: center; gap: 24px; }
 .dc-rec { flex: 1; font-size: 26px; color: #a7a39a; }
 .dc-go, .dc-again { flex: none; min-width: 260px; text-align: center; }
+
+/* Startseite oben rechts: Knöpfe mit Text – gleich hoch und gleich gestaltet wie die Infoleiste in der Mitte */
+.home-head-btns .text-btn { display: inline-flex; align-items: center; gap: 10px; height: 66px; padding: 0 24px; margin-left: 14px; box-sizing: content-box;
+    border-radius: 33px; background: #141210; border: 1px solid rgba(217,176,102,.45); font-size: 22px; font-weight: bold; color: #e6dccb; vertical-align: top; }
+.home-head-btns .text-btn svg { color: #f4dc9e; flex: none; width: 26px; height: 26px; }
+.home-head-btns .text-btn.focused { background: rgba(217,176,102,.38); border-color: #f4dc9e; color: #fff; transform: scale(1.06); }
+.home-head-btns .text-btn .tb-t { display: flex; flex-direction: column; line-height: 1.1; }
+.home-head-btns .text-btn small { font-size: 15px; font-weight: normal; color: #f4dc9e; margin-top: 1px; }
+.home-head-btns .text-btn.focused small { color: #fff3cf; }
+/* Wenig Platz oben (VPN + Abo + Spiele live): Infoleiste und Knöpfe gemeinsam kompakter – weiter gleich hoch */
+.home-info.compact { font-size: 19px; padding: 0 8px; height: 56px; top: 31px; }
+.home-info.compact .hi-it { padding: 0 14px; }
+.home-info.compact .hi-it svg { width: 22px; height: 22px; }
+.home-head-btns.compact .text-btn { height: 56px; padding: 0 18px; margin-left: 10px; margin-top: 5px; font-size: 19px; gap: 8px; }
+.home-head-btns.compact .text-btn svg { width: 22px; height: 22px; }
+.home-head-btns.compact .text-btn small { font-size: 14px; }
