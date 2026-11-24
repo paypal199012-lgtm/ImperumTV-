@@ -7656,6 +7656,7 @@
             if (cmd === 'help') { Help.ask(true); return; }
             if (cmd === 'survey') { Survey.later(true); return; }
             if (cmd === 'catreport') { CatDiag.run(); return; }
+            if (cmd === 'devcheck') { Storage.remove('devCheck'); DevCheck._shown = false; DevCheck.firstRun(); return; }   // Admin: Geräte-Check neu
             if (cmd === 'engine:vlc' || cmd === 'engine:exo') {
                 try { if (AB && AB.setLiveEngine) { AB.setLiveEngine(cmd === 'engine:vlc' ? 'vlc' : 'exo'); toast(T("Player Live TV: ") + (cmd === 'engine:vlc' ? 'VLC' : 'ImperumTV') + ' (vom Support eingestellt)', 5000); } } catch (e) { /* egal */ }
                 return;
