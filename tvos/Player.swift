@@ -803,7 +803,12 @@ struct PlayerScreen: View {
     /// Leiste mit Knöpfen zeigen, Fokus auf Pause/Weiter
     private func showBar() {
         showOSD()
-        barFocus = "play"
+        // erst wenn die Knöpfe da sind, kann einer den Fokus bekommen
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            barFocus = "play"
+            if barFocus == nil { try? await Task.sleep(nanoseconds: 200_000_000); barFocus = "play" }
+        }
     }
 
     /// Leiste ausblenden, Fokus zurück aufs Bild (Pfeile spulen bzw. schalten Sender)
