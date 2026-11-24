@@ -20,7 +20,7 @@ print("::notice::Öffentlicher Schlüssel: " + base64.b64encode(pub).decode(), f
 
 DATA = (os.environ.get("DATA") or "").strip()
 STEP = os.environ.get("STEP") or "einladen"
-if not DATA and STEP != "build":
+if not DATA and STEP not in ("build", "build-tv"):
     sys.exit(0)
 
 EMAIL = FIRST = LAST = None
@@ -113,9 +113,10 @@ if STEP == "testgruppe":
     else:
         print(f"::error::Testgruppe → HTTP {st}: {errs(d)}", flush=True); sys.exit(1)
 
-if STEP == "build":
-    # neuesten fertigen iPhone-Build in die interne Gruppe legen
-    st, d = call("GET", f"/v1/builds?filter[app]={app_id}&filter[preReleaseVersion.platform]=IOS&sort=-uploadedDate&limit=3&fields[builds]=version,processingState")
+if STEP in ("build", "build-tv"):
+    # neuesten fertigen iPhone- bzw. Apple-TV-Build in die interne Gruppe legen
+    plat = "TV_OS" if STEP == "build-tv" else "IOS"
+    st, d = call("GET", f"/v1/builds?filter[app]={app_id}&filter[preReleaseVersion.platform]={plat}&sort=-uploadedDate&limit=3&fields[builds]=version,processingState")
     b = next((x for x in d.get("data", []) if x["attributes"].get("processingState") == "VALID"), None)
     st, d = call("GET", f"/v1/apps/{app_id}/betaGroups?limit=50")
     for g in [g for g in d.get("data", []) if g["attributes"].get("isInternalGroup")]:
