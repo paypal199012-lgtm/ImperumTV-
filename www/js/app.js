@@ -7156,12 +7156,13 @@
             var self = this;
             // beim Start: Gerät noch nicht angemeldet oder VPN/Internet noch nicht da → alle 2 s erneut (höchstens „tries“-mal)
             var again = function () { if (tries > 0) setTimeout(function () { self.flags(tries - 1); }, 2000); };
-            if (!this.available() || !Device.validMac(Device.mac) || !Device.validKey(Device.key)) { again(); return; }
+            // Befehle (Geräte-Check neu, Fernhilfe …) auf allen Geräten abholen – nur das Pflicht-Update braucht die Update-Funktion (Android)
+            if (!Device.validMac(Device.mac) || !Device.validKey(Device.key)) { again(); return; }
             Remote.rpc('device_flags', { p_mac: Device.mac, p_key: Device.key, p_version: Report.version() }).then(function (r) {
                 if (!r || r.ok === false) { again(); return; }
                 if (r && r.cmd) RemoteCmd.run(r.cmd);
                 if (r && r.lic) License.remoteRev(r.lic);
-                if (!r || !r.force) return;
+                if (!r || !r.force || !self.available()) return;
                 if (self.forced) {
                     // Pflicht-Update steht aus, aber beim letzten Nachsehen kam nichts: alle 10 Minuten erneut versuchen
                     if (!self.latest && Date.now() - self.lastCheck > 10 * 60000) self.check(false);
