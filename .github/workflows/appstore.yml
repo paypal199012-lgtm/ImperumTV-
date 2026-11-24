@@ -33,6 +33,7 @@ jobs:
       WHATS_NEW: |
         • Neu: Geräte-Check beim ersten Start – ImperumTV prüft Bildschirm, Videoformate und Internet und stellt sich passend ein.
         • Fernhilfe reagiert schneller.
+        • Startseite: „Suchen“ und „Aktualisieren“ oben, mit Uhrzeit, wann die Liste zuletzt neu geladen wurde.
         • Fehlerbehebungen und Verbesserungen.
     steps:
       - uses: actions/checkout@v4
