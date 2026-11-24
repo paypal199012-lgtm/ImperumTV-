@@ -123,6 +123,20 @@ if STEP in ("build", "build-tv"):
         st2, d2 = call("POST", f"/v1/betaGroups/{g['id']}/relationships/builds", {"data": [{"type": "builds", "id": b["id"]}]})
         print("::notice::Build " + b["attributes"]["version"] + " → interne Gruppe „" + g["attributes"].get("name", "?") + "“: HTTP " + str(st2) + ("" if st2 in (200, 201, 204, 409) else " " + errs(d2)), flush=True)
 
+if STEP == "tf-einladung" and EMAIL:
+    # TestFlight-Einladung per E-Mail schicken (enthält den Code zum Einlösen auf dem Apple TV)
+    from urllib.parse import quote
+    st, d = call("GET", "/v1/betaTesters?filter[email]=" + quote(EMAIL) + "&limit=5")
+    t = (d.get("data") or [None])[0]
+    if not t:
+        print("::error::Kein TestFlight-Tester mit dieser Adresse", flush=True); sys.exit(1)
+    st, d = call("POST", "/v1/betaTesterInvitations", {"data": {"type": "betaTesterInvitations",
+        "relationships": {"betaTester": {"data": {"type": "betaTesters", "id": t["id"]}}, "app": {"data": {"type": "apps", "id": app_id}}}}})
+    if st in (200, 201):
+        print("::notice::TestFlight-Einladung verschickt – in der E-Mail steht der Code zum Einlösen auf dem Apple TV.", flush=True)
+    else:
+        print(f"::error::TestFlight-Einladung → HTTP {st}: {errs(d)}", flush=True); sys.exit(1)
+
 if STEP == "pruefen" and EMAIL:
     from urllib.parse import quote
     st, d = call("GET", "/v1/users?filter[username]=" + quote(EMAIL) + "&limit=5")
