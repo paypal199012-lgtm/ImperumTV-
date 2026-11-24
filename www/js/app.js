@@ -7634,9 +7634,8 @@
         var tileList = [];
         if (Resume.all().length) tileList.push(['continue', 'resume', T("WEITERSCHAUEN"), function () { Nav.push(new ContinueScreen()); }]);
         tileList.push(
-            ['favs', 'star', T("FAVORITEN"), function () { Nav.push(new FavoritesScreen()); }],
-            ['search', 'search', T("SUCHE"), function () { Nav.push(new SearchScreen()); }]
-        );
+            ['favs', 'star', T("FAVORITEN"), function () { Nav.push(new FavoritesScreen()); }]
+        );                                               // Suche: Lupe oben rechts (keine eigene Kachel mehr)
         if (Rec.available()) tileList.push(['recs', 'rec', T("AUFNAHMEN"), function () { Nav.push(new RecordingsScreen()); }]);
         if (!Profiles.isKids()) tileList.push(           // Kinder-Profil: keine Einstellungen, keine Listen
             ['football', 'ball', T("SPORT"), function () { Nav.push(new FootballScreen()); }],
