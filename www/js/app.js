@@ -287,6 +287,7 @@
             var el = $('#loader');
             Loader.built = false;                       // der normale Lade-Bildschirm baut sich später neu auf
             clearTimeout(Loader.doneTimer);
+            for (var k0 in this.cards || {}) if (this.cards.hasOwnProperty(k0)) clearInterval(this.cards[k0].cnt);   // alte Zähler aus
             el.innerHTML = '';
             el.className = 'sync';
             el.appendChild(h('div', 'sy-glow'));
@@ -326,6 +327,7 @@
             el.appendChild(this.hint);
             this.done = 0;
             this.skip = null;
+            this.noCount = false;
             el.classList.remove('hidden');
         },
         /** state: 'load' | 'done' | 'fail' */
@@ -333,12 +335,14 @@
             var c = this.cards && this.cards[kind];
             if (!c) return;
             if (c.card.className !== 'sy-card ' + state) c.card.className = 'sy-card ' + state;
-            if (state === 'load') { c.state.textContent = text || T("wird geladen …"); return; }
+            if (state === 'load') { c.state.textContent = text || T("wird geladen …"); this.countLoad(kind, c); return; }
+            this.countStop(c);
             if (state === 'later') { c.card.className = 'sy-card'; c.state.textContent = text || T("lädt beim Öffnen"); c.num.textContent = '–'; }
             if (state === 'fail') { c.state.textContent = text || T("gerade nicht erreichbar"); c.num.textContent = '–'; }
             if (state === 'done') {
                 c.state.textContent = T("✓ aktuell");
                 this.countUp(c, count || 0);
+                this.remember(kind, count, c.t0);
                 if (fresh > 0) { c.badge.textContent = Tf("+{0} neu", [fmtNum(fresh)]); c.badge.classList.remove('hidden'); }
             }
             this.done++;
@@ -349,6 +353,36 @@
             var v = 'scaleX(' + Math.max(0.04, Math.min(1, part)) + ')';
             this.fill.style.webkitTransform = v;
             this.fill.style.transform = v;
+        },
+        /**
+         * Während des Ladens hochzählen bis zur Zahl vom letzten Mal (geschätzt), am Ende steht die echte Zahl.
+         * Nur Text, alle 150 ms (schwache Geräte: 400 ms); rechnet das Gerät gerade, bleibt die Zahl kurz stehen.
+         */
+        countLoad: function (kind, c) {
+            this.countStop(c);
+            var last = Storage.get('syncLast', {}) || {}, target = +last[kind] || 0;
+            c.t0 = Date.now();
+            if (!target || this.noCount) return;                                   // noch nie geladen: „–“ wie bisher
+            var dur = Math.max(1500, Math.min(60000, +last[kind + 'Ms'] || 6000));
+            c.num.classList.add('cnt');
+            var step = function () {
+                var p = 1 - Math.exp(-3 * (Date.now() - c.t0) / dur);  // schnell los, dann langsamer, nie ganz am Ziel
+                c.num.textContent = fmtNum(Math.round(target * 0.98 * p)) + ' …';
+            };
+            step();
+            c.cnt = setInterval(step, document.body.classList.contains('lowfx') ? 400 : 150);
+        },
+        countStop: function (c) {
+            if (c.cnt) { clearInterval(c.cnt); c.cnt = null; }
+            c.num.classList.remove('cnt');
+        },
+        /** Zahl und Ladedauer merken (für das Hochzählen beim nächsten Mal) */
+        remember: function (kind, n, t0) {
+            if (!(n > 0)) return;
+            var last = Storage.get('syncLast', {}) || {};
+            last[kind] = n;
+            if (t0 && Date.now() - t0 > 300) last[kind + 'Ms'] = Date.now() - t0;
+            Storage.set('syncLast', last);
         },
         countUp: function (c, n) {
             c.timer = null;
@@ -380,6 +414,7 @@
         quick: function (title, live, movies, series, then) {
             var self = this;
             this.show(title);
+            this.noCount = true;                        // gespeicherte Listen: Zahlen stehen gleich fest, kein Hochzählen
             ['live', 'movies', 'series'].forEach(function (k) { self.card(k, 'load', 0, 0, T("wird geladen …")); });
             this.done = 0;
             var steps = [['live', live], ['movies', movies], ['series', series]];
@@ -394,7 +429,7 @@
         hide: function () {
             var el = $('#loader');
             this.skip = null;
-            for (var k in this.cards || {}) if (this.cards.hasOwnProperty(k)) clearInterval(this.cards[k].timer);
+            for (var k in this.cards || {}) if (this.cards.hasOwnProperty(k)) { clearInterval(this.cards[k].timer); clearInterval(this.cards[k].cnt); }
             el.classList.add('hidden');
             el.className = 'hidden';
             el.innerHTML = '';

@@ -2119,3 +2119,6 @@ body.ios .guide .gd-card { width: 100%; }
 .dc-foot { position: absolute; left: 110px; right: 110px; bottom: 80px; display: flex; align-items: center; gap: 24px; }
 .dc-rec { flex: 1; font-size: 26px; color: #a7a39a; }
 .dc-go, .dc-again { flex: none; min-width: 260px; text-align: center; }
+
+/* Lade-Bildschirm: Zahl zählt beim Laden hoch (geschätzt bis zur Zahl vom letzten Mal) */
+.sy-num.cnt { color: #f4dc9e; opacity: .85; }
