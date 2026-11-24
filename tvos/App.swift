@@ -122,6 +122,7 @@ struct RootView: View {
             help.nav = nav; help.engine = engine; help.store = store
             if !TVStore.testMode { help.resume() }
             TVTime.load()
+            RemoteFlags.start(nav: nav, store: store)   // Befehle aus dem Admin schon während des Ladens abholen
             await store.start()
             // Uhrzeit und Programm prüfen (falsche Uhr, UTC-Zeitzone, verschobenes Anbieter-Programm)
             Task { await TVTime.check(); await TVTime.detect(store) }
