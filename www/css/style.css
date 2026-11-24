@@ -2098,3 +2098,24 @@ body.ios .guide .gd-card { width: 100%; }
 .pl-buttons .pl-lang svg { margin-right: 12px; vertical-align: -7px; }
 .pl-head .pl-title { margin-right: 28px; white-space: nowrap; }   /* Titel nie an Fernhilfe/VPN kleben */
 .pl-head .pl-back, .pl-head .pl-logo, .pl-head .vpn-badge { flex: none; }
+
+/* ---------- Geräte-Check ---------- */
+.dc { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: radial-gradient(ellipse 1500px 1050px at 50% 40%, #161b21 0%, #12161b 52%, #0b0d10 100%); }
+.dc-head { position: absolute; left: 110px; right: 110px; top: 70px; display: flex; align-items: center; gap: 40px; }
+.dc-logo { width: 150px; flex: none; }
+.dc-title { font-size: 54px; font-weight: bold; color: #f2efe8; }
+.dc-sub { font-size: 28px; color: #a7a39a; margin-top: 10px; }
+.dc-grid { position: absolute; left: 110px; right: 110px; top: 270px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.dc-card { display: flex; align-items: center; gap: 26px; padding: 28px 32px; border-radius: 22px; background: rgba(255,255,255,.05); border: 2px solid rgba(255,255,255,.08); }
+.dc-card.run { border-color: rgba(217,176,102,.6); }
+.dc-ic { font-size: 52px; width: 70px; text-align: center; flex: none; }
+.dc-tx { flex: 1; min-width: 0; }
+.dc-t { font-size: 30px; font-weight: bold; color: #f2efe8; }
+.dc-d { font-size: 25px; color: #cfc9bc; margin-top: 6px; }
+.dc-st { width: 46px; height: 46px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; color: #10120f; }
+.dc-card.ok .dc-st { background: #5fd068; }
+.dc-card.mid .dc-st { background: #f4c35a; }
+.dc-card.run .dc-st { border: 5px solid rgba(217,176,102,.3); border-top-color: #d9b066; box-sizing: border-box; animation: spin 1s linear infinite; }
+.dc-foot { position: absolute; left: 110px; right: 110px; bottom: 80px; display: flex; align-items: center; gap: 24px; }
+.dc-rec { flex: 1; font-size: 26px; color: #a7a39a; }
+.dc-go, .dc-again { flex: none; min-width: 260px; text-align: center; }
