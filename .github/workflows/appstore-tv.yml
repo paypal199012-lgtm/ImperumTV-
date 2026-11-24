@@ -68,6 +68,7 @@ jobs:
           mkdir -p ~/private_keys
           printf '%s' "$P" > ~/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
       - name: Archiv bauen (Signieren erst beim Hochladen, mit dem Vertriebszertifikat von Apple)
+        timeout-minutes: 18
         run: |
           cd tvos
           xcodebuild -workspace ImperumTVtv.xcworkspace -scheme ImperumTV -configuration Release \
