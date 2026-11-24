@@ -149,8 +149,105 @@ final class RemoteHelp: ObservableObject {
         case "click:@nettest": nav.reset(.home); nav.push(.settings); nav.push(.nettest)
         case "click:@reload": if let st = store { Task { await st.reload() } }
         case "click:@cache": store?.clearCache()
-        default: break    // Pfeile/OK: auf dem Apple TV nicht möglich
+        case "key:up", "key:down", "key:left", "key:right": FocusMover.move(String(c.dropFirst(4)))
+        case "key:ok": FocusMover.activate()
+        default: break
         }
+    }
+}
+
+/// Fernhilfe: Pfeile und OK. tvOS lässt keine Tastendrücke von außen zu – die App verschiebt deshalb selbst den Fokus
+/// zum nächsten Knopf in der Richtung und löst den gewählten Knopf aus (wie die Bedienungshilfen).
+@MainActor
+enum FocusMover {
+    private static var window: UIWindow? {
+        UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
+    }
+
+    /// Alle Elemente, die den Fokus bekommen können, mit Rahmen im Fenster
+    private static func items(in win: UIWindow) -> [(item: UIFocusItem, frame: CGRect)] {
+        var out: [(UIFocusItem, CGRect)] = []
+        var seen = Set<ObjectIdentifier>()
+        func walk(_ container: UIFocusItemContainer, depth: Int) {
+            guard depth < 40 else { return }
+            let space = container.coordinateSpace
+            let area = space.convert(win.bounds, from: win)
+            for it in container.focusItems(in: area) {
+                let id = ObjectIdentifier(it as AnyObject)
+                if seen.contains(id) { continue }
+                seen.insert(id)
+                let f = space.convert(it.frame, to: win)
+                if it.canBecomeFocused, f.width > 4, f.height > 4, f.intersects(win.bounds) { out.append((it, f)) }
+                if let sub = (it as? UIFocusEnvironment)?.focusItemContainer, sub !== container { walk(sub, depth: depth + 1) }
+            }
+        }
+        if let c = win.focusItemContainer { walk(c, depth: 0) }
+        return out
+    }
+
+    private static func frame(of item: UIFocusItem, in win: UIWindow) -> CGRect? {
+        guard let env = item.parentFocusEnvironment, let c = env.focusItemContainer else { return nil }
+        return c.coordinateSpace.convert(item.frame, to: win)
+    }
+
+    @discardableResult
+    static func move(_ dir: String) -> Bool {
+        guard let win = window, let fs = UIFocusSystem.focusSystem(for: win) else { return false }
+        let all = items(in: win)
+        guard !all.isEmpty else { return false }
+        guard let cur = fs.focusedItem, let cf = frame(of: cur, in: win) ?? all.first(where: { $0.item === cur })?.frame else {
+            fs.requestFocusUpdate(to: all[0].item); fs.updateFocusIfNeeded(); return true
+        }
+        let c = CGPoint(x: cf.midX, y: cf.midY)
+        var best: (UIFocusItem, CGFloat)?
+        for (it, f) in all where it !== cur {
+            let p = CGPoint(x: f.midX, y: f.midY)
+            let dx = p.x - c.x, dy = p.y - c.y
+            let main: CGFloat, side: CGFloat
+            switch dir {
+            case "right": main = dx; side = abs(dy)
+            case "left": main = -dx; side = abs(dy)
+            case "down": main = dy; side = abs(dx)
+            default: main = -dy; side = abs(dx)
+            }
+            guard main > 8 else { continue }
+            let score = main + side * 2.2
+            if best == nil || score < best!.1 { best = (it, score) }
+        }
+        guard let target = best?.0 else { return false }
+        fs.requestFocusUpdate(to: target)
+        fs.updateFocusIfNeeded()
+        return true
+    }
+
+    /// OK: gewählten Knopf auslösen
+    @discardableResult
+    static func activate() -> Bool {
+        guard let win = window, let fs = UIFocusSystem.focusSystem(for: win), let cur = fs.focusedItem else { return false }
+        if let ctl = cur as? UIControl { ctl.sendActions(for: .primaryActionTriggered); return true }
+        if let o = cur as? NSObject, o.accessibilityActivate() { return true }
+        // Bedienungshilfen-Element an der Stelle des Fokus suchen und auslösen
+        if let f = frame(of: cur, in: win) {
+            let pt = CGPoint(x: f.midX, y: f.midY)
+            func find(_ el: NSObject, depth: Int) -> NSObject? {
+                guard depth < 30 else { return nil }
+                let n = el.accessibilityElementCount()
+                if n != NSNotFound, n > 0 {
+                    for i in 0..<n {
+                        guard let child = el.accessibilityElement(at: i) as? NSObject else { continue }
+                        if child.accessibilityFrame.contains(win.convert(pt, to: nil)), let hit = find(child, depth: depth + 1) { return hit }
+                    }
+                }
+                if let subs = (el as? UIView)?.subviews {
+                    for v in subs.reversed() where !v.isHidden && v.frame.size.width > 0 {
+                        if v.convert(v.bounds, to: win).contains(pt), let hit = find(v, depth: depth + 1) { return hit }
+                    }
+                }
+                return el.isAccessibilityElement ? el : nil
+            }
+            if let hit = find(win, depth: 0), hit !== win, hit.accessibilityActivate() { return true }
+        }
+        return false
     }
 }
 

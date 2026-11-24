@@ -202,6 +202,14 @@ struct RootView: View {
         case "genres": nav.reset(.home); nav.push(.movies)
         case "search": nav.reset(.home); nav.push(.search)
         case "devcheck": nav.reset(.home); nav.push(.devcheck(true))
+        case "pfeile", "pfeileok":                     // Fernhilfe-Test: Fokus 2× nach rechts (FILME), bei „pfeileok“ auch OK
+            nav.reset(.home)
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                FocusMover.move("right"); try? await Task.sleep(nanoseconds: 600_000_000)
+                FocusMover.move("right"); try? await Task.sleep(nanoseconds: 600_000_000)
+                if s == "pfeileok" { FocusMover.activate() }
+            }
         case "favorites": nav.reset(.home); nav.push(.favorites)
         case "football": nav.reset(.home); nav.push(.football)
         case "profiles": nav.reset(.home); nav.push(.profiles)
