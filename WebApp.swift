@@ -3,6 +3,7 @@ import UIKit
 import WebKit
 import AVFoundation
 import CoreImage
+import VideoToolbox
 import MobileVLCKit
 
 // =====================================================================
@@ -268,6 +269,12 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         var sys = utsname(); uname(&sys)
         let ident = withUnsafePointer(to: &sys.machine) { $0.withMemoryRebound(to: CChar.self, capacity: 1) { String(cString: $0) } }
         let device = (ident.hasPrefix("iPhone") || ident.hasPrefix("iPad") || ident.hasPrefix("iPod") ? ident : UIDevice.current.model) + " · iOS " + UIDevice.current.systemVersion
+        // Geräte-Check: was das iPhone/iPad selbst kann (HEVC per Hardware, Bildschirm, HDR, Speicher)
+        let ns = UIScreen.main.nativeBounds
+        var capsObj: [String: Any] = ["avc": true, "hevc": VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC), "ac3": true, "eac3": true,
+                                      "maxH": Int(min(ns.width, ns.height)), "ram": Int(ProcessInfo.processInfo.physicalMemory / 1_048_576)]
+        if #available(iOS 13.0, *) { capsObj["hdr"] = AVPlayer.eligibleForHDRPlayback }
+        let caps = (try? JSONSerialization.data(withJSONObject: capsObj)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
         let buffer = UserDefaults.standard.string(forKey: "web.buffer") ?? "normal"
         let engine = UserDefaults.standard.string(forKey: "web.liveEngine") ?? "exo"
         let vodEngine = UserDefaults.standard.string(forKey: "web.vodEngine") ?? "exo"
@@ -275,7 +282,7 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
         (function () {
           var S = window.__abState = { playing: false, pos: 0, dur: 0, kbps: 0, audio: '[]', text: '[]',
             version: \(ver), device: \(Self.jsString(device)), mk: \(Self.jsString(ids.mac + "|" + ids.key)),
-            buffer: \(Self.jsString(buffer)), engine: \(Self.jsString(engine)), vodEngine: \(Self.jsString(vodEngine)), tz: \(TimeZone.current.secondsFromGMT() / 60) };
+            caps: \(Self.jsString(caps)), buffer: \(Self.jsString(buffer)), engine: \(Self.jsString(engine)), vodEngine: \(Self.jsString(vodEngine)), tz: \(TimeZone.current.secondsFromGMT() / 60) };
           function post(m, a) { try { window.webkit.messageHandlers.ab.postMessage({ m: m, a: a || [] }); } catch (e) {} }
           // Programmfehler der Oberfläche ins Protokoll der App (zum Prüfen im Simulator)
           window.addEventListener('error', function (e) { post('log', ['JS-Fehler: ' + e.message + ' @ ' + (e.filename || '') + ':' + e.lineno]); });
@@ -315,6 +322,7 @@ final class WebAppController: UIViewController, WKScriptMessageHandler, WKNaviga
             deviceName: function () { return S.device; },
             deviceMacKey: function () { return S.mk; },
             usingVlc: function () { return !!S.vlcNow; },
+            codecCaps: function () { return S.caps || ''; },
             tzMinutes: function () { return S.tz; },
             netInfo: function () { return '{"kbps":' + (S.kbps || 0) + '}'; },
             getBuffer: function () { return S.buffer; },
