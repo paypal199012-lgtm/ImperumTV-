@@ -2119,3 +2119,16 @@ body.ios .guide .gd-card { width: 100%; }
 .dc-foot { position: absolute; left: 110px; right: 110px; bottom: 80px; display: flex; align-items: center; gap: 24px; }
 .dc-rec { flex: 1; font-size: 26px; color: #a7a39a; }
 .dc-go, .dc-again { flex: none; min-width: 260px; text-align: center; }
+
+/* Startseite: Kachel NEU mit Zahl (neu in den letzten 7 Tagen) */
+.tile { position: relative; }
+.tile .tile-nb { position: absolute; top: -12px; right: -12px; min-width: 40px; height: 40px; padding: 0 10px; box-sizing: border-box; border-radius: 20px; background: #d9b066; color: #1d1608; font-size: 21px; font-weight: bold; line-height: 40px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,.5); }
+
+/* Startseite → „Was ist neu“ */
+.news-col { left: 0; right: 0; top: 120px; bottom: 0; }
+.news-list { width: 1240px; margin: 0 auto; padding-bottom: 80px; }
+.news-ver { font-size: 22px; font-weight: bold; color: #d9b066; letter-spacing: 1px; text-transform: uppercase; margin: 34px 0 12px; }
+.news-ver.first { margin-top: 10px; }
+.news-row { display: grid; grid-template-columns: 64px 1fr; gap: 6px 20px; align-items: start; padding: 20px 24px; margin-bottom: 12px; border-radius: 16px; background: rgba(0,0,0,.35); border: 2px solid rgba(255,255,255,.08); }
+.news-row.latest { border-color: rgba(217,176,102,.45); background: linear-gradient(160deg, rgba(217,176,102,.14), rgba(0,0,0,.3)); }
+.news-row.focused { border-color: #d9b066; background: rgba(217,176,102,.22); }
