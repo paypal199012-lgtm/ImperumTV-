@@ -331,7 +331,7 @@
             el.classList.remove('hidden');
         },
         /** state: 'load' | 'done' | 'fail' */
-        card: function (kind, state, count, fresh, text) {
+        card: function (kind, state, count, fresh, text, runMs) {
             var c = this.cards && this.cards[kind];
             if (!c) return;
             if (c.card.className !== 'sy-card ' + state) c.card.className = 'sy-card ' + state;
@@ -341,8 +341,8 @@
             if (state === 'fail') { c.state.textContent = text || T("gerade nicht erreichbar"); c.num.textContent = '–'; }
             if (state === 'done') {
                 c.state.textContent = T("✓ aktuell");
-                this.countUp(c, count || 0);
-                this.remember(kind, count, c.t0);
+                this.countUp(c, count || 0, runMs);
+                if (!runMs) this.remember(kind, count, c.t0);
                 if (fresh > 0) { c.badge.textContent = Tf("+{0} neu", [fmtNum(fresh)]); c.badge.classList.remove('hidden'); }
             }
             this.done++;
@@ -384,8 +384,21 @@
             if (t0 && Date.now() - t0 > 300) last[kind + 'Ms'] = Date.now() - t0;
             Storage.set('syncLast', last);
         },
-        countUp: function (c, n) {
+        countUp: function (c, n, runMs) {
+            clearInterval(c.timer);
             c.timer = null;
+            if (runMs && n > 0) {                         // von 0 bis n hochzählen (schnell los, weich am Ende)
+                var t0 = Date.now(), every = document.body.classList.contains('lowfx') ? 120 : 40;
+                c.num.textContent = '0';
+                c.timer = setInterval(function () {
+                    var p = Math.min(1, (Date.now() - t0) / runMs), e = 1 - Math.pow(1 - p, 3);
+                    c.num.textContent = fmtNum(Math.round(n * e));
+                    if (p < 1) return;
+                    clearInterval(c.timer); c.timer = null;
+                    c.num.classList.remove('pop'); void c.num.offsetWidth; c.num.classList.add('pop');
+                }, every);
+                return;
+            }
             // Zahl gleich zeigen und weich einblenden – Hochzählen ruckelt, während das Gerät Listen auswertet
             c.num.textContent = fmtNum(n);
             c.num.classList.remove('pop');
@@ -414,16 +427,17 @@
         quick: function (title, live, movies, series, then) {
             var self = this;
             this.show(title);
-            this.noCount = true;                        // gespeicherte Listen: Zahlen stehen gleich fest, kein Hochzählen
+            this.noCount = true;                        // gespeicherte Listen: Zahl ist bekannt – gleich bis zur echten Zahl hochzählen
             ['live', 'movies', 'series'].forEach(function (k) { self.card(k, 'load', 0, 0, T("wird geladen …")); });
             this.done = 0;
             var steps = [['live', live], ['movies', movies], ['series', series]];
+            var RUN = 700, GAP = 120;                    // jede Zahl zählt 0,7 s hoch, leicht versetzt – zusammen etwa 1,2 s
             steps.forEach(function (st, i) {
                 setTimeout(function () {
-                    if (st[1] >= 0) self.card(st[0], 'done', st[1], 0);
+                    if (st[1] >= 0) self.card(st[0], 'done', st[1], 0, null, RUN);
                     else self.card(st[0], 'later', 0, 0, T("lädt im Hintergrund"));
-                    if (i === steps.length - 1) setTimeout(function () { self.finish(T("Alles bereit"), then, 250); }, 150);
-                }, 200 + i * 200);                      // zusammen etwa 1 Sekunde
+                    if (i === steps.length - 1) setTimeout(function () { self.finish(T("Alles bereit"), then, 250); }, (st[1] > 0 ? RUN : 0) + 150);
+                }, 100 + i * GAP);
             });
         },
         hide: function () {
