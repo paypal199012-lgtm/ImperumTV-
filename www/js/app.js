@@ -7584,10 +7584,22 @@
             var any = false, k;
             for (k = 0; k < bar.children.length; k++) if (!bar.children[k].classList.contains('hidden')) any = true;
             bar.classList.toggle('hidden', !any);
+            fitTop();
+        }
+        /** Infoleiste links, Knöpfe rechts – wird es eng (z. B. „Spiele live“ dazu), Leiste kompakter */
+        function fitTop() {
+            setTimeout(function () {
+                if (!bar.parentNode) return;
+                bar.classList.add('left');
+                bar.classList.remove('compact');
+                var b = btns.getBoundingClientRect(), r = bar.getBoundingClientRect();
+                if (b.width && r.width && r.right > b.left - 12) bar.classList.add('compact');
+            }, 0);
         }
         setLive();
         Football.load(false).then(function () { if (Nav.top() instanceof HomeScreen) setLive(); }, function () { });
         root.appendChild(bar);
+        fitTop();
 
         var circles = h('div', 'home-circles');
         [

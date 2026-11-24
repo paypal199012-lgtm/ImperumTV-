@@ -2128,3 +2128,8 @@ body.ios .guide .gd-card { width: 100%; }
 .home-head-btns .text-btn .tb-t { display: flex; flex-direction: column; line-height: 1.1; }
 .home-head-btns .text-btn small { font-size: 17px; font-weight: normal; color: #f4dc9e; margin-top: 2px; }
 .home-head-btns .text-btn.focused small { color: #fff3cf; }
+/* Infoleiste links, damit rechts Platz für „Suchen“ und „Aktualisieren“ ist */
+.home-info.left { left: 70px; transform: none; }
+.home-info.compact { font-size: 19px; padding: 0 8px; height: 58px; top: 33px; }
+.home-info.compact .hi-it { padding: 0 14px; }
+.home-info.compact .hi-it svg { width: 22px; height: 22px; }
