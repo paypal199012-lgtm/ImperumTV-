@@ -85,6 +85,11 @@ final class MovieDups {
     /// Kürzel, die der Anbieter mit einer Qualität verbindet („4K-MRVL - Film“ → „MRVL - Film“ ist dieselbe Rubrik)
     private static var learned: Set<String> = []
     static let RANK: [String: Int] = ["8K": 5, "4K": 4, "FHD": 3, "HD": 2, "SD": 1]
+    /// Reihenfolge beim Öffnen: zeigt der Geräte-Check, dass 4K hier nicht flüssig läuft, kommt Full HD zuerst
+    @MainActor static func qRank(_ q: String) -> Double {
+        let r = Double(RANK[q] ?? 2)
+        return r >= 4 && !DevCheck.prefer4k ? 2.5 : r
+    }
     static let langName: [String: String] = [
         "DE": "Deutsch", "EN": "Englisch", "FR": "Französisch", "TR": "Türkisch", "IT": "Italienisch", "ES": "Spanisch", "NL": "Niederländisch",
         "PL": "Polnisch", "RU": "Russisch", "AR": "Arabisch", "GR": "Griechisch", "PT": "Portugiesisch", "AL": "Albanisch",
@@ -368,7 +373,7 @@ final class MovieDups {
             let la = langScore(a.1.langs, h), lb = langScore(b.1.langs, h)
             if la != lb { return la > lb }
             if a.1.d3 != b.1.d3 { return !a.1.d3 }
-            let qa = Self.RANK[a.1.q] ?? 2, qb = Self.RANK[b.1.q] ?? 2
+            let qa = Self.qRank(a.1.q), qb = Self.qRank(b.1.q)
             if qa != qb { return qa > qb }
             return a.3 < b.3
         }

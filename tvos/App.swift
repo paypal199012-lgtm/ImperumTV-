@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum TVRoute: Hashable {
-    case home, live, epg, movies, series, seriesDetail(TVItem), movieDetail(TVItem), continueWatching, player, playlists, settings, favorites, search, football, profiles, nettest, lockCats, backup, guide
+    case home, live, epg, movies, series, seriesDetail(TVItem), movieDetail(TVItem), continueWatching, player, playlists, settings, favorites, search, football, profiles, nettest, lockCats, backup, guide, devcheck(Bool)
 }
 
 /// Bildschirm-Stapel wie auf Android: Menü-Taste der Fernbedienung = Zurück
@@ -134,6 +134,7 @@ struct RootView: View {
             let resIds = resume.list(source: src).filter { $0.kind == "series" }.map(\.itemId)
             Task { await store.checkNewEpisodes(Array(Set(favIds + resIds))) }
             if !store.hasSource { nav.reset(.playlists) }
+            DevCheck.firstRun(nav: nav, store: store)   // Geräte-Check einmal nach dem ersten Laden
             GenreBook.shared.start(store)
             Backup.shared.startup(store: store, resume: resume)
             testSetup()
@@ -161,6 +162,7 @@ struct RootView: View {
         case .lockCats: LockCatsScreen()
         case .backup: BackupScreen()
         case .guide: GuideScreen()
+        case .devcheck(let f): DevCheckScreen(first: f)
         }
     }
 
@@ -198,6 +200,7 @@ struct RootView: View {
         case "backupqr": nav.reset(.home); nav.push(.settings); nav.push(.backup)
         case "genres": nav.reset(.home); nav.push(.movies)
         case "search": nav.reset(.home); nav.push(.search)
+        case "devcheck": nav.reset(.home); nav.push(.devcheck(true))
         case "favorites": nav.reset(.home); nav.push(.favorites)
         case "football": nav.reset(.home); nav.push(.football)
         case "profiles": nav.reset(.home); nav.push(.profiles)

@@ -262,6 +262,7 @@ struct SettingsScreen: View {
                     row("list", "Wiedergabelisten", "Wechseln") { nav.push(.playlists) }
                     row("up", "Sicherung", backup.missing ? "nicht eingerichtet" : backup.lastText) { nav.push(.backup) }
                     row("list", "Was kann ImperumTV?", "") { nav.push(.guide) }
+                    row("speed", "Gerät prüfen", DevCheck.saved.map { "Geprüft am " + Date(timeIntervalSince1970: $0.at).formatted(.dateTime.day(.twoDigits).month(.twoDigits).year()) } ?? "") { nav.push(.devcheck(false)) }
                     row("shield", "Fernhilfe", help.on ? "Läuft · Code \(help.codeText)" : "Support hilft") {
                         if help.on { help.askingStop = true } else { help.asking = true }
                     }
