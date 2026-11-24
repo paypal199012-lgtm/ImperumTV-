@@ -511,6 +511,8 @@ struct PlayerScreen: View {
     @AppStorage("tv.autonext") private var autoNext = true
     @AppStorage("tv.netq") private var netq = "always"
     @FocusState private var focused: Bool
+    /// Knöpfe in der Leiste (wie bei Android): welcher gerade gewählt ist
+    @FocusState private var barFocus: String?
 
     /// „Intro überspringen“ (Sekunde 2–10) bzw. „Nächste Folge in …“ (letzte 30 s)
     private var pop: String? {
@@ -526,7 +528,7 @@ struct PlayerScreen: View {
             Button(action: {
                 if pop == "intro" { engine.seek(by: 20); introDone = true; engine.notice("Intro übersprungen (+20 s)") }
                 else if pop == "next" { goNext() }
-                else { openMenu() }
+                else { showBar() }
             }) {
                 ZStack {
                     Color.black
@@ -556,8 +558,8 @@ struct PlayerScreen: View {
             .focused($focused)
             .onMoveCommand { dir in
                 switch dir {
-                case .up: if engine.kind == .live { step(-1) } else { showOSD() }
-                case .down: if engine.kind == .live { step(1) } else { showOSD() }
+                case .up: if engine.kind == .live { step(-1) } else { showBar() }
+                case .down: if engine.kind == .live { step(1) } else { showBar() }
                 case .left: if engine.kind != .live { engine.seek(by: -10) }; showOSD()
                 case .right: if engine.kind != .live { engine.seek(by: 10) }; showOSD()
                 default: break
@@ -567,13 +569,20 @@ struct PlayerScreen: View {
 
             if let m = menu { menuPanel(m).focusSection() }
         }
-        .onAppear { focused = true; showOSD() }
+        .onAppear {
+            focused = true; showOSD()
+            if TVStore.env["IMPTV_SCREEN"] == "playerbar" {    // Simulator-Test: Leiste mit Knöpfen zeigen
+                Task { @MainActor in try? await Task.sleep(nanoseconds: 4_000_000_000); showBar() }
+            }
+        }
         .onExitCommand {
             if menu != nil { withAnimation { menu = nil }; focused = true }
+            else if barFocus != nil { hideBar() }
             else if pop == "next" { nextCancelled = true }
             else { close() }
         }
         .onChange(of: engine.item?.id) { _, _ in introDone = false; nextCancelled = false }
+        .onChange(of: barFocus) { _, f in if f != nil { showOSD() } }   // beim Wechseln in der Leiste nicht ausblenden
         .onChange(of: engine.index) { _, _ in introDone = false; nextCancelled = false }
         .task(id: pop) {
             guard pop == "next" else { nextCount = 10; return }
@@ -623,18 +632,30 @@ struct PlayerScreen: View {
                 }
             }
             Spacer(minLength: 20)
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(engine.kind == .live ? "▲ ▼  Sender wechseln" : "◀ ▶  10 s spulen  ·  ▶❙❙  Pause")
-                Text("OK  Ton · Untertitel · Bild · Schlaf-Timer")
-                if let s = engine.sleepAt { Text("Schlaf-Timer: \(max(1, Int(s.timeIntervalSinceNow / 60))) Min").foregroundColor(UI.gold) }
-                if engine.usingVLC { Text("VLC").foregroundColor(UI.gold2) }
+            // Knöpfe wie bei Android: gewählter Knopf gold, Name darüber
+            HStack(spacing: 14) {
+                if engine.kind == .live {
+                    barButton("prev", "▲", "Sender zurück") { step(-1) }
+                    barButton("play", engine.playing ? "❚❚" : "▶", engine.playing ? "Pause" : "Weiter") { engine.toggle() }
+                    barButton("next", "▼", "Sender weiter") { step(1) }
+                } else {
+                    barButton("rw", "«", "10 s zurück") { engine.seek(by: -10) }
+                    barButton("play", engine.playing ? "❚❚" : "▶", engine.playing ? "Pause" : "Weiter") { engine.toggle() }
+                    barButton("ff", "»", "10 s vor") { engine.seek(by: 10) }
+                }
+                barButton("format", "▭", "Bildformat") { openMenu("format") }
+                barButton("sleep", "☾", engine.sleepAt.map { "Schlaf-Timer · \(max(1, Int($0.timeIntervalSinceNow / 60))) Min" } ?? "Schlaf-Timer") { openMenu("sleep") }
+                barButton("audio", "♪", "Ton") { openMenu("audio") }
+                barButton("text", "CC", "Untertitel") { openMenu("text") }
+                if engine.kind != .series, let it = engine.item {
+                    barButton("fav", store.isFav(it, engine.kind) ? "★" : "☆", store.isFav(it, engine.kind) ? "Favorit entfernen" : "Favorit") {
+                        store.toggleFav(it, engine.kind)
+                        engine.notice(store.isFav(it, engine.kind) ? "Zu Favoriten hinzugefügt" : "Aus Favoriten entfernt")
+                    }
+                }
+                barButton("more", "⋯", engine.usingVLC ? "Mehr · VLC" : "Mehr") { openMenu("main") }
             }
-            .font(UI.font(19)).foregroundColor(UI.muted)
-            Image(systemName: engine.playing ? "pause.fill" : "play.fill")
-                .font(.system(size: 26, weight: .bold))
-                .foregroundColor(UI.dark)
-                .frame(width: 62, height: 62)
-                .background(Circle().fill(UI.gold))
+            .focusSection()
         }
         .padding(.horizontal, 24)
         .frame(width: 1620, height: 142)
@@ -774,9 +795,41 @@ struct PlayerScreen: View {
         .buttonStyle(GoldStyle(normal: .white.opacity(0.06), active: sel))
     }
 
-    private func openMenu() {
+    private func openMenu(_ m: String = "main") {
         hideTask?.cancel()
-        withAnimation { menu = "main" }
+        withAnimation { menu = m }
+    }
+
+    /// Leiste mit Knöpfen zeigen, Fokus auf Pause/Weiter
+    private func showBar() {
+        showOSD()
+        barFocus = "play"
+    }
+
+    /// Leiste ausblenden, Fokus zurück aufs Bild (Pfeile spulen bzw. schalten Sender)
+    private func hideBar() {
+        hideTask?.cancel()
+        barFocus = nil
+        focused = true
+        withAnimation { osd = false }
+    }
+
+    private func barButton(_ key: String, _ label: String, _ tip: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label).font(.system(size: label.count > 1 && label != "❚❚" ? 24 : 30, weight: .bold))
+                .frame(width: 66, height: 66)
+        }
+        .buttonStyle(GoldStyle(shape: AnyShape(Circle()), normal: .white.opacity(0.1), ring: false, solid: true))
+        .remoteFocused($barFocus, equals: key)
+        .overlay(alignment: .top) {
+            if barFocus == key {
+                Text(tip).font(UI.font(22, .bold)).foregroundColor(UI.dark).lineLimit(1).fixedSize()
+                    .padding(.horizontal, 14).frame(height: 38)
+                    .background(RoundedRectangle(cornerRadius: 9).fill(UI.gold))
+                    .offset(y: -50)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 
     private func close(menu: Bool) {
@@ -799,8 +852,11 @@ struct PlayerScreen: View {
         withAnimation { osd = true }
         hideTask?.cancel()
         hideTask = Task {
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
-            if !Task.isCancelled { withAnimation { osd = false } }
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            if !Task.isCancelled {
+                if menu == nil { barFocus = nil; focused = true }
+                withAnimation { osd = false }
+            }
         }
     }
 
