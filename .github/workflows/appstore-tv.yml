@@ -33,6 +33,7 @@ jobs:
       WHATS_NEW: |
         • Neu: Geräte-Check beim ersten Start – ImperumTV prüft Bildschirm, Videoformate und Internet und stellt sich passend ein.
         • Doppelte Filme und Serien: die passende Qualität für dein Apple TV steht zuerst.
+        • Startseite: „Suchen“ und „Aktualisieren“ oben, mit Uhrzeit, wann die Liste zuletzt neu geladen wurde.
         • Fehlerbehebungen und Verbesserungen.
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
     steps:

@@ -13,12 +13,13 @@ struct HomeScreen: View {
                 .shadow(color: .black.opacity(0.55), radius: 10, y: 6)
                 .place(0, 148, 1920, 127, alignment: .center)
 
-            HStack(spacing: 22) {
-                RoundButton(icon: "search") { nav.push(.search) }.focused($focus, equals: "top-search")
-                RoundButton(icon: "refresh") { Task { await store.reload() } }.focused($focus, equals: "top-reload")
+            // Oben rechts: Knöpfe mit Text (wie auf Android), unter „Aktualisieren“ der Stand der Liste
+            HStack(spacing: 18) {
+                textButton("search", "Suchen", nil) { nav.push(.search) }.focused($focus, equals: "top-search")
+                textButton("refresh", "Aktualisieren", freshText) { Task { await store.reload() } }.focused($focus, equals: "top-reload")
                 RoundButton(icon: "users") { nav.push(.profiles) }.focused($focus, equals: "top-profile")
             }
-            .place(1350, 26, 320, 92)
+            .place(640, 26, 1000, 92, alignment: .topTrailing)
 
             HStack(spacing: 44) {
                 circle("live", "tv", "LIVE TV") { nav.push(.live) }
@@ -33,7 +34,6 @@ struct HomeScreen: View {
                     tile("continue", "resume", "WEITERSCHAUEN") { nav.push(.continueWatching) }
                 }
                 tile("favs", "star", "FAVORITEN") { nav.push(.favorites) }
-                tile("search", "search", "SUCHE") { nav.push(.search) }
                 tile("football", "ball", "FUSSBALL") { nav.push(.football) }
                 tile("settings", "gear", "EINSTELLUNGEN") { nav.push(.settings) }
             }
@@ -63,6 +63,31 @@ struct HomeScreen: View {
         .buttonStyle(GoldStyle(shape: AnyShape(Circle()), normal: .black.opacity(0.42), focusFill: UI.tan(0.38),
                                border: .white.opacity(0.7), borderWidth: 3, scale: 1.06))
         .focused($focus, equals: key)
+    }
+
+    /// „Stand 08:44 Uhr“ (heute) bzw. „Stand 23.11.“; während des Ladens „wird aktualisiert …“
+    private var freshText: String? {
+        if store.loading { return "wird aktualisiert …" }
+        guard let d = store.freshAt else { return nil }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = Calendar.current.isDateInToday(d) ? "'Stand' HH:mm 'Uhr'" : "'Stand' dd.MM."
+        return f.string(from: d)
+    }
+
+    private func textButton(_ icon: String, _ title: String, _ sub: String?, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Icon(icon, 34).foregroundColor(UI.gold)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).font(UI.font(28, .bold))
+                    if let sub = sub { Text(sub).font(UI.font(19)).foregroundColor(UI.gold) }
+                }
+            }
+            .padding(.horizontal, 30).frame(height: 92)
+        }
+        .buttonStyle(GoldStyle(shape: AnyShape(Capsule()), normal: .black.opacity(0.45), focusFill: UI.tan(0.38),
+                               border: UI.tan(0.5), borderWidth: 1.5, scale: 1.05))
     }
 
     private func tile(_ key: String, _ icon: String, _ label: String, _ action: @escaping () -> Void) -> some View {

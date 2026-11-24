@@ -141,6 +141,17 @@ final class TVStore: ObservableObject {
     @Published var seriesCats: [TVCat] = []
     @Published var series: [TVItem] = []
     @Published var loading = false
+    /// Wann die Listen zuletzt komplett frisch geladen wurden („Stand … Uhr“ beim Knopf Aktualisieren)
+    @Published var freshAt: Date? = {
+        let t = UserDefaults.standard.double(forKey: "tv.listFreshAt")
+        return t > 0 ? Date(timeIntervalSince1970: t) : nil
+    }()
+    private func markFresh() {
+        guard message == nil, !live.isEmpty else { return }
+        let d = Date()
+        freshAt = d
+        UserDefaults.standard.set(d.timeIntervalSince1970, forKey: "tv.listFreshAt")
+    }
     @Published var loadingText = ""
     @Published var message: String?
     @Published var lists: [RemotePlaylist] = []
@@ -324,11 +335,13 @@ final class TVStore: ObservableObject {
             UserDefaults.standard.set(l.id, forKey: "tv.playlist")
             source = .m3u(l.name, link)
             await loadM3U(link)
+            markFresh()
             return
         }
         UserDefaults.standard.set(l.id, forKey: "tv.playlist")
         source = .xtream(acc, l.name)
         await load(acc)
+        markFresh()
     }
 
     func reload() async {
@@ -338,6 +351,7 @@ final class TVStore: ObservableObject {
         case .m3u(_, let link): await loadM3U(link)
         case .none: await refreshLists()
         }
+        markFresh()
     }
 
     func client(_ acc: Account) -> XtreamAPI { XtreamAPI(account: acc, userAgent: Self.userAgent) }
