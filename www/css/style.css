@@ -2119,3 +2119,12 @@ body.ios .guide .gd-card { width: 100%; }
 .dc-foot { position: absolute; left: 110px; right: 110px; bottom: 80px; display: flex; align-items: center; gap: 24px; }
 .dc-rec { flex: 1; font-size: 26px; color: #a7a39a; }
 .dc-go, .dc-again { flex: none; min-width: 260px; text-align: center; }
+
+/* Startseite oben rechts: Knöpfe mit Text statt runder Symbole */
+.home-head-btns .text-btn { display: inline-flex; align-items: center; gap: 12px; height: 72px; padding: 0 28px; margin-left: 16px; box-sizing: border-box;
+    border-radius: 36px; background: rgba(0,0,0,.45); border: 2px solid rgba(255,255,255,.25); font-size: 24px; font-weight: bold; color: #f2efe8; vertical-align: middle; }
+.home-head-btns .text-btn svg { color: #f4dc9e; flex: none; }
+.home-head-btns .text-btn.focused { background: rgba(217,176,102,.38); border-color: #f4dc9e; transform: scale(1.06); }
+.home-head-btns .text-btn .tb-t { display: flex; flex-direction: column; line-height: 1.1; }
+.home-head-btns .text-btn small { font-size: 17px; font-weight: normal; color: #f4dc9e; margin-top: 2px; }
+.home-head-btns .text-btn.focused small { color: #fff3cf; }
