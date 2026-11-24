@@ -14,6 +14,8 @@ for app in get("/v1/apps?limit=20")["data"]:
     vers = get(f"/v1/apps/{app['id']}/appStoreVersions?limit=12")["data"]
     st = ", ".join(f"{v['attributes'].get('platform')} {v['attributes'].get('versionString')}: {v['attributes'].get('appStoreState')}" for v in vers)
     print(f"::notice::App {a.get('name')} · Bundle {a.get('bundleId')} · ID {app['id']} · https://apps.apple.com/app/id{app['id']} · {st}")
+    tv = get(f"/v1/apps/{app['id']}/appStoreVersions?filter[platform]=TV_OS&limit=3")["data"]
+    print("::notice::Apple TV: " + ", ".join(f"{v['attributes'].get('versionString')}: {v['attributes'].get('appStoreState')} (Veröffentlichung: {v['attributes'].get('releaseType')})" for v in tv))
     for plat in ("IOS", "TV_OS"):
         try:
             bl = get(f"/v1/builds?filter[app]={app['id']}&filter[preReleaseVersion.platform]={plat}&sort=-uploadedDate&limit=3"
