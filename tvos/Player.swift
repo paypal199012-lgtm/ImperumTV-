@@ -572,7 +572,7 @@ struct PlayerScreen: View {
         .onAppear {
             focused = true; showOSD()
             if TVStore.env["IMPTV_SCREEN"] == "playerbar" {    // Simulator-Test: Leiste mit Knöpfen zeigen
-                Task { @MainActor in try? await Task.sleep(nanoseconds: 4_000_000_000); showBar() }
+                Task { @MainActor in try? await Task.sleep(nanoseconds: 21_000_000_000); showBar() }
             }
         }
         .onExitCommand {
