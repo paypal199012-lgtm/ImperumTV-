@@ -7586,14 +7586,15 @@
             bar.classList.toggle('hidden', !any);
             fitTop();
         }
-        /** Infoleiste links, Knöpfe rechts – wird es eng (z. B. „Spiele live“ dazu), Leiste kompakter */
+        /** Infoleiste in der Mitte, Knöpfe rechts – wird es eng (z. B. „Spiele live“ dazu), werden beide kompakter */
         function fitTop() {
             setTimeout(function () {
                 if (!bar.parentNode) return;
-                bar.classList.add('left');
                 bar.classList.remove('compact');
-                var b = btns.getBoundingClientRect(), r = bar.getBoundingClientRect();
-                if (b.width && r.width && r.right > b.left - 12) bar.classList.add('compact');
+                btns.classList.remove('compact');
+                var tight = function () { var b = btns.getBoundingClientRect(), r = bar.getBoundingClientRect(); return b.width && r.width && r.right > b.left - 12; };
+                if (tight()) bar.classList.add('compact');
+                if (tight()) btns.classList.add('compact');
             }, 0);
         }
         setLive();
