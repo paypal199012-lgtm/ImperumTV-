@@ -192,8 +192,11 @@ enum FocusMover {
 
     @discardableResult
     static func move(_ dir: String) -> Bool {
-        guard let win = window, let fs = UIFocusSystem.focusSystem(for: win) else { return false }
+        guard let win = window, let fs = UIFocusSystem.focusSystem(for: win) else { NSLog("IMPTVFOCUS kein Fenster"); return false }
         let all = items(in: win)
+        NSLog("IMPTVFOCUS move %@: %d Elemente, Fokus %@ %@", dir, all.count, String(describing: fs.focusedItem.map { type(of: $0) }),
+              String(describing: fs.focusedItem.flatMap { frame(of: $0, in: win) }))
+        for (it, f) in all.prefix(30) { NSLog("IMPTVFOCUS  - %@ %@", String(describing: type(of: it)), NSCoder.string(for: f)) }
         guard !all.isEmpty else { return false }
         guard let cur = fs.focusedItem, let cf = frame(of: cur, in: win) ?? all.first(where: { $0.item === cur })?.frame else {
             fs.requestFocusUpdate(to: all[0].item); fs.updateFocusIfNeeded(); return true
@@ -214,9 +217,10 @@ enum FocusMover {
             let score = main + side * 2.2
             if best == nil || score < best!.1 { best = (it, score) }
         }
-        guard let target = best?.0 else { return false }
+        guard let target = best?.0 else { NSLog("IMPTVFOCUS kein Ziel"); return false }
         fs.requestFocusUpdate(to: target)
         fs.updateFocusIfNeeded()
+        NSLog("IMPTVFOCUS Ziel %@ → jetzt %@", String(describing: type(of: target)), String(describing: fs.focusedItem.map { type(of: $0) }))
         return true
     }
 

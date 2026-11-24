@@ -5,6 +5,10 @@ permissions:
 
 on:
   workflow_dispatch:
+    inputs:
+      bilder:
+        description: 'Nur diese Bildschirme (leer = alle)'
+        required: false
   push:
     branches: [web-ui]
     paths:
@@ -63,7 +67,8 @@ jobs:
           APP=$(find build/Build/Products -maxdepth 2 -name "*.app" | head -1)
           xcrun simctl install "$UDID" "$APP"
           rm -rf sim-shots; mkdir -p sim-shots
-          for s in pfeile pfeileok devcheck home settings merge genres backup backupchoose live movies moviedetail series seriesdetail epg playlists profiles player home; do
+          LIST="${{ inputs.bilder }}"; [ -n "$LIST" ] || LIST="pfeile pfeileok devcheck home settings merge genres backup backupchoose live movies moviedetail series seriesdetail epg playlists profiles player home"
+          for s in $LIST; do
             xcrun simctl terminate "$UDID" tv.imperum.app 2>/dev/null || true
             sleep 3
             SIMCTL_CHILD_IMPTV_TEST=1 SIMCTL_CHILD_IMPTV_SCREEN=$s xcrun simctl launch "$UDID" tv.imperum.app || true
