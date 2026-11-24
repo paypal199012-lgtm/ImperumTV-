@@ -33,6 +33,7 @@ jobs:
       WHATS_NEW: |
         • iPad: ImperumTV nutzt jetzt den ganzen Bildschirm – keine schwarzen Ränder mehr oben und unten.
         • Filme und Serien laufen bei langsamem Internet flüssiger: größerer Vorrat und kein unnötiges Neuladen mehr.
+        • Neu: Geräte-Check beim ersten Start – ImperumTV prüft Bildschirm, Videoformate und Internet und stellt sich passend ein.
         • Fehlerbehebungen und Verbesserungen.
     steps:
       - uses: actions/checkout@v4
