@@ -2119,3 +2119,36 @@ body.ios .guide .gd-card { width: 100%; }
 .dc-foot { position: absolute; left: 110px; right: 110px; bottom: 80px; display: flex; align-items: center; gap: 24px; }
 .dc-rec { flex: 1; font-size: 26px; color: #a7a39a; }
 .dc-go, .dc-again { flex: none; min-width: 260px; text-align: center; }
+/* Startseite: Reihe „Weiterschauen“ / „Zuletzt gesehen“ unter den Kreisen */
+.home-with-row .home-circles { top: 296px; }
+.home-with-row .circle { width: 236px; height: 236px; margin: 0 30px; }
+.home-with-row .circle .icon { margin-top: 44px; }
+.home-with-row .circle .icon svg { width: 80px; height: 80px; }
+.home-with-row .circle .label { font-size: 31px; margin-top: 10px; }
+.home-with-row .circle .circle-nb { top: 22px; right: 22px; min-width: 46px; height: 46px; border-radius: 23px; }
+.home-with-row .home-tiles { top: 830px; }
+.home-row { position: absolute; left: 0; right: 0; top: 566px; }
+.hr-title { width: 1680px; margin: 0 auto 10px; font-size: 24px; font-weight: bold; color: #d9b066; letter-spacing: .5px; }
+.hr-list { display: flex; justify-content: center; gap: 20px; }
+.hr-card { width: 262px; height: 186px; position: relative; }
+.hr-card .hr-pic { position: absolute; left: 0; top: 0; right: 0; height: 148px; border-radius: 12px; overflow: hidden; border: 2px solid rgba(255,255,255,.35); background: #1b1d26; box-sizing: border-box; }
+.hr-card .img { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-size: cover; background-position: center 22%; }
+.hr-card .hr-name { position: absolute; left: 4px; right: 4px; top: 154px; font-size: 20px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.hr-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: rgba(255,255,255,.2); z-index: 2; }
+.hr-bar i { display: block; height: 100%; background: #d9b066; }
+.hr-card.focused { transform: scale(1.06); }
+.hr-card.focused .hr-pic, .hr-ch.focused { border-color: #d9b066; }
+.hr-ch.focused { transform: scale(1.06); }
+.hr-more .hr-pic { display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); }
+.hr-more-in { text-align: center; font-size: 20px; font-weight: bold; color: #d9b066; }
+.hr-ch { width: 210px; height: 160px; border-radius: 12px; border: 2px solid rgba(255,255,255,.35); background: rgba(0,0,0,.45); box-sizing: border-box;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.hr-ch.focused { background: rgba(217,176,102,.38); }
+.hr-ch .logo { width: 150px; height: 80px; background-size: contain; background-repeat: no-repeat; background-position: center; display: flex; align-items: center; justify-content: center; }
+.hr-ini { font-size: 40px; font-weight: bold; color: #d9b066; }
+.hr-ch .hr-name { font-size: 19px; margin-top: 8px; max-width: 190px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Sport-Kachel mit den Spielen von heute */
+.tile.tile-sport { width: 270px; position: relative; overflow: visible; }
+.tile-sport .icon { margin-top: 10px; }
+.tile-sub { font-size: 18px; color: #f4dc9e; margin-top: 4px; white-space: nowrap; }
+.tile-live { position: absolute; top: -16px; right: -12px; background: #e0443e; color: #fff; font-size: 17px; font-weight: bold; border-radius: 14px; padding: 3px 10px; }

@@ -4717,6 +4717,22 @@
             });
             return out;
         },
+        /** Startseite: Spiele heute, davon live, und Anstoß des nächsten */
+        today: function () {
+            var d = this.data, out = { n: 0, live: 0, next: '' }, self = this;
+            if (!d || !d.matches) return out;
+            var now = Date.now(), t0 = new Date(), nx = 0;
+            t0.setHours(0, 0, 0, 0);
+            var a = t0.getTime(), b = a + 86400000;
+            d.matches.forEach(function (m) {
+                if (m.s === 'CANCELLED' || !(m.t >= a && m.t < b)) return;
+                out.n++;
+                if (self.isLive(m)) out.live++;
+                else if (m.t > now && (!nx || m.t < nx)) nx = m.t;
+            });
+            if (nx) { var x = new Date(nx); out.next = (x.getHours() < 10 ? '0' : '') + x.getHours() + ':' + (x.getMinutes() < 10 ? '0' : '') + x.getMinutes(); }
+            return out;
+        },
         LEAGUES: [['', T("Alle")], ['BL1', 'Bundesliga'], ['BL2', '2. Liga'], ['DFB', 'DFB-Pokal'], ['CL', 'Champions League'], ['EL', 'Europa League'], ['ECL', 'Conference L.'], ['PL', 'Premier League'], ['SA', 'Serie A'], ['SB', 'Serie B'], ['PD', 'LaLiga'], ['FL1', 'Ligue 1']],
         SHORT: { BL1: 'BL', BL2: '2.BL', DFB: 'POK', CL: 'CL', EL: 'EL', ECL: 'ECL', PL: 'PL', SA: 'SA', SB: 'SB', PD: 'LL', FL1: 'L1' },
         STOP: { 'club': 1, 'real': 1, 'borussia': 1, 'united': 1, 'city': 1, 'sporting': 1, 'athletic': 1, 'atletico': 1, 'olympique': 1, 'stade': 1, 'calcio': 1, 'football': 1, 'fussball': 1, 'hotspur': 1, 'albion': 1, 'wanderers': 1, 'deportivo': 1, 'racing': 1, 'union': 1, 'saint': 1, 'paris': 1, 'germain': 1, 'munchen': 1, 'internazionale': 1, 'milano': 1, 'town': 1, 'county': 1, 'rovers': 1, 'villa': 1, 'palace': 1, 'forest': 1, 'ham': 1, 'hove': 1, 'sport': 1, 'sports': 1, 'verein': 1, 'olympic': 1, 'dynamo': 1, 'calcio': 1, 'balompie': 1, 'futbol': 1 },
@@ -7513,6 +7529,64 @@
     // Startbildschirm
     // =====================================================================
 
+    /** Startseite: Reihe „Weiterschauen“ bzw. „Zuletzt gesehen“ (Einstellung homeRow: continue, recent, off) */
+    var HomeRow = {
+        mode: function () { return Storage.get('homeRow', 'continue'); },
+        build: function () {
+            var m = this.mode();
+            if (m === 'off' || Profiles.isKids()) return null;
+            var row = m === 'recent' ? this.recent() : this.cont();
+            if (!row && m === 'continue') row = this.recent();     // noch nichts angefangen: Sender zeigen
+            return row;
+        },
+        wrap: function (kind, title) {
+            var w = h('div', 'home-row');
+            w._kind = kind;
+            w.appendChild(h('div', 'hr-title', title));
+            var l = h('div', 'hr-list');
+            w.appendChild(l);
+            w._list = l;
+            return w;
+        },
+        cont: function () {
+            var list = Resume.all().slice(0, 6);
+            if (!list.length) return null;
+            var w = this.wrap('continue', T("Weiterschauen"));
+            list.forEach(function (e) {
+                var node = h('div', 'hr-card');
+                var pic = h('div', 'hr-pic'), img = h('div', 'img');
+                if (e.logo) setBgImg(img, String(e.logo));
+                pic.appendChild(img);
+                if (!e.next) { var bar = h('div', 'hr-bar'); var f = h('i'); f.style.width = Math.round(Resume.part(e) * 100) + '%'; bar.appendChild(f); pic.appendChild(bar); }
+                node.appendChild(pic);
+                node.appendChild(h('div', 'hr-name', Resume.label(e)));
+                w._list.appendChild(focusable(node, 'home-row-' + e.key, function () { var cs = new ContinueScreen(); cs.open(e); }, 'hrow'));
+            });
+            if (Resume.all().length > 6) {
+                var more = h('div', 'hr-card hr-more');
+                more.innerHTML = '<div class="hr-pic"><div class="hr-more-in">' + icon('resume', 40) + '<div>' + T("Alle ansehen") + '</div></div></div>';
+                w._list.appendChild(focusable(more, 'home-row-more', function () { Nav.push(new ContinueScreen()); }, 'hrow'));
+            }
+            return w;
+        },
+        recent: function () {
+            var all = Hidden.apply(Parental.visible('live', Data.channels || []));
+            var list = RecentLive.items(all).slice(0, 7);
+            if (!list.length) return null;
+            var w = this.wrap('recent', T("Zuletzt gesehen"));
+            list.forEach(function (ch, i) {
+                var node = h('div', 'hr-ch');
+                var lg = h('div', 'logo');
+                if (ch.logo) setBgImg(lg, String(ch.logo));
+                else lg.appendChild(h('span', 'hr-ini', String(ch.name || '').replace(/^[A-Z]{2}\s*[|:-]\s*/, '').slice(0, 2).toUpperCase()));
+                node.appendChild(lg);
+                node.appendChild(h('div', 'hr-name', NameTidy.plain(ch.name) || ch.name));
+                w._list.appendChild(focusable(node, 'home-row-ch' + ch.id, function () { Nav.push(new PlayerScreen(list, i, 'live')); }, 'hrow'));
+            });
+            return w;
+        }
+    };
+
     function HomeScreen() { this.lastBack = 0; }
     HomeScreen.prototype.render = function (root) {
         // Kopfzeile: Krone + ImperumTV in der Mitte, Suche und Neu laden rechts
@@ -7591,24 +7665,40 @@
         });
         root.appendChild(circles);
 
+        // Reihe unter den Kreisen: angefangene Filme/Folgen oder zuletzt gesehene Sender (ein Klick, läuft)
+        var hrow = HomeRow.build();
+        if (hrow) { root.appendChild(hrow); root.classList.add('home-with-row'); }
+
         var tiles = h('div', 'home-tiles');
         var tileList = [];
-        if (Resume.all().length) tileList.push(['continue', 'resume', T("WEITERSCHAUEN"), function () { Nav.push(new ContinueScreen()); }]);
+        if (Resume.all().length && !(hrow && hrow._kind === 'continue')) tileList.push(['continue', 'resume', T("WEITERSCHAUEN"), function () { Nav.push(new ContinueScreen()); }]);
         tileList.push(
-            ['favs', 'star', T("FAVORITEN"), function () { Nav.push(new FavoritesScreen()); }],
-            ['search', 'search', T("SUCHE"), function () { Nav.push(new SearchScreen()); }]
+            ['favs', 'star', T("FAVORITEN"), function () { Nav.push(new FavoritesScreen()); }]
         );
         if (Rec.available()) tileList.push(['recs', 'rec', T("AUFNAHMEN"), function () { Nav.push(new RecordingsScreen()); }]);
         if (!Profiles.isKids()) tileList.push(           // Kinder-Profil: keine Einstellungen, keine Listen
             ['football', 'ball', T("SPORT"), function () { Nav.push(new FootballScreen()); }],
             ['settings', 'gear', T("EINSTELLUNGEN"), function () { Nav.push(new SettingsScreen()); }]
         );                                               // Listen: nur noch unter Einstellungen
+        var sportTile = null;
         tileList.forEach(function (t) {
             var node = h('div', 'tile');
             node.innerHTML = '<div class="icon">' + icon(t[1], 46) + '</div><div class="label">' + t[2] + '</div>';
+            if (t[0] === 'football') sportTile = node;
             tiles.appendChild(focusable(node, 'home-' + t[0], t[3], 'tiles'));
         });
         root.appendChild(tiles);
+        function setSport() {
+            if (!sportTile) return;
+            var d = Football.today();
+            sportTile.classList.toggle('tile-sport', !!(d.n || d.live));
+            var old = sportTile.querySelector('.tile-sub'), oldB = sportTile.querySelector('.tile-live');
+            if (old) old.remove(); if (oldB) oldB.remove();
+            if (d.live) sportTile.appendChild(h('span', 'tile-live', Tf("● LIVE {0}", [d.live])));
+            if (d.n) sportTile.appendChild(h('div', 'tile-sub', d.next ? Tf("Heute {0} · {1}", [d.n === 1 ? T("1 Spiel") : Tf("{0} Spiele", [d.n]), d.next]) : (d.n === 1 ? T("Heute 1 Spiel") : Tf("Heute {0} Spiele", [d.n]))));
+        }
+        setSport();
+        Football.load(false).then(function () { if (Nav.top() instanceof HomeScreen) setSport(); }, function () { });
 
         // Ablaufdatum steht jetzt oben in der Infoleiste
         if (License.known() && !License.activated() && !License.free()) {
