@@ -20,7 +20,12 @@ print("::notice::Öffentlicher Schlüssel: " + base64.b64encode(pub).decode(), f
 
 DATA = (os.environ.get("DATA") or "").strip()
 STEP = os.environ.get("STEP") or "einladen"
-if not DATA and STEP not in ("build", "build-tv"):
+REPLY_PUB = None
+if STEP == "liste":
+    # DATA ist hier ein öffentlicher Antwort-Schlüssel (P-256, Base64): die Liste geht nur verschlüsselt ins Protokoll
+    REPLY_PUB = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), base64.b64decode(DATA))
+    DATA = ""
+if not DATA and STEP not in ("build", "build-tv", "liste"):
     sys.exit(0)
 
 EMAIL = FIRST = LAST = None
@@ -57,6 +62,23 @@ def errs(d):
 
 st, d = call("GET", f"/v1/apps?filter[bundleId]={BUNDLE}")
 app_id = d["data"][0]["id"]
+
+if STEP == "liste":
+    out = {"gruppen": []}
+    st, d = call("GET", f"/v1/apps/{app_id}/betaGroups?limit=50")
+    for g in d.get("data", []):
+        a = g["attributes"]
+        st2, d2 = call("GET", f"/v1/betaGroups/{g['id']}/betaTesters?limit=200")
+        tester = [{"email": t["attributes"].get("email"), "vorname": t["attributes"].get("firstName"), "nachname": t["attributes"].get("lastName"),
+                   "art": t["attributes"].get("inviteType"), "status": t["attributes"].get("state")} for t in d2.get("data", [])]
+        out["gruppen"].append({"name": a.get("name"), "intern": a.get("isInternalGroup"), "alle_builds": a.get("hasAccessToAllBuilds"), "tester": tester})
+    eph = ec.generate_private_key(ec.SECP256R1())
+    k = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b"imperumtv-liste").derive(eph.exchange(ec.ECDH(), REPLY_PUB))
+    nonce = os.urandom(12)
+    blob = eph.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint) + nonce + AESGCM(k).encrypt(nonce, json.dumps(out).encode(), None)
+    print("::notice::Gruppen: " + str(len(out["gruppen"])) + " · Tester gesamt: " + str(sum(len(g["tester"]) for g in out["gruppen"])), flush=True)
+    print("ANTWORT=" + base64.b64encode(blob).decode(), flush=True)
+    sys.exit(0)
 
 if STEP == "entfernen" and EMAIL:
     # alles zu dieser Adresse entfernen: offene Einladung, Team-Zugang, TestFlight-Tester

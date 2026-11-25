@@ -12,7 +12,7 @@ on:
         description: 'Verschlüsselte Angaben'
         required: false
       schritt:
-        description: 'einladen oder testgruppe'
+        description: 'einladen, testgruppe, liste …'
         default: 'einladen'
 
 permissions:
