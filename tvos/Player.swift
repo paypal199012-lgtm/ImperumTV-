@@ -515,6 +515,9 @@ struct PlayerScreen: View {
     @FocusState private var barFocus: String?
     /// Gewählter Knopf, von der App selbst verfolgt (der Fokus des Apple TV bleibt oft auf der Videofläche)
     @State private var barSel: String?
+    /// Untermenü (Ton, Untertitel …): eigener Fokus-Bereich, damit der Fokus beim Öffnen hineinspringt
+    @Namespace private var menuNS
+    @Environment(\.resetFocus) private var resetFocus
 
     /// „Intro überspringen“ (Sekunde 2–10) bzw. „Nächste Folge in …“ (letzte 30 s)
     private var pop: String? {
@@ -528,7 +531,8 @@ struct PlayerScreen: View {
     var body: some View {
         ZStack {
             Button(action: {
-                if osd, menu == nil, let k = barSel ?? barFocus { runBar(k); showOSD(); return }
+                if menu != nil { return }                     // Untermenü offen: OK gehört dem Menü
+                if osd, let k = barSel ?? barFocus { runBar(k); showOSD(); return }
                 if pop == "intro" { engine.seek(by: 20); introDone = true; engine.notice("Intro übersprungen (+20 s)") }
                 else if pop == "next" { goNext() }
                 else { showBar() }
@@ -557,9 +561,9 @@ struct PlayerScreen: View {
                 .frame(width: 1920, height: 1080)
             }
             .buttonStyle(PlainPress())
-            .disabled(menu != nil)
             .focused($focused)
             .onMoveCommand { dir in
+                if menu != nil { return }
                 // Leiste offen: links/rechts springt von Knopf zu Knopf (nicht spulen), runter schließt die Leiste
                 if osd, let f = barSel ?? barFocus {
                     let keys = barKeys()
@@ -582,7 +586,7 @@ struct PlayerScreen: View {
             }
             .onPlayPauseCommand { engine.toggle(); showOSD() }
 
-            if let m = menu { menuPanel(m).focusSection() }
+            if let m = menu { menuPanel(m).focusSection().focusScope(menuNS) }
         }
         .onAppear {
             focused = true; showOSD()
@@ -595,6 +599,15 @@ struct PlayerScreen: View {
             else if barFocus != nil { hideBar() }
             else if pop == "next" { nextCancelled = true }
             else { close() }
+        }
+        .onChange(of: menu) { _, m in
+            guard m != nil else { return }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 120_000_000)
+                resetFocus(in: menuNS)
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                resetFocus(in: menuNS)
+            }
         }
         .onChange(of: engine.item?.id) { _, _ in introDone = false; nextCancelled = false }
         .onChange(of: barFocus) { _, f in if let f = f { barSel = f; showOSD() } }   // beim Wechseln in der Leiste nicht ausblenden
@@ -808,6 +821,7 @@ struct PlayerScreen: View {
             .padding(.horizontal, 22).frame(width: 520, height: 66)
         }
         .buttonStyle(GoldStyle(normal: .white.opacity(0.06), active: sel))
+        .prefersDefaultFocus(sel, in: menuNS)
     }
 
     private func openMenu(_ m: String = "main") {
