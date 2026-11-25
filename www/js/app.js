@@ -548,7 +548,7 @@
         SW = sw;
         if (!wideStyle) { wideStyle = document.createElement('style'); (document.head || document.documentElement).appendChild(wideStyle); }
         wideStyle.textContent = sw === 1920 ? '' :
-            '#stage,#app,#app::before,.detail-bg,.detail-shade,#player-ui,#loader,.pl,.eg,#modal,.trailer{width:' + sw + 'px !important}';
+            '#stage,#app,#app::before,.detail-bg,.detail-shade,#player-ui,#loader,.pl,.eg,#modal,.trailer,#app .home-sparks,#uplock{width:' + sw + 'px !important}';   // home-sparks: Lichtstrahlen sonst rechts abgeschnitten (dunkler Streifen)
         if (document.body) document.body.classList.toggle('wide', sw > 1920);
     }
     function viewportSize() {
