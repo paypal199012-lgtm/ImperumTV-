@@ -515,9 +515,8 @@ struct PlayerScreen: View {
     @FocusState private var barFocus: String?
     /// Gewählter Knopf, von der App selbst verfolgt (der Fokus des Apple TV bleibt oft auf der Videofläche)
     @State private var barSel: String?
-    /// Untermenü (Ton, Untertitel …): eigener Fokus-Bereich, damit der Fokus beim Öffnen hineinspringt
-    @Namespace private var menuNS
-    @Environment(\.resetFocus) private var resetFocus
+    /// Untermenü (Ton, Untertitel …): gewählte Zeile, von der App selbst verfolgt (wie die Leiste)
+    @State private var menuSel = 0
 
     /// „Intro überspringen“ (Sekunde 2–10) bzw. „Nächste Folge in …“ (letzte 30 s)
     private var pop: String? {
@@ -531,7 +530,11 @@ struct PlayerScreen: View {
     var body: some View {
         ZStack {
             Button(action: {
-                if menu != nil { return }                     // Untermenü offen: OK gehört dem Menü
+                if let m = menu {                             // Untermenü offen: OK führt die gewählte Zeile aus
+                    let it = menuItems(m)
+                    if menuSel < it.count { it[menuSel].run() }
+                    return
+                }
                 if osd, let k = barSel ?? barFocus { runBar(k); showOSD(); return }
                 if pop == "intro" { engine.seek(by: 20); introDone = true; engine.notice("Intro übersprungen (+20 s)") }
                 else if pop == "next" { goNext() }
@@ -563,7 +566,12 @@ struct PlayerScreen: View {
             .buttonStyle(PlainPress())
             .focused($focused)
             .onMoveCommand { dir in
-                if menu != nil { return }
+                if let m = menu {
+                    let n = menuItems(m).count
+                    if dir == .up { menuSel = max(0, menuSel - 1) }
+                    if dir == .down { menuSel = min(max(0, n - 1), menuSel + 1) }
+                    return
+                }
                 // Leiste offen: links/rechts springt von Knopf zu Knopf (nicht spulen), runter schließt die Leiste
                 if osd, let f = barSel ?? barFocus {
                     let keys = barKeys()
@@ -586,7 +594,7 @@ struct PlayerScreen: View {
             }
             .onPlayPauseCommand { engine.toggle(); showOSD() }
 
-            if let m = menu { menuPanel(m).focusSection().focusScope(menuNS) }
+            if let m = menu { menuPanel(m) }
         }
         .onAppear {
             focused = true; showOSD()
@@ -601,13 +609,10 @@ struct PlayerScreen: View {
             else { close() }
         }
         .onChange(of: menu) { _, m in
-            guard m != nil else { return }
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 120_000_000)
-                resetFocus(in: menuNS)
-                try? await Task.sleep(nanoseconds: 250_000_000)
-                resetFocus(in: menuNS)
-            }
+            // Menü auf: Auswahl auf die aktuelle Einstellung, Fokus bleibt auf der Videofläche (sie steuert das Menü)
+            guard let m = m else { return }
+            menuSel = menuItems(m).firstIndex(where: { $0.sel }) ?? 0
+            focused = true
         }
         .onChange(of: engine.item?.id) { _, _ in introDone = false; nextCancelled = false }
         .onChange(of: barFocus) { _, f in if let f = f { barSel = f; showOSD() } }   // beim Wechseln in der Leiste nicht ausblenden
@@ -750,52 +755,65 @@ struct PlayerScreen: View {
 
     // MARK: Menü (Ton, Untertitel, Bildformat, Schlaf-Timer)
 
+    private struct MItem { let title: String; let sel: Bool; let run: () -> Void }
+
+    /// Zeilen des Untermenüs (Titel, aktuell eingestellt?, Aktion)
+    private func menuItems(_ m: String) -> [MItem] {
+        var r: [MItem] = []
+        switch m {
+        case "audio", "text":
+            for t in engine.tracks(m == "audio") {
+                r.append(MItem(title: t.name, sel: t.selected) { engine.select(m == "audio", t.id); close(menu: true) })
+            }
+        case "format":
+            r.append(MItem(title: "Ganzes Bild", sel: engine.gravity == "fit") { engine.setGravity("fit"); close(menu: true) })
+            r.append(MItem(title: "Zoomen (füllen)", sel: engine.gravity == "fill") { engine.setGravity("fill"); close(menu: true) })
+            r.append(MItem(title: "Strecken", sel: engine.gravity == "stretch") { engine.setGravity("stretch"); close(menu: true) })
+        case "quality":
+            for v in engine.item.flatMap({ engine.variantsProvider?($0) }) ?? [] {
+                r.append(MItem(title: (engine.qualityName?(v) ?? "") + " – " + v.name, sel: v.id == engine.item?.id) { close(menu: true); engine.switchVariant(v) })
+            }
+        case "sleep":
+            for mins in [0, 15, 30, 60, 90, 120] {
+                r.append(MItem(title: mins == 0 ? "Aus" : "\(mins) Minuten", sel: mins == 0 ? engine.sleepAt == nil : false) {
+                    engine.sleepAt = mins == 0 ? nil : Date().addingTimeInterval(Double(mins) * 60)
+                    if mins > 0 { engine.notice("Schlaf-Timer: \(mins) Minuten") }
+                    close(menu: true)
+                })
+            }
+        default:
+            r.append(MItem(title: "🔊  Tonspur", sel: false) { menu = "audio" })
+            r.append(MItem(title: "💬  Untertitel", sel: false) { menu = "text" })
+            r.append(MItem(title: "🖼  Bildformat", sel: false) { menu = "format" })
+            r.append(MItem(title: "🌙  Schlaf-Timer" + (engine.sleepAt != nil ? " (an)" : ""), sel: false) { menu = "sleep" })
+            if PlayerEngine.hasVLC {
+                r.append(MItem(title: "⇄  Anderer Player (jetzt: " + (engine.usingVLC ? "VLC" : "Apple-Player") + ")", sel: false) { close(menu: true); engine.switchPlayer() })
+            }
+            if engine.kind == .live, let it = engine.item, (engine.variantsProvider?(it).count ?? 0) > 1 {
+                r.append(MItem(title: "◎  Qualität · " + (engine.qualityName?(it) ?? ""), sel: false) { menu = "quality" })
+            }
+            if engine.kind == .live {
+                r.append(MItem(title: "🔁  Ersatzsender suchen", sel: false) { close(menu: true); if !engine.tryAlt() { engine.notice("Kein Ersatzsender gefunden") } })
+            }
+        }
+        return r
+    }
+
     private func menuPanel(_ m: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let items = menuItems(m)
+        return VStack(alignment: .leading, spacing: 10) {
             Text(menuTitle(m)).font(UI.font(30, .bold)).foregroundColor(UI.gold).padding(.bottom, 8)
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 8) {
-                    switch m {
-                    case "audio", "text":
-                        let l = engine.tracks(m == "audio")
-                        if l.isEmpty { Text("Keine weiteren Spuren").font(UI.font(24)).foregroundColor(UI.muted) }
-                        ForEach(l) { t in
-                            row(t.name, t.selected) { engine.select(m == "audio", t.id); close(menu: true) }
-                        }
-                    case "format":
-                        row("Ganzes Bild", engine.gravity == "fit") { engine.setGravity("fit"); close(menu: true) }
-                        row("Zoomen (füllen)", engine.gravity == "fill") { engine.setGravity("fill"); close(menu: true) }
-                        row("Strecken", engine.gravity == "stretch") { engine.setGravity("stretch"); close(menu: true) }
-                    case "quality":
-                        let vs = engine.item.flatMap { engine.variantsProvider?($0) } ?? []
-                        ForEach(vs) { v in
-                            row((engine.qualityName?(v) ?? "") + " – " + v.name, v.id == engine.item?.id) { close(menu: true); engine.switchVariant(v) }
-                        }
-                    case "sleep":
-                        ForEach([0, 15, 30, 60, 90, 120], id: \.self) { mins in
-                            row(mins == 0 ? "Aus" : "\(mins) Minuten", mins == 0 ? engine.sleepAt == nil : false) {
-                                engine.sleepAt = mins == 0 ? nil : Date().addingTimeInterval(Double(mins) * 60)
-                                if mins > 0 { engine.notice("Schlaf-Timer: \(mins) Minuten") }
-                                close(menu: true)
-                            }
-                        }
-                    default:
-                        row("🔊  Tonspur", false) { menu = "audio" }
-                        row("💬  Untertitel", false) { menu = "text" }
-                        row("🖼  Bildformat", false) { menu = "format" }
-                        row("🌙  Schlaf-Timer" + (engine.sleepAt != nil ? " (an)" : ""), false) { menu = "sleep" }
-                        if PlayerEngine.hasVLC {
-                            row("⇄  Anderer Player (jetzt: " + (engine.usingVLC ? "VLC" : "Apple-Player") + ")", false) { close(menu: true); engine.switchPlayer() }
-                        }
-                        if engine.kind == .live, let it = engine.item, (engine.variantsProvider?(it).count ?? 0) > 1 {
-                            row("◎  Qualität · " + (engine.qualityName?(it) ?? ""), false) { menu = "quality" }
-                        }
-                        if engine.kind == .live {
-                            row("🔁  Ersatzsender suchen", false) { close(menu: true); if !engine.tryAlt() { engine.notice("Kein Ersatzsender gefunden") } }
+            if items.isEmpty { Text("Keine weiteren Spuren").font(UI.font(24)).foregroundColor(UI.muted) }
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 8) {
+                        ForEach(items.indices, id: \.self) { i in
+                            menuRow(items[i].title, items[i].sel, i == menuSel).id(i)
                         }
                     }
+                    .padding(6)
                 }
-                .padding(6)
+                .onChange(of: menuSel) { _, i in withAnimation { proxy.scrollTo(i, anchor: .center) } }
             }
         }
         .padding(36)
@@ -804,6 +822,19 @@ struct PlayerScreen: View {
         .overlay(RoundedRectangle(cornerRadius: 20).stroke(UI.tan(0.5), lineWidth: 1.5))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
         .padding(.trailing, 60)
+    }
+
+    /// Zeile im Untermenü: gewählt = gold mit dunkler Schrift, aktuell eingestellt = Haken
+    private func menuRow(_ t: String, _ sel: Bool, _ cur: Bool) -> some View {
+        HStack {
+            Text(t).font(UI.font(26, .semibold)).lineLimit(1)
+            Spacer()
+            if sel { Image(systemName: "checkmark").font(.system(size: 24, weight: .bold)) }
+        }
+        .foregroundColor(cur ? UI.dark : UI.text)
+        .padding(.horizontal, 22).frame(width: 520, height: 66)
+        .background(RoundedRectangle(cornerRadius: 12).fill(cur ? UI.gold : (sel ? UI.tan(0.22) : Color.white.opacity(0.06))))
+        .scaleEffect(cur ? 1.03 : 1)
     }
 
     private func menuTitle(_ m: String) -> String {
@@ -821,12 +852,12 @@ struct PlayerScreen: View {
             .padding(.horizontal, 22).frame(width: 520, height: 66)
         }
         .buttonStyle(GoldStyle(normal: .white.opacity(0.06), active: sel))
-        .prefersDefaultFocus(sel, in: menuNS)
     }
 
     private func openMenu(_ m: String = "main") {
         hideTask?.cancel()
         withAnimation { menu = m }
+        focused = true
     }
 
     /// Leiste mit Knöpfen zeigen, Fokus auf Pause/Weiter
