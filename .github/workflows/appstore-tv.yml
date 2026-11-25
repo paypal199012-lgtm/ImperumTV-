@@ -29,10 +29,10 @@ jobs:
   upload:
     runs-on: macos-15-intel
     env:
-      TV_VERSION: '1.5'
+      TV_VERSION: '1.6'
       WHATS_NEW: |
-        • Neue Leiste im Player wie bei Android: Spulen, Pause, Bildformat, Schlaf-Timer, Ton, Untertitel und Favorit als Knöpfe.
-        • Fernhilfe: Der Support kann jetzt auch mit Pfeilen und OK helfen.
+        • Player: Bei offener Leiste springst du mit links/rechts von Knopf zu Knopf.
+        • Fernhilfe: Die Fernbedienung reagiert während der Fernhilfe wieder flüssig.
         • Fehlerbehebungen und Verbesserungen.
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
     steps:
