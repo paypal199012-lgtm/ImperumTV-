@@ -14007,6 +14007,7 @@
     PlayerScreen.prototype.saveProgress = function (ended) {
         if (!this.resumable() || this.seekPending) return;
         var it = this.item(), pos = Player.current(), dur = Player.duration();
+        if (!ended && !(pos > 5) && this.lastTime > 5) pos = this.lastTime;   // Player schon angehalten (z. B. App im Hintergrund): letzte bekannte Stelle
         if (!ended && !(dur > 60)) return;            // Länge noch unbekannt
         this.lastSave = Date.now();
         void it;
@@ -14125,7 +14126,7 @@
         this.bufAt = 0;
         clearTimeout(this.longT);
         clearTimeout(this.startT);
-        if (this.startFor !== this.index) { this.startFor = this.index; this.startFails = 0; this.altCycle = 0; }
+        if (this.startFor !== this.index) { this.startFor = this.index; this.startFails = 0; this.altCycle = 0; this.earlyEnds = 0; }
         this.hBegin();
         this.lastTime = -1;
         this.lastProgress = Date.now();
@@ -14163,7 +14164,7 @@
             hiccup: function () { if (self.rdy) self.noteShort(); },
             frozen: function () { if (self.rdy) self.tryAlt('Bild stand'); },
             time: function (t) {
-                if (Math.abs(t - self.lastTime) > 0.2) { self.lastTime = t; self.lastProgress = Date.now(); }
+                if (Math.abs(t - self.lastTime) > 0.2) { self.lastTime = t; self.lastProgress = Date.now(); var dd = Player.duration(); if (dd > 0) self.lastDur = dd; }
                 if (self.overlay) { self.updateBar(); self.updateBehind(); }
                 if (self.seekPending && t >= self.seekPending - 15) self.seekPending = 0;   // Sprung ist angekommen
                 if (Date.now() - self.lastSave > 10000) self.saveProgress(false);
@@ -14192,7 +14193,19 @@
                     setTimeout(function () { self.seekPending = 0; }, 8000);
                 }
             },
-            end: function () { self.saveProgress(true); self.onEnd(); },
+            end: function () {
+                // Film/Folge „zu Ende“, obwohl noch viel übrig ist: meist ist nur die Verbindung abgerissen
+                // (z. B. kurz in einer anderen App gewesen). Dann nicht als gesehen werten, sondern an der Stelle weitermachen.
+                var dur = Player.duration() || self.lastDur || 0, pos = Math.max(Player.current() || 0, self.lastTime || 0);
+                if (self.kind !== 'live' && dur > 300 && pos > 5 && dur - pos > 180 && (self.earlyEnds || 0) < 3) {
+                    self.earlyEnds = (self.earlyEnds || 0) + 1;
+                    self.startAt = pos;
+                    try { Report.player(self.item(), 'Vorzeitiges Ende bei ' + Math.round(pos) + ' von ' + Math.round(dur) + ' s – geht an der Stelle weiter'); } catch (eR) { /* egal */ }
+                    if (!window.__imHidden && Nav.top() === self) self.start();   // im Hintergrund: beim Zurückkommen
+                    return;
+                }
+                self.saveProgress(true); self.onEnd();
+            },
             error: function (msg) { self.onError(msg); },
             notice: function (msg) {
                 toast(msg, 6000);
@@ -15334,12 +15347,17 @@
 
         // App in den Hintergrund: Video anhalten
         function lifecycle(hidden) {
+            window.__imHidden = !!hidden;
             if (hidden) {
                 Parental.lock();
                 try { Watch.set(''); Watch.send(); } catch (e0) { /* egal */ }
                 var top = Nav.top();
                 if (top && (top instanceof PlayerScreen || top instanceof LiveScreen)) {
-                    if (top instanceof PlayerScreen) top.saveProgress(false);   // beim Zurückkommen geht es dort weiter
+                    if (top instanceof PlayerScreen) {
+                        top.saveProgress(false);   // beim Zurückkommen geht es dort weiter
+                        var bp = Math.max(Player.current() || 0, top.lastTime || 0);
+                        if (top.kind !== 'live' && bp >= 30 && top.startAt == null) top.startAt = bp;   // genau an dieser Stelle weiter (auch wenn noch nichts gespeichert war)
+                    }
                     try { Player.stop(); } catch (e) { /* egal */ }
                 }
             } else {
