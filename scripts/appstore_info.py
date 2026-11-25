@@ -27,7 +27,7 @@ for app in get("/v1/apps?limit=20")["data"]:
             url = nxt.replace("https://api.appstoreconnect.apple.com", "") if nxt else None
         on = [x[0] for x in terr if x[1]]
         tur = [x for x in terr if x[0] == "TUR"]
-        print(f"::notice::Länder: {len(on)} von {len(terr)} freigegeben · Türkei: {tur} · Deutschland: {[x for x in terr if x[0] == 'DEU']}")
+        print(f"::notice::Länder: {len(on)} von {len(terr)} freigegeben ({on}) · Türkei: {tur} · Deutschland: {[x for x in terr if x[0] == 'DEU']}")
     except Exception as e:
         print(f"::warning::Länder nicht lesbar: {e}")
     tv = get(f"/v1/apps/{app['id']}/appStoreVersions?filter[platform]=TV_OS&limit=3")["data"]
