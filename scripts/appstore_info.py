@@ -14,6 +14,22 @@ for app in get("/v1/apps?limit=20")["data"]:
     vers = get(f"/v1/apps/{app['id']}/appStoreVersions?limit=12")["data"]
     st = ", ".join(f"{v['attributes'].get('platform')} {v['attributes'].get('versionString')}: {v['attributes'].get('appStoreState')}" for v in vers)
     print(f"::notice::App {a.get('name')} · Bundle {a.get('bundleId')} · ID {app['id']} · https://apps.apple.com/app/id{app['id']} · {st}")
+    try:
+        av = get(f"/v1/apps/{app['id']}/appAvailabilityV2")
+        avid = av["data"]["id"]
+        terr, url = [], f"/v2/appAvailabilities/{avid}/territoryAvailabilities?limit=200&include=territory"
+        while url:
+            d = get(url)
+            for t in d.get("data", []):
+                tid = (t.get("relationships", {}).get("territory", {}).get("data") or {}).get("id")
+                terr.append((tid, t["attributes"].get("available"), t["attributes"].get("contentStatuses")))
+            nxt = d.get("links", {}).get("next")
+            url = nxt.replace("https://api.appstoreconnect.apple.com", "") if nxt else None
+        on = [x[0] for x in terr if x[1]]
+        tur = [x for x in terr if x[0] == "TUR"]
+        print(f"::notice::Länder: {len(on)} von {len(terr)} freigegeben · Türkei: {tur} · Deutschland: {[x for x in terr if x[0] == 'DEU']}")
+    except Exception as e:
+        print(f"::warning::Länder nicht lesbar: {e}")
     tv = get(f"/v1/apps/{app['id']}/appStoreVersions?filter[platform]=TV_OS&limit=3")["data"]
     print("::notice::Apple TV: " + ", ".join(f"{v['attributes'].get('versionString')}: {v['attributes'].get('appStoreState')} (Veröffentlichung: {v['attributes'].get('releaseType')})" for v in tv))
     for plat in ("IOS", "TV_OS"):
