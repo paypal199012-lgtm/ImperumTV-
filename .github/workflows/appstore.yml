@@ -29,11 +29,10 @@ jobs:
     runs-on: macos-15-intel
     env:
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
-      APP_VERSION: '1.12'            # neue App-Store-Version: bei jedem Einreichen erhöhen
+      APP_VERSION: '1.13'            # neue App-Store-Version: bei jedem Einreichen erhöhen
       WHATS_NEW: |
-        • Neu: Geräte-Check beim ersten Start – ImperumTV prüft Bildschirm, Videoformate und Internet und stellt sich passend ein.
-        • Fernhilfe reagiert schneller.
-        • Startseite: „Suchen“ und „Aktualisieren“ oben, mit Uhrzeit, wann die Liste zuletzt neu geladen wurde.
+        • Neu: ImperumTV läuft jetzt auch auf dem iPad im Vollbild.
+        • Filme und Serien gehen nach einem kurzen Wechsel in eine andere App an derselben Stelle weiter.
         • Fehlerbehebungen und Verbesserungen.
     steps:
       - uses: actions/checkout@v4
@@ -63,8 +62,8 @@ jobs:
           sed -i '' "s/PRODUCT_BUNDLE_IDENTIFIER: .*/PRODUCT_BUNDLE_IDENTIFIER: $BUNDLE_ID/" project.yml
           sed -i '' "s/MARKETING_VERSION: .*/MARKETING_VERSION: \"$APP_VERSION\"/" project.yml
           sed -i '' "s/CURRENT_PROJECT_VERSION: .*/CURRENT_PROJECT_VERSION: \"${{ github.run_number }}\"/" project.yml
-          # Nur iPhone (sonst verlangt Apple zusätzlich iPad-Bildschirmfotos)
-          sed -i '' 's/TARGETED_DEVICE_FAMILY: .*/TARGETED_DEVICE_FAMILY: "1"/' project.yml
+          # iPhone und iPad (ab 1.13; iPad-Bildschirmfotos liegen in store/ipad und werden beim Einreichen hochgeladen)
+          sed -i '' 's/TARGETED_DEVICE_FAMILY: .*/TARGETED_DEVICE_FAMILY: "1,2"/' project.yml
       - run: brew install xcodegen
       - run: xcodegen generate
       - name: VLC einbinden

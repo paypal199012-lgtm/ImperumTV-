@@ -9,7 +9,7 @@ PLATFORM=IOS (Standard) oder TV_OS.
 
 Schlüssel nur aus GitHub-Secrets, werden nie ausgegeben.
 """
-import json, os, sys, time, urllib.error, urllib.request
+import glob, hashlib, json, os, sys, time, urllib.error, urllib.request
 import jwt
 
 API = "https://api.appstoreconnect.apple.com"
@@ -123,6 +123,58 @@ for loc in must("GET", f"/v1/appStoreVersions/{ver_id}/appStoreVersionLocalizati
     must("PATCH", f"/v1/appStoreVersionLocalizations/{loc['id']}",
          {"data": {"type": "appStoreVersionLocalizations", "id": loc["id"], "attributes": {"whatsNew": WHATS_NEW}}},
          what="„Neu in dieser Version“ (" + loc["attributes"].get("locale", "?") + ")")
+
+# iPad-Bildschirmfotos (13 Zoll, 2732×2048) für jede Sprache, falls noch keine da sind
+IPAD_SHOTS = sorted(glob.glob(os.path.join(os.environ.get("IPAD_SHOTS") or "store/ipad", "*.png")))
+
+
+def put_bytes(url, data, headers):
+    req = urllib.request.Request(url, method="PUT", data=data)
+    for h in headers or []:
+        req.add_header(h["name"], h["value"])
+    with urllib.request.urlopen(req, timeout=120) as r:
+        return r.status
+
+
+def ipad_shots(loc_id, locale):
+    sets = must("GET", f"/v1/appStoreVersionLocalizations/{loc_id}/appScreenshotSets", what="Bildschirmfoto-Sätze")["data"]
+    sset = next((x for x in sets if x["attributes"].get("screenshotDisplayType") == "APP_IPAD_PRO_3GEN_129"), None)
+    if not sset:
+        sset = must("POST", "/v1/appScreenshotSets", {"data": {"type": "appScreenshotSets",
+                    "attributes": {"screenshotDisplayType": "APP_IPAD_PRO_3GEN_129"},
+                    "relationships": {"appStoreVersionLocalization": {"data": {"type": "appStoreVersionLocalizations", "id": loc_id}}}}},
+                    what="iPad-Satz anlegen")["data"]
+    have = must("GET", f"/v1/appScreenshotSets/{sset['id']}/appScreenshots", what="iPad-Fotos")["data"]
+    if have:
+        note(f"iPad-Bildschirmfotos ({locale}): schon {len(have)} vorhanden")
+        return
+    ids = []
+    for f in IPAD_SHOTS:
+        data = open(f, "rb").read()
+        shot = must("POST", "/v1/appScreenshots", {"data": {"type": "appScreenshots",
+                    "attributes": {"fileName": os.path.basename(f), "fileSize": len(data)},
+                    "relationships": {"appScreenshotSet": {"data": {"type": "appScreenshotSets", "id": sset["id"]}}}}},
+                    what="iPad-Foto anmelden")["data"]
+        for op in shot["attributes"].get("uploadOperations") or []:
+            off, ln = op["offset"], op["length"]
+            put_bytes(op["url"], data[off:off + ln], op.get("requestHeaders"))
+        must("PATCH", f"/v1/appScreenshots/{shot['id']}", {"data": {"type": "appScreenshots", "id": shot["id"],
+             "attributes": {"uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()}}}, what="iPad-Foto abschließen")
+        ids.append(shot["id"])
+    # warten, bis Apple die Fotos verarbeitet hat
+    for _ in range(40):
+        states = [must("GET", f"/v1/appScreenshots/{i}", what="iPad-Foto")["data"]["attributes"].get("assetDeliveryState", {}).get("state") for i in ids]
+        if all(s == "COMPLETE" for s in states):
+            break
+        if any(s == "FAILED" for s in states):
+            fail(f"iPad-Bildschirmfoto ({locale}) von Apple abgelehnt")
+        time.sleep(6)
+    note(f"iPad-Bildschirmfotos ({locale}): {len(ids)} hochgeladen")
+
+
+if PLATFORM == "IOS" and IPAD_SHOTS:
+    for loc in must("GET", f"/v1/appStoreVersions/{ver_id}/appStoreVersionLocalizations", what="Texte")["data"]:
+        ipad_shots(loc["id"], loc["attributes"].get("locale", "?"))
 
 must("PATCH", f"/v1/appStoreVersions/{ver_id}/relationships/build", {"data": {"type": "builds", "id": build_id}}, what="Build zuordnen")
 # Erklärung für die Prüfer eintragen (Kontaktdaten bleiben wie in App Store Connect)
