@@ -98,6 +98,7 @@ struct LiveScreen: View {
                 }
                 .padding(.vertical, 20).padding(.horizontal, 10)
             }
+            .focusSection()                 // nach rechts kommt man von jeder Zeile aus in die Senderliste
             .place(20, 92, 400, 970)
 
             // Sender
@@ -132,11 +133,19 @@ struct LiveScreen: View {
                 }
                 .padding(.vertical, 20).padding(.horizontal, 6)
             }
+            .focusSection()                 // von jeder Senderzeile nach rechts zu den Knöpfen, nach links zu den Kategorien
             .place(416, 92, 568, 970)
 
-            preview.place(1000, 120, 880, 495)
-            if showProgram { programList.place(1000, 635, 880, 380) } else { nextCards.place(1000, 635, 880, 80) }
-            buttons.place(1000, showProgram ? 1020 : 735, 880, 60)
+            // Rechte Seite als ein Fokus-Bereich: von jeder Senderzeile kommt man mit „rechts“ zu den Knöpfen
+            ZStack(alignment: .topLeading) {
+                preview.place(0, 28, 880, 495)
+                if showProgram { programList.place(0, 543, 880, 380) } else { nextCards.place(0, 543, 880, 80) }
+                buttons.place(0, showProgram ? 928 : 643, 880, 60)
+            }
+            .frame(width: 880, height: 970, alignment: .topLeading)
+            .contentShape(Rectangle())
+            .focusSection()
+            .place(1000, 92, 880, 970)
         }
         .overlay {
             if askPin {
