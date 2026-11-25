@@ -53,3 +53,12 @@ jobs:
           files: ImperumTV.ipa
           make_latest: false
           prerelease: true
+      - name: Feste Download-Adresse (imperumtv.xyz/ipa zeigt immer auf die neueste)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios
+          name: ImperumTV für iPhone (IPA)
+          body: "Neueste iPhone-IPA, nicht signiert (installieren z. B. mit Sideloadly oder AltStore). Kurzer Link: imperumtv.xyz/ipa"
+          files: ImperumTV.ipa
+          make_latest: false
+          prerelease: false
