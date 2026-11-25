@@ -513,6 +513,8 @@ struct PlayerScreen: View {
     @FocusState private var focused: Bool
     /// Knöpfe in der Leiste (wie bei Android): welcher gerade gewählt ist
     @FocusState private var barFocus: String?
+    /// Gewählter Knopf, von der App selbst verfolgt (der Fokus des Apple TV bleibt oft auf der Videofläche)
+    @State private var barSel: String?
 
     /// „Intro überspringen“ (Sekunde 2–10) bzw. „Nächste Folge in …“ (letzte 30 s)
     private var pop: String? {
@@ -526,6 +528,7 @@ struct PlayerScreen: View {
     var body: some View {
         ZStack {
             Button(action: {
+                if osd, menu == nil, let k = barSel ?? barFocus { runBar(k); showOSD(); return }
                 if pop == "intro" { engine.seek(by: 20); introDone = true; engine.notice("Intro übersprungen (+20 s)") }
                 else if pop == "next" { goNext() }
                 else { showBar() }
@@ -558,12 +561,12 @@ struct PlayerScreen: View {
             .focused($focused)
             .onMoveCommand { dir in
                 // Leiste offen: links/rechts springt von Knopf zu Knopf (nicht spulen), runter schließt die Leiste
-                if let f = barFocus {
+                if osd, let f = barSel ?? barFocus {
                     let keys = barKeys()
                     let i = keys.firstIndex(of: f) ?? 0
                     switch dir {
-                    case .left: if i > 0 { barFocus = keys[i - 1] }; showOSD()
-                    case .right: if i < keys.count - 1 { barFocus = keys[i + 1] }; showOSD()
+                    case .left: if i > 0 { barSel = keys[i - 1]; barFocus = barSel }; showOSD()
+                    case .right: if i < keys.count - 1 { barSel = keys[i + 1]; barFocus = barSel }; showOSD()
                     case .down: hideBar()
                     default: showOSD()
                     }
@@ -594,7 +597,7 @@ struct PlayerScreen: View {
             else { close() }
         }
         .onChange(of: engine.item?.id) { _, _ in introDone = false; nextCancelled = false }
-        .onChange(of: barFocus) { _, f in if f != nil { showOSD() } }   // beim Wechseln in der Leiste nicht ausblenden
+        .onChange(of: barFocus) { _, f in if let f = f { barSel = f; showOSD() } }   // beim Wechseln in der Leiste nicht ausblenden
         .onChange(of: engine.index) { _, _ in introDone = false; nextCancelled = false }
         .task(id: pop) {
             guard pop == "next" else { nextCount = 10; return }
@@ -817,6 +820,7 @@ struct PlayerScreen: View {
         showOSD()
         // erst wenn die Knöpfe da sind, kann einer den Fokus bekommen
         Task { @MainActor in
+            barSel = "play"
             try? await Task.sleep(nanoseconds: 80_000_000)
             barFocus = "play"
             if barFocus == nil { try? await Task.sleep(nanoseconds: 200_000_000); barFocus = "play" }
@@ -824,6 +828,25 @@ struct PlayerScreen: View {
     }
 
     /// Leiste ausblenden, Fokus zurück aufs Bild (Pfeile spulen bzw. schalten Sender)
+    /// Knopf der Leiste ausführen (OK auf der Fernbedienung)
+    private func runBar(_ k: String) {
+        switch k {
+        case "prev": step(-1)
+        case "next": step(1)
+        case "rw": engine.seek(by: -10)
+        case "ff": engine.seek(by: 10)
+        case "play": engine.toggle()
+        case "format", "sleep", "audio", "text": openMenu(k)
+        case "fav":
+            if let it = engine.item {
+                store.toggleFav(it, engine.kind)
+                engine.notice(store.isFav(it, engine.kind) ? "Zu Favoriten hinzugefügt" : "Aus Favoriten entfernt")
+            }
+        case "more": openMenu("main")
+        default: break
+        }
+    }
+
     /// Reihenfolge der Knöpfe in der Leiste (wie sie angezeigt werden)
     private func barKeys() -> [String] {
         var k = engine.kind == .live ? ["prev", "play", "next"] : ["rw", "play", "ff"]
@@ -835,7 +858,7 @@ struct PlayerScreen: View {
 
     private func hideBar() {
         hideTask?.cancel()
-        barFocus = nil
+        barFocus = nil; barSel = nil
         focused = true
         withAnimation { osd = false }
     }
@@ -847,8 +870,9 @@ struct PlayerScreen: View {
         }
         .buttonStyle(GoldStyle(shape: AnyShape(Circle()), normal: .white.opacity(0.1), ring: false, solid: true))
         .remoteFocused($barFocus, equals: key)
+        .background(Circle().fill(UI.gold).opacity((barSel == key && barFocus != key) ? 1 : 0))   // gewählt, auch wenn der Fokus woanders ist
         .overlay(alignment: .top) {
-            if barFocus == key {
+            if (barSel ?? barFocus) == key {
                 Text(tip).font(UI.font(22, .bold)).foregroundColor(UI.dark).lineLimit(1).fixedSize()
                     .padding(.horizontal, 14).frame(height: 38)
                     .background(RoundedRectangle(cornerRadius: 9).fill(UI.gold))
@@ -880,7 +904,7 @@ struct PlayerScreen: View {
         hideTask = Task {
             try? await Task.sleep(nanoseconds: 6_000_000_000)
             if !Task.isCancelled && TVStore.env["IMPTV_SCREEN"] != "playerbar" {
-                if menu == nil { barFocus = nil; focused = true }
+                if menu == nil { barFocus = nil; barSel = nil; focused = true }
                 withAnimation { osd = false }
             }
         }
