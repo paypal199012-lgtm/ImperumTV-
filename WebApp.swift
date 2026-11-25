@@ -599,6 +599,10 @@ final class NativePlayer {
         guard active else { done(nil); return }
         let w = max(160, min(960, width)), q = CGFloat(max(20, min(90, quality))) / 100
         if useVLC {
+            // VLC wirft eine Objective-C-Ausnahme (= Absturz), wenn gerade kein Bild ausgegeben wird
+            // (Sender startet noch, Pause, nur Ton). Dann lieber kein Bild schicken.
+            let vs = vlc.videoSize
+            guard vlc.hasVideoOut, vlc.isPlaying, vs.width > 0, vs.height > 0 else { done(nil); return }
             let path = NSTemporaryDirectory() + "help-frame.png"
             try? FileManager.default.removeItem(atPath: path)
             vlc.saveVideoSnapshot(at: path, withWidth: Int32(w), andHeight: 0)
