@@ -25,6 +25,9 @@ final class RemoteHelp: ObservableObject {
     private var lastSent: Data?
     private var lastSentAt = Date.distantPast
     private var task: Task<Void, Never>?
+    /// Zeitpunkt der letzten Fokus-Änderung (Siri Remote) – dann eine Weile kein Foto
+    private var lastFocusMove = Date.distantPast
+    private var focusObs: NSObjectProtocol?
 
     var codeText: String { code.count == 6 ? String(code.prefix(3)) + " " + String(code.suffix(3)) : code }
 
@@ -72,6 +75,11 @@ final class RemoteHelp: ObservableObject {
 
     private func loop() {
         task?.cancel()
+        if focusObs == nil {
+            focusObs = NotificationCenter.default.addObserver(forName: UIFocusSystem.didUpdateNotification, object: nil, queue: .main) { _ in
+                Task { @MainActor in RemoteHelp.shared.lastFocusMove = Date() }
+            }
+        }
         task = Task { [weak self] in
             var fails = 0
             while !Task.isCancelled {
@@ -87,7 +95,9 @@ final class RemoteHelp: ObservableObject {
     private func tick() async -> Bool {
         // Bild nur oft schicken, wenn der Support gerade zusieht (spart Datenvolumen)
         var snap: String?
-        if viewer || Date().timeIntervalSince(lastSentAt) > 10, let s = snapshot() { snap = s }
+        // Gerade mit der echten Fernbedienung bedient? Dann kein Foto – das Foto bremst sonst die Bedienung
+        let busy = Date().timeIntervalSince(lastFocusMove) < 1.2
+        if !busy, viewer || Date().timeIntervalSince(lastSentAt) > 10, let s = await snapshot() { snap = s }
         var body: [String: Any] = ["p_mac": ids.mac, "p_key": ids.key, "p_ack": ack]
         body["p_snap"] = snap ?? NSNull()
         guard let o = json(try? await RemoteAPI.rpc("device_help_push", body)) else { return false }
@@ -105,8 +115,10 @@ final class RemoteHelp: ObservableObject {
         return true
     }
 
-    /// Bild des Bildschirms (ohne laufendes Video) als kleines JPEG
-    private func snapshot() -> String? {
+    /// Bild des Bildschirms (ohne laufendes Video) als kleines JPEG.
+    /// Nur das Abfotografieren läuft im Haupt-Thread; Verkleinern, JPEG und Base64 im Hintergrund,
+    /// damit die Siri Remote während der Fernhilfe flüssig reagiert.
+    private func snapshot() async -> String? {
         guard let win = UIApplication.shared.connectedScenes.compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first else { return nil }
         let size = CGSize(width: 960, height: 540)
         let fmt = UIGraphicsImageRendererFormat()
@@ -114,12 +126,17 @@ final class RemoteHelp: ObservableObject {
         let img = UIGraphicsImageRenderer(size: size, format: fmt).image { _ in
             win.drawHierarchy(in: CGRect(origin: .zero, size: size), afterScreenUpdates: false)
         }
-        guard let jpg = img.jpegData(compressionQuality: 0.5) else { return nil }
-        if jpg == lastSent { return nil }
+        let isPlayer = nav?.top == .player
+        let prev = lastSent
+        let out: (Data, String)? = await Task.detached(priority: .utility) { () -> (Data, String)? in
+            guard let jpg = img.jpegData(compressionQuality: 0.5), jpg != prev else { return nil }
+            let obj: [String: Any] = ["tv": true, "img": "data:image/jpeg;base64," + jpg.base64EncodedString(), "p": isPlayer]
+            guard let d = try? JSONSerialization.data(withJSONObject: obj), let s = String(data: d, encoding: .utf8) else { return nil }
+            return (jpg, s)
+        }.value
+        guard let (jpg, s) = out else { return nil }
         lastSent = jpg
-        let obj: [String: Any] = ["tv": true, "img": "data:image/jpeg;base64," + jpg.base64EncodedString(), "p": nav?.top == .player]
-        guard let d = try? JSONSerialization.data(withJSONObject: obj) else { return nil }
-        return String(data: d, encoding: .utf8)
+        return s
     }
 
     /// Befehl vom Support ausführen
