@@ -557,6 +557,18 @@ struct PlayerScreen: View {
             .disabled(menu != nil)
             .focused($focused)
             .onMoveCommand { dir in
+                // Leiste offen: links/rechts springt von Knopf zu Knopf (nicht spulen), runter schließt die Leiste
+                if let f = barFocus {
+                    let keys = barKeys()
+                    let i = keys.firstIndex(of: f) ?? 0
+                    switch dir {
+                    case .left: if i > 0 { barFocus = keys[i - 1] }; showOSD()
+                    case .right: if i < keys.count - 1 { barFocus = keys[i + 1] }; showOSD()
+                    case .down: hideBar()
+                    default: showOSD()
+                    }
+                    return
+                }
                 switch dir {
                 case .up: if engine.kind == .live { step(-1) } else { showBar() }
                 case .down: if engine.kind == .live { step(1) } else { showBar() }
@@ -812,6 +824,15 @@ struct PlayerScreen: View {
     }
 
     /// Leiste ausblenden, Fokus zurück aufs Bild (Pfeile spulen bzw. schalten Sender)
+    /// Reihenfolge der Knöpfe in der Leiste (wie sie angezeigt werden)
+    private func barKeys() -> [String] {
+        var k = engine.kind == .live ? ["prev", "play", "next"] : ["rw", "play", "ff"]
+        k += ["format", "sleep", "audio", "text"]
+        if engine.kind != .series, engine.item != nil { k.append("fav") }
+        k.append("more")
+        return k
+    }
+
     private func hideBar() {
         hideTask?.cancel()
         barFocus = nil
