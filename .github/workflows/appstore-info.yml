@@ -1,7 +1,11 @@
-# App-ID und Stand im App Store anzeigen (Hinweise im Lauf). Nur lesen.
+# App-ID und Stand im App Store anzeigen (Hinweise im Lauf). Mit „laender“ (z. B. TUR): die App dort zusätzlich freischalten.
 name: App Store Info
 on:
   workflow_dispatch:
+    inputs:
+      laender:
+        description: 'Länder freischalten (z. B. TUR oder TUR,AUT) – leer = nur anzeigen'
+        required: false
   push:
     branches: [web-ui]
     paths: ['scripts/appstore_info.py', '.github/workflows/appstore-info.yml']
@@ -17,4 +21,7 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
-        run: python3 scripts/appstore_info.py
+          LAENDER: ${{ inputs.laender }}
+        run: |
+          if [ -n "$LAENDER" ]; then python3 scripts/appstore_land.py; fi
+          python3 scripts/appstore_info.py
