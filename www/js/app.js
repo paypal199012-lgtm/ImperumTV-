@@ -5283,11 +5283,11 @@
                     if (gen !== self.gen) return null;
                     return Api.list('get_vod_streams', 'movie', Api.call('get_vod_categories'));
                 }).then(function (mv) {
-                    if (gen === self.gen && mv && mv.length) { self.movies = mv; self.moviesLoaded = true; }
+                    if (gen === self.gen && mv && mv.length) { try { Dups.carry(self.movies, mv); } catch (eC) { /* egal */ } self.movies = mv; self.moviesLoaded = true; }
                 }, function () { /* gespeicherte Filme bleiben */ }).then(function () {
                     if (gen !== self.gen) return;
                     return quietly(0, 2500, 45000).then(function () { return Api.list('get_series', 'series', Api.call('get_series_categories')); }).then(function (sr) {
-                        if (gen === self.gen && sr && sr.length) { self.series = sr; self.seriesLoaded = true; }
+                        if (gen === self.gen && sr && sr.length) { try { Dups.carry(self.series, sr); } catch (eC) { /* egal */ } self.series = sr; self.seriesLoaded = true; }
                     }, function () { /* gespeicherte Serien bleiben */ });
                 }).then(function () {
                     if (gen === self.gen) { ListCache.saveSoon(acc); Storage.set('listFreshAt', Date.now()); }
@@ -9762,7 +9762,11 @@
         catLang: {},
         /** Kürzel, die der Anbieter mit einer Qualität verbindet („4K-MRVL - Film“ → „MRVL - Film“ ist dieselbe Rubrik) */
         learned: {},
+        _L: {},
+        /** gelernte Kürzel getrennt für Filme und Serien; gleiche Liste: nicht neu suchen */
         learn: function (all) {
+            var type = (all && all[0] && all[0].type) === 'series' ? 'series' : 'movie', L = this._L[type];
+            if (L && L.all === all && L.len === all.length) { if (this.learned !== L.found) { this.learned = L.found; this._tc = {}; this._tn = 0; } return L.n; }
             this.learned = {}; this._tc = {}; this._tn = 0;
             var found = {}, n = 0, re = /^[\s\[(|]*([A-Za-z0-9+]{2,6})[-_]([A-Za-z0-9+]{2,6})\s*(?:[\])|:]|\s-\s)/;
             for (var i = 0; i < all.length; i++) {
@@ -9775,7 +9779,55 @@
             }
             this.learned = found;
             this._tc = {}; this._tn = 0;
+            this._L[type] = { all: all, len: all.length, found: found, n: n, sig: Object.keys(found).sort().join(',') };   // andere Kürzel: zerlegte Namen neu
             return n;
+        },
+        /** parse() mit Merkzettel am Titel (gilt, solange Name, Kategorie und gelernte Kürzel gleich sind) */
+        NO_LANGS: [],
+        parseC: function (m) {
+            var L = this._L[m.type], lv = L ? L.sig : '', d = m._dp;
+            if (d && d._n === m.name && d._c === m.cat && d._v === lv && d._y === m.year) return d;
+            var p = this.parse(m);
+            if (!p.langs.length) p.langs = this.NO_LANGS;            // spart Speicher bei 100.000 Titeln
+            p._n = m.name; p._c = m.cat; p._v = lv; p._y = m.year;
+            m._dp = p;
+            return p;
+        },
+        /** Speicher wird knapp: zerlegte Namen vergessen (werden bei Bedarf neu gebildet) */
+        free: function () {
+            [Data.movies, Data.series].forEach(function (l) { if (l) for (var i = 0; i < l.length; i++) if (l[i] && l[i]._dp) l[i]._dp = undefined; });
+            this._c = {}; this._L = {}; this._tc = {}; this._tn = 0;
+            try { VodWarm.done = {}; } catch (e) { /* egal */ }
+        },
+        /** Neue Liste (Neuladen): zerlegte Namen gleicher Titel übernehmen */
+        carry: function (oldL, newL) {
+            if (!oldL || !newL || !oldL.length || oldL === newL) return;
+            var byId = {}, i;
+            for (i = 0; i < oldL.length; i++) if (oldL[i] && oldL[i]._dp) byId[oldL[i].id] = oldL[i];
+            var same = newL.length === oldL.length, nById = {};
+            for (i = 0; i < newL.length; i++) {
+                var n = newL[i], o = n && byId[n.id];
+                if (n) nById[n.id] = n;
+                if (!o || o.name !== n.name || o.cat !== n.cat || o.year !== n.year) { same = false; continue; }
+                if (!n._dp) n._dp = o._dp;
+            }
+            // unveränderte Liste: fertige Gruppen übernehmen statt neu zu bilden
+            var type = (newL[0] && newL[0].type) === 'series' ? 'series' : 'movie', c = this._c[type], L = this._L[type];
+            if (!same || !c || c.all !== oldL || c.len !== oldL.length) return;
+            var map = {}, done = [];
+            for (var id in c.map) {
+                if (!c.map.hasOwnProperty(id)) continue;
+                var g = c.map[id];
+                if (!g._nw) {
+                    var ng = { n: g.n, items: [], p: g.p };
+                    for (var j = 0; j < g.items.length; j++) ng.items.push(nById[g.items[j].id] || g.items[j]);
+                    g._nw = ng; done.push(g);
+                }
+                map[id] = g._nw;
+            }
+            for (i = 0; i < done.length; i++) delete done[i]._nw;
+            this._c[type] = { all: newL, len: newL.length, map: map };
+            if (L && L.all === oldL) this._L[type] = { all: newL, len: newL.length, found: L.found, n: L.n, sig: L.sig };
         },
         /** Sprache aus dem Kategorie-Namen („EN | Movies“, „Filme Englisch“) */
         langOfCat: function (cat) {
@@ -9856,7 +9908,7 @@
             for (i = 0; i < all.length; i++) {
                 var m = all[i];
                 if (!m || m.type !== type) continue;
-                var p = this.parse(m);
+                var p = this.parseC(m);
                 if (!p.key) continue;
                 var k = p.key + '|' + (p.year || '');
                 (byKey[k] || (byKey[k] = [])).push({ m: m, p: p });
@@ -10231,12 +10283,14 @@
                 if (!loaded || !list || !list.length) continue;
                 var sig = list.length + '|' + Parental.sig();
                 if (this.done[k] === list && this.doneSig[k] === sig) continue;
-                this.done[k] = list; this.doneSig[k] = sig;
-                this.run(k);
+                if (this.busy[k] === list) return;                   // wird schon (stückweise) vorbereitet
+                // stückweise statt alles auf einmal (neu geladene Liste: früher sekundenlanges Stocken auf schwachen Sticks)
+                var self = this; this.busy[k] = list;
+                (function (kk, ll) { self.early(kk, function () { if (self.busy[kk] === ll) self.busy[kk] = null; }); })(k, list);
                 return;                       // eine Liste pro Durchgang (kurze Arbeitsstücke)
             }
         },
-        doneSig: {},
+        doneSig: {}, busy: {},
         /** Kategorien, Anzahlen und „Zuletzt hinzugefügt“ einer Liste vorbereiten */
         run: function (k) {
             try {
@@ -10258,11 +10312,12 @@
                 if (!loaded || !list || !list.length) { if (tries++ < 240) setTimeout(wait, 500); else if (done) done(); return; }
                 var sig = list.length + '|' + Parental.sig();
                 if (self.done[k] === list && self.doneSig[k] === sig) { if (done) done(); return; }
-                var i = 0, learned = Genre.load();
+                var i = 0, learned = Genre.load(), dup = Dups.on(), dt = k === 'movies' ? 'movie' : 'series';
                 (function step() {
                     if ((k === 'movies' ? Data.movies : Data.series) !== list) { if (done) done(); return; }
                     var end = Math.min(list.length, i + 400);
-                    try { for (; i < end; i++) Genre.ofL(list[i], learned); } catch (e) { i = end; }
+                    // auch doppelte Fassungen (4K/HD/Sprachen) schon hier zerlegen – das war beim Öffnen der größte Brocken
+                    try { if (dup) Dups.learn(list); for (; i < end; i++) { var it = list[i]; Genre.ofL(it, learned); if (dup && it && it.type === dt) Dups.parseC(it); } } catch (e) { i = end; }
                     if (i < list.length) { setTimeout(step, 8); return; }
                     whenQuiet(function () {
                         if ((k === 'movies' ? Data.movies : Data.series) === list && !(Nav.top() instanceof MoviesScreen)) {
@@ -15472,7 +15527,7 @@
             if (Nav.top() instanceof PlayerScreen) toast(T("Fernseher wieder an – weiter geht's"), 3000);
         };
         // Android meldet „Speicher wird knapp“ (15 = kritisch, ab 40 = App im Hintergrund und Speicher gebraucht)
-        window.__androidTrim = function (level) { try { Free.run(level === 15 || level >= 40); } catch (e) { /* egal */ } };
+        window.__androidTrim = function (level) { try { Free.run(level === 15 || level >= 40); if (level === 15 || level >= 60) Dups.free(); } catch (e) { /* egal */ } };
         window.__androidLifecycle = function (state) {
             if (state === 'hidden') { try { Metrics.save(''); Free.run(false); } catch (eF) { /* egal */ } }
             lifecycle(state === 'hidden');
