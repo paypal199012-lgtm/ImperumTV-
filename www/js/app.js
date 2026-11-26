@@ -4905,7 +4905,7 @@
             this.lastReload = Date.now();
             this.reloading = Api.list('get_live_streams', 'live', LiveCats.fetch()).then(function (list) {
                 me.reloading = null;
-                if (list && list.length) { Data.channels = list; me._namesOf = null; Epg.nowCache = null; }
+                if (list && list.length) { try { Merge.carry(Data.channels, list); } catch (eC) { /* egal */ } Data.channels = list; me._namesOf = null; Epg.nowCache = null; }
                 return list ? list.length : 0;
             }, function () { me.reloading = null; return false; });
             return this.reloading;
@@ -5028,7 +5028,9 @@
         native: function () { return !!(AB && AB.cacheSave && AB.cacheLoad); },
         build: function (v) {
             if (!v || !v.live || !v.live.length) return null;
-            return { live: this.unpack('live', v.live), movies: v.movies ? this.unpack('movie', v.movies) : null,
+            var live = this.unpack('live', v.live);
+            try { if (v.dvv === Merge.KV) Merge.restore(live, v.dv); } catch (eD) { /* nur Beschleunigung */ }
+            return { live: live, movies: v.movies ? this.unpack('movie', v.movies) : null,
                 series: v.series ? this.unpack('series', v.series) : null, status: v.status, expiry: v.expiry, at: v.at };
         },
         get: function (acc) {
@@ -5065,7 +5067,8 @@
             var v = { live: this.pack('live', Data.channels),
                 movies: Data.moviesLoaded ? this.pack('movie', Data.movies) : null,
                 series: Data.seriesLoaded ? this.pack('series', Data.series) : null,
-                status: Data.status, expiry: Data.expiry ? Data.expiry.getTime() : 0, at: Date.now(), key: k };
+                status: Data.status, expiry: Data.expiry ? Data.expiry.getTime() : 0, at: Date.now(), key: k,
+                dv: Merge.derived(Data.channels), dvv: Merge.KV };
             if (this.native()) {
                 try { return Promise.resolve(!!AB.cacheSave('lists', JSON.stringify(v))); } catch (e) { return Promise.resolve(false); }
             }
@@ -5271,6 +5274,7 @@
             return livePromise.then(function (r) {
                 if (gen !== self.gen) return;
                 self.status = r.status; self.expiry = r.expiry;
+                try { Merge.carry(self.channels, r.list); } catch (eC) { /* nur Beschleunigung */ }
                 self.channels = r.list;
                 self.epgCache = {};
                 if (!Remote.gone) Storage.set('account', r.acc);     // gelöschte Liste nicht wieder merken
@@ -8510,7 +8514,54 @@
     };
 
     var Merge = {
+        KV: 1,      // erhöhen, wenn sich key() oder AltCh.cc() ändern – dann werden gespeicherte Namen neu berechnet
         on: function () { return Storage.get('mergeCh', true) !== false; },
+        /**
+         * Vorberechnete Sendernamen (Zusammenfassen + Land) mit der Liste speichern: Nach dem nächsten Start muss
+         * Live TV sie nicht erst neu ausrechnen (bei 20.000+ Sendern auf schwachen Sticks mehrere Sekunden).
+         */
+        derived: function (list) {
+            var out = new Array(list.length), n = 0;
+            for (var i = 0; i < list.length; i++) {
+                var c = list[i];
+                if (c && c._mk !== undefined && c._mkN === c.name) {
+                    out[i] = [c._mk, c._cc !== undefined && c._ccN === c.name ? c._cc : null,
+                        c._mt && c._mtN === c.name ? c._mt.join(' ') : null,
+                        c._mcn !== undefined && c._mcnN === c.name ? (c._mcn === c.name ? 1 : c._mcn) : null];
+                    n++;
+                }
+                else out[i] = 0;
+            }
+            return n ? out : null;
+        },
+        restore: function (list, dv) {
+            if (!dv || dv.length !== list.length) return;
+            var n = 0;
+            for (var i = 0; i < list.length; i++) {
+                var d = dv[i], c = list[i];
+                if (!d || !c) continue;
+                c._mk = d[0]; c._mkN = c.name;
+                if (d[1] !== null && d[1] !== undefined) { c._cc = d[1]; c._ccN = c.name; }
+                if (d[2] !== null && d[2] !== undefined) { c._mt = d[2] ? d[2].split(' ') : []; c._mtN = c.name; }
+                if (d[3] !== null && d[3] !== undefined) { c._mcn = d[3] === 1 ? c.name : d[3]; c._mcnN = c.name; }
+                n++;
+            }
+            if (n === list.length) list._dvSaved = true;
+        },
+        /** Neue Senderliste (Neuladen im Hintergrund): schon berechnete Angaben von gleichen Sendern übernehmen */
+        carry: function (oldL, newL) {
+            if (!oldL || !newL || !oldL.length || oldL === newL) return;
+            var byId = {}, i, k;
+            for (i = 0; i < oldL.length; i++) if (oldL[i]) byId[oldL[i].id] = oldL[i];
+            for (i = 0; i < newL.length; i++) {
+                var n = newL[i], o = n && byId[n.id];
+                if (!o || o.name !== n.name) continue;
+                for (k in o) {
+                    // nur am Namen hängende Zwischenergebnisse (alle prüfen selbst, ob der Name noch stimmt); Gruppierung nicht
+                    if (k.charAt(0) === '_' && k !== '_mv' && k !== '_mcc' && k !== '_mname' && k !== '_mkey' && o.hasOwnProperty(k) && n[k] === undefined) n[k] = o[k];
+                }
+            }
+        },
         SYN: [[/(^| )(austria|osterreich|oesterreich|österreich)( |$)/g, '$1at$3'], [/(^| )(deutschland|germany|german|ger|deu)( |$)/g, '$1de$3'],
             [/(^| )(schweiz|swiss|suisse|svizzera)( |$)/g, '$1ch$3'], [/(^| )(bundesliga)( |$)/g, '$1buli$3']],
         key: function (c) {
@@ -8539,7 +8590,11 @@
                     }
                 } catch (e) { i = end; }
                 if (i < list.length) setTimeout(step, 8);
-                else { try { Warm.afterNames(list); } catch (e2) { /* nur Vorbereitung */ } }
+                else {
+                    try { Warm.afterNames(list); } catch (e2) { /* nur Vorbereitung */ }
+                    // vorberechnete Namen fürs nächste Mal mitspeichern (einmal pro Liste)
+                    try { if (!list._dvSaved && Api.acc && Data.channels === list) { list._dvSaved = true; ListCache.saveSoon(Api.acc); } } catch (e3) { /* egal */ }
+                }
             })();
         },
         off: function () { return Storage.get('mergeOff', {}) || {}; },
@@ -8660,6 +8715,24 @@
             return out;
         },
         /** Wie viele Sender nach dem Zusammenfassen (je Kategorie und unter „Alle“) – gemerkt, bis sich die Liste ändert */
+        /** Sind die Anzahlen für diese Liste schon berechnet? (dann ist counts() sofort fertig) */
+        countsReady: function (vis) {
+            var c = this._cnt;
+            return !!(c && c.of === Data.channels && c.sig === vis.length + '|' + JSON.stringify(this.off()));
+        },
+        /** Wie counts(), aber in Stücken (je 1500 Sender, dazwischen Pause) – Live TV öffnet sofort, die Zahlen kommen gleich danach */
+        countsSoon: function (vis, done) {
+            var self = this, list = Data.channels, i = 0;
+            (function step() {
+                if (Data.channels !== list) return;
+                var end = Math.min(vis.length, i + 1500);
+                try { for (; i < end; i++) { var ch = vis[i]; if (ch && ch.name && !NameTidy.isSep(ch.name)) { self.key(ch); AltCh.cc(ch); } } } catch (e) { i = end; }
+                if (i < vis.length) { setTimeout(step, 0); return; }
+                var r = null;
+                try { r = self.counts(vis); } catch (e2) { r = null; }   // Namen sind jetzt vorberechnet: geht schnell
+                if (r) done(r);
+            })();
+        },
         counts: function (vis) {
             var sig = vis.length + '|' + JSON.stringify(this.off()), c = this._cnt;
             if (c && c.of === Data.channels && c.sig === sig) return c.res;
@@ -9047,11 +9120,15 @@
         // Favoriten als Tabelle (statt je Sender einen Text zusammenzusetzen – bei 20.000 Sendern spürbar)
         var favIds = null;
         for (var fk in Favs.set) if (Favs.set.hasOwnProperty(fk) && fk.indexOf('live:') === 0) { if (!favIds) favIds = {}; favIds[fk.slice(5)] = 1; }
-        var ci;
+        var ci, lateCounts = false;
         if (Merge.on()) {
             // zusammengefasst: Anzahlen kommen gemerkt aus Merge.counts – hier nur noch die Favoriten zählen
             if (favIds) for (ci = 0; ci < vis.length; ci++) if (favIds[vis[ci].id] && !NameTidy.isSep(vis[ci].name)) favN++;
-            var mc = Merge.counts(vis); allN = mc.all; cnt = mc.cat;
+            if (vis.length > 3000 && !Merge.countsReady(vis)) {
+                // Große Liste, noch nicht gezählt (z. B. gleich nach dem Start): erst öffnen, Zahlen kommen gleich danach.
+                // Auf schwachen Sticks dauerte das Zählen sonst mehrere Sekunden, bevor Live TV überhaupt erschien.
+                lateCounts = true;
+            } else { var mc = Merge.counts(vis); allN = mc.all; cnt = mc.cat; }
         } else {
             for (ci = 0; ci < vis.length; ci++) {
                 if (NameTidy.isSep(vis[ci].name)) continue;
@@ -9062,7 +9139,18 @@
             }
         }
         var recentN = RecentLive.items(vis).length;
-        var counts = cats.map(function (c, i) { return i === 0 ? allN : i === 1 ? favN : i === 2 ? recentN : (cnt[c] || 0); });
+        var counts = cats.map(function (c, i) { return i === 1 ? favN : i === 2 ? recentN : lateCounts ? '' : i === 0 ? allN : (cnt[c] || 0); });
+        if (lateCounts) {
+            Merge.countsSoon(vis, function (mc2) {
+                if (Nav.top() !== self) return;
+                cats.forEach(function (c, i) {
+                    if (i === 1 || i === 2) return;
+                    counts[i] = i === 0 ? mc2.all : (mc2.cat[c] || 0);         // später gezeichnete Kategorien lesen die Zahl von hier
+                    var el = document.querySelector('[data-key="cat-' + i + '"] .cat-n');
+                    if (el) el.textContent = fmtNum(counts[i]);
+                });
+            });
+        }
         var catLabels = cats.map(function (c, i) { return i === 0 ? T("☰  Alle") : i <= 2 ? c : NameTidy.cat(c); });
         lap(Tf("Zählen ({0})", [vis.length]));
         columns.appendChild(categoryColumn(catLabels, this.catIndex, function (i) {
