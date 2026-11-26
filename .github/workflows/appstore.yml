@@ -29,10 +29,9 @@ jobs:
     runs-on: macos-15-intel
     env:
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
-      APP_VERSION: '1.13'            # neue App-Store-Version: bei jedem Einreichen erhöhen
+      APP_VERSION: '1.14'            # neue App-Store-Version: bei jedem Einreichen erhöhen
       WHATS_NEW: |
-        • Neu: ImperumTV läuft jetzt auch auf dem iPad im Vollbild.
-        • Filme und Serien gehen nach einem kurzen Wechsel in eine andere App an derselben Stelle weiter.
+        • Live TV öffnet sich bei großen Senderlisten schneller.
         • Fehlerbehebungen und Verbesserungen.
     steps:
       - uses: actions/checkout@v4
