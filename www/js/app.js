@@ -11796,15 +11796,18 @@
         var title = (m.h.s || m.h.n) + ' – ' + (m.a.s || m.a.n);
         var when = Tf("{0} Uhr", [fmtClock(new Date(m.t))]);
         var o = Football.options(m, this.found[String(m.id)]);
-        function play(ch) {
-            var i = Data.channels.indexOf(ch);
-            Nav.push(new PlayerScreen(Data.channels, i < 0 ? 0 : i, 'live'));
+        function play(ch, list) {
+            // Im Player nur die Sender dieses Spiels: ▲▼ und „Senderliste“ wechseln zwischen ihnen, ohne zurückzugehen
+            list = list && list.length > 1 ? list.slice() : null;
+            var ps = list ? new PlayerScreen(list, Math.max(0, list.indexOf(ch)), 'live') : new PlayerScreen(Data.channels, Math.max(0, Data.channels.indexOf(ch)), 'live');
+            if (list) ps.listTitle = title;
+            Nav.push(ps);
         }
         function channels(opt, back) {
             var now = Epg.nowMap(opt.chans);
             var buttons = opt.chans.map(function (ch, i) {
                 var t = ch.epg && now[ch.epg];
-                return { label: '▶  ' + ch.name + (t ? '   ·   ' + t : ''), primary: i === 0, action: function () { play(ch); } };
+                return { label: '▶  ' + ch.name + (t ? '   ·   ' + t : ''), primary: i === 0, action: function () { play(ch, opt.chans); } };
             });
             buttons.push({ label: T("Zurück"), action: back });
             Modal.open(title + ' · ' + opt.label, opt.sure ? when : Tf("{0} · ohne Gewähr: alle Sender dieses Anbieters aus deiner Liste. Ob das Spiel dort läuft, steht nicht im Programm.", [when]), buttons);
@@ -11838,12 +11841,14 @@
         var sure = (this.events[String(m.id)] || []).slice(0, 8);
         var more = Sport.channels(this.sport).filter(function (c) { return sure.indexOf(c) < 0; }).slice(0, 25);
         if (!sure.length && !more.length) { toast(Tf("{0}: kein passender Sender in deiner Liste gefunden.", [title]), 5000); return; }
-        var now = Epg.nowMap(sure.concat(more));
+        var all = sure.concat(more), now = Epg.nowMap(all);
         function btn(ch, primary, mark) {
             var t = ch.epg && now[ch.epg];
             return { label: (mark ? '✓  ' : '▶  ') + ch.name + (t ? '   ·   ' + t : ''), primary: primary, action: function () {
-                var i = Data.channels.indexOf(ch);
-                Nav.push(new PlayerScreen(Data.channels, i < 0 ? 0 : i, 'live'));
+                // Im Player nur die Sender dieses Events: ▲▼ und „Senderliste“ wechseln zwischen ihnen, ohne zurückzugehen
+                var list = all.slice(), ps = new PlayerScreen(list, Math.max(0, list.indexOf(ch)), 'live');
+                ps.listTitle = title;
+                Nav.push(ps);
             } };
         }
         var buttons = sure.map(function (ch, i) { return btn(ch, i === 0, true); })
@@ -15238,7 +15243,7 @@
         if (!el) return;
         el.innerHTML = '';
         var head = h('div', 'zap-head');
-        head.appendChild(h('div', 'zap-title', T("Sender")));
+        head.appendChild(h('div', 'zap-title', this.listTitle || T("Sender")));
         head.appendChild(h('div', 'zap-count', (this.zapIndex + 1) + ' / ' + n));
         el.appendChild(head);
         var first = Math.max(0, Math.min(this.zapIndex - Math.floor(VIS / 2), n - VIS));
