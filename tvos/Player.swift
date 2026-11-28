@@ -41,7 +41,7 @@ final class PlayerEngine: ObservableObject {
     @Published var error: String?
     @Published var usingVLC = false
     @Published var notice: String?
-    /// Bildformat: fit (ganzes Bild), fill (zoomen), stretch (strecken)
+    /// Bildformat: fit (ganzes Bild), fill (zoomen), stretch (strecken), zoom (stärker zoomen) oder festes Format 16:9 / 4:3 / 21:9
     @Published var gravity: String = UserDefaults.standard.string(forKey: "tv.gravity") ?? "fit"
     /// Schlaf-Timer: Zeitpunkt, zu dem angehalten wird
     @Published var sleepAt: Date?
@@ -216,6 +216,7 @@ final class PlayerEngine: ObservableObject {
         player.replaceCurrentItem(with: nil)
         usingVLC = true
         vlcReady = false
+        vlcGravityApplied = nil
         let m = VLCMedia(url: url)
         let cache = kind == .live ? (bufferMode == "small" ? 1000 : bufferMode == "large" ? 5000 : 2500) : 1500
         m.addOptions(["network-caching": cache, "http-user-agent": TVStore.userAgent, "http-reconnect": true])
@@ -268,6 +269,7 @@ final class PlayerEngine: ObservableObject {
         case .opening, .buffering:
             setBuffering(!vlc.isPlaying)
         case .playing, .esAdded:
+            if vlcGravityApplied != gravity || !vlcReady { applyVLCGravity() }
             vlcReady = true
             vodWatch?.cancel()
             setBuffering(false)
@@ -468,16 +470,39 @@ final class PlayerEngine: ObservableObject {
         position = t
     }
 
+    /// festes Seitenverhältnis des Bildformats (nil = keins)
+    static func ratio(_ g: String) -> CGFloat? { g == "16:9" ? 16.0 / 9 : g == "4:3" ? 4.0 / 3 : g == "21:9" ? 21.0 / 9 : nil }
+    /// Zoomstufe für „Zoomen (stärker)“: schneidet auch schwarze Balken in Kinofilmen ab
+    static let zoomScale: CGFloat = 1.33
+
     func setGravity(_ g: String) {
+        let names = ["fit": "Ganzes Bild", "fill": "Zoomen (füllen)", "zoom": "Zoomen (stärker)", "stretch": "Strecken", "21:9": "21:9 (Kino)"]
+        notice("Bildformat: " + (names[g] ?? g))
         gravity = g
         UserDefaults.standard.set(g, forKey: "tv.gravity")
+        applyVLCGravity()
+    }
+
+    /// Bildformat bei VLC einstellen – bei jedem Start neu, sonst gilt es nur nach einem Wechsel im Menü
+    private var vlcGravityApplied: String?
+    func applyVLCGravity() {
         #if canImport(TVVLCKit)
-        if usingVLC {
-            switch g {
-            case "fill": vlc.videoCropGeometry = strdup("16:9"); vlc.videoAspectRatio = nil
-            case "stretch": vlc.videoCropGeometry = nil; vlc.videoAspectRatio = strdup("16:9")
-            default: vlc.videoCropGeometry = nil; vlc.videoAspectRatio = nil
-            }
+        guard usingVLC else { return }
+        vlcGravityApplied = gravity
+        func set(_ crop: String?, _ ar: String?) {
+            vlc.videoCropGeometry = crop.map { strdup($0) }
+            vlc.videoAspectRatio = ar.map { strdup($0) }
+        }
+        let v = vlc.videoSize, src = v.width > 0 && v.height > 0 ? v.width / v.height : 16.0 / 9
+        let screen = 16.0 / 9
+        switch gravity {
+        case "fill":                                       // Bildschirm füllen: Bild auf Bildschirmformat zuschneiden
+            set(abs(src - screen) < 0.02 ? nil : "16:9", nil)
+        case "zoom":                                       // erst füllen, das Vergrößern macht die Ansicht (scaleEffect)
+            set(abs(src - screen) < 0.02 ? nil : "16:9", nil)
+        case "stretch": set(nil, "16:9")
+        case "16:9", "4:3", "21:9": set(nil, gravity)
+        default: set(nil, nil)
         }
         #endif
     }
@@ -529,9 +554,19 @@ struct VideoView: View {
 
     var body: some View {
         ZStack {
-            AVLayerView(player: engine.player, gravity: engine.gravity)
-            if engine.usingVLC { HostView(view: engine.vlcView) }
+            Color.black
+            if let r = PlayerEngine.ratio(engine.gravity), !engine.usingVLC {
+                // festes Format: Fläche in genau diesem Seitenverhältnis, Bild darin strecken
+                AVLayerView(player: engine.player, gravity: "stretch").aspectRatio(r, contentMode: .fit)
+            } else {
+                AVLayerView(player: engine.player, gravity: engine.gravity == "zoom" ? "fill" : engine.gravity)
+                    .scaleEffect(engine.gravity == "zoom" && !engine.usingVLC ? PlayerEngine.zoomScale : 1)
+            }
+            if engine.usingVLC {
+                HostView(view: engine.vlcView).scaleEffect(engine.gravity == "zoom" ? PlayerEngine.zoomScale : 1)
+            }
         }
+        .clipped()
     }
 }
 
@@ -844,7 +879,11 @@ struct PlayerScreen: View {
         case "format":
             r.append(MItem(title: "Ganzes Bild", sel: engine.gravity == "fit") { engine.setGravity("fit"); close(menu: true) })
             r.append(MItem(title: "Zoomen (füllen)", sel: engine.gravity == "fill") { engine.setGravity("fill"); close(menu: true) })
+            r.append(MItem(title: "Zoomen (stärker, Ränder abschneiden)", sel: engine.gravity == "zoom") { engine.setGravity("zoom"); close(menu: true) })
             r.append(MItem(title: "Strecken", sel: engine.gravity == "stretch") { engine.setGravity("stretch"); close(menu: true) })
+            r.append(MItem(title: "16:9", sel: engine.gravity == "16:9") { engine.setGravity("16:9"); close(menu: true) })
+            r.append(MItem(title: "4:3", sel: engine.gravity == "4:3") { engine.setGravity("4:3"); close(menu: true) })
+            r.append(MItem(title: "21:9 (Kino)", sel: engine.gravity == "21:9") { engine.setGravity("21:9"); close(menu: true) })
         case "quality":
             for v in engine.item.flatMap({ engine.variantsProvider?($0) }) ?? [] {
                 r.append(MItem(title: (engine.qualityName?(v) ?? "") + " – " + v.name, sel: v.id == engine.item?.id) { close(menu: true); engine.switchVariant(v) })
