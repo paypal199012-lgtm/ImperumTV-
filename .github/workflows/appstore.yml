@@ -31,7 +31,8 @@ jobs:
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
       APP_VERSION: '1.14'            # neue App-Store-Version: bei jedem Einreichen erhöhen
       WHATS_NEW: |
-        • Live TV öffnet sich bei großen Senderlisten schneller.
+        • Live TV, Filme und Serien öffnen sich bei großen Listen schneller.
+        • Sport: Bei einem Spiel wechselst du im Player direkt zwischen den passenden Sendern.
         • Fehlerbehebungen und Verbesserungen.
     steps:
       - uses: actions/checkout@v4
