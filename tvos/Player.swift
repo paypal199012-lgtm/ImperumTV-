@@ -658,6 +658,8 @@ struct PlayerScreen: View {
                     }
                     return
                 }
+                // Live: noch kein Knopf gewählt → links/rechts zeigt die Leiste und wählt gleich „Pause“ (wie OK)
+                if engine.kind == .live && (dir == .left || dir == .right) { showBar(); return }
                 switch dir {
                 case .up: if engine.kind == .live { step(-1) } else { showBar() }
                 case .down: if engine.kind == .live { step(1) } else { showBar() }
