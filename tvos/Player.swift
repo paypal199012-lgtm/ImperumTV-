@@ -693,10 +693,10 @@ struct PlayerScreen: View {
                     }
                     return
                 }
-                // Nur Drücken schaltet um bzw. spult – bloßes Wischen auf der Touch-Fläche wird ignoriert (einstellbar)
+                // Live: noch kein Knopf gewählt → links/rechts (auch Wischen) wählt gleich den Knopf neben „Pause“
+                if engine.kind == .live && (dir == .left || dir == .right) { showBar(dir == .left ? "prev" : "next"); return }
+                // Sender umschalten bzw. spulen nur mit Drücken – bloßes Wischen wird ignoriert (einstellbar)
                 if TVRemote.clickOnly && TVRemote.shared.wasSwipe() { return }
-                // Live: noch kein Knopf gewählt → links/rechts zeigt die Leiste und wählt gleich „Pause“ (wie OK)
-                if engine.kind == .live && (dir == .left || dir == .right) { showBar(); return }
                 switch dir {
                 case .up: if engine.kind == .live { step(-1) } else { showBar() }
                 case .down: if engine.kind == .live { step(1) } else { showBar() }
@@ -978,14 +978,14 @@ struct PlayerScreen: View {
     }
 
     /// Leiste mit Knöpfen zeigen, Fokus auf Pause/Weiter
-    private func showBar() {
+    private func showBar(_ key: String = "play") {
         showOSD()
-        // erst wenn die Knöpfe da sind, kann einer den Fokus bekommen
+        barSel = key
+        // erst wenn die Knöpfe da sind, kann einer den Fokus bekommen (nur wenn noch derselbe Knopf gewählt ist)
         Task { @MainActor in
-            barSel = "play"
             try? await Task.sleep(nanoseconds: 80_000_000)
-            barFocus = "play"
-            if barFocus == nil { try? await Task.sleep(nanoseconds: 200_000_000); barFocus = "play" }
+            if barSel == key { barFocus = key }
+            if barFocus == nil, barSel == key { try? await Task.sleep(nanoseconds: 200_000_000); if barSel == key { barFocus = key } }
         }
     }
 
