@@ -29,10 +29,9 @@ jobs:
   upload:
     runs-on: macos-15-intel
     env:
-      TV_VERSION: '1.6'
+      TV_VERSION: '1.7'
       WHATS_NEW: |
-        • Player: Bei offener Leiste springst du mit links/rechts von Knopf zu Knopf.
-        • Fernhilfe: Die Fernbedienung reagiert während der Fernhilfe wieder flüssig.
+        • Serien und Filme: Startet ein Titel nicht, erscheint nach kurzer Zeit eine Meldung statt endlosem Laden.
         • Fehlerbehebungen und Verbesserungen.
       BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'tv.imperum.app' }}
     steps:

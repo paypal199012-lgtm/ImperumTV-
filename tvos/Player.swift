@@ -78,6 +78,11 @@ final class PlayerEngine: ObservableObject {
     private var triedAlt: Set<Int> = []
     private var originalId: Int?
     private var vlcReady = false
+    /// Filme/Folgen mit VLC: startet nicht → nach einiger Zeit Fehler zeigen statt endlos zu laden
+    private var vodWatch: Task<Void, Never>?
+    /// Fehlerbericht zur Wiedergabe: je Titel höchstens einmal pro App-Start
+    private var diagSent: Set<String> = []
+    private var lastAVError: String?
 
     /// Formate, die der Apple-Player nicht kann
     static let vlcExt: Set<String> = ["mkv", "avi", "wmv", "flv", "ts", "divx", "webm", "mpg", "mpeg", "vob", "m2ts", "3gp"]
@@ -161,7 +166,8 @@ final class PlayerEngine: ObservableObject {
               startAt: Double = 0, keepAltState: Bool = false, forceVLC: Bool = false, forceApple: Bool = false) {
         self.fallback = fallback
         error = nil
-        if !keepAltState { triedAlt = []; originalId = item.id }
+        if !keepAltState { triedAlt = []; originalId = item.id; lastAVError = nil }
+        vodWatch?.cancel()
         self.item = item
         self.kind = kind
         self.title = title ?? item.name
@@ -188,7 +194,11 @@ final class PlayerEngine: ObservableObject {
         statusObs = pi.observe(\.status, options: [.new]) { [weak self] it, _ in
             DispatchQueue.main.async {
                 guard let self = self, !self.usingVLC else { return }
-                if it.status == .failed { self.failed(it.error?.localizedDescription) }
+                if it.status == .failed {
+                    let e = it.error as NSError?
+                    self.lastAVError = e.map { "\($0.domain) \($0.code): \($0.localizedDescription)" + (($0.userInfo[NSUnderlyingErrorKey] as? NSError).map { " · \($0.domain) \($0.code)" } ?? "") }
+                    self.failed(it.error?.localizedDescription)
+                }
             }
         }
         if let e = endObs { NotificationCenter.default.removeObserver(e) }
@@ -211,6 +221,15 @@ final class PlayerEngine: ObservableObject {
         m.addOptions(["network-caching": cache, "http-user-agent": TVStore.userAgent, "http-reconnect": true])
         vlc.media = m
         vlc.play()
+        vodWatch?.cancel()
+        if kind != .live {
+            let it = item, u = url
+            vodWatch = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 25_000_000_000)
+                guard let self = self, !Task.isCancelled, self.usingVLC, !self.vlcReady, self.item?.id == it?.id, self.currentURL == u else { return }
+                self.failed("VLC: nach 25 s noch kein Bild (Zustand \(self.vlcStateName()))")
+            }
+        }
         if startAt > 5 {
             let ms = Int32(startAt * 1000)
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.vlc.time = VLCTime(int: ms) }
@@ -247,6 +266,7 @@ final class PlayerEngine: ObservableObject {
             setBuffering(!vlc.isPlaying)
         case .playing, .esAdded:
             vlcReady = true
+            vodWatch?.cancel()
             setBuffering(false)
         case .error:
             failed("VLC konnte die Adresse nicht öffnen")
@@ -287,8 +307,58 @@ final class PlayerEngine: ObservableObject {
             return
         }
         if kind == .live && tryAlt() { return }
-        error = "Sender ließ sich nicht abspielen" + (msg.map { " (\($0))" } ?? "")
+        vodWatch?.cancel()
+        if usingVLC { stopVLC() }
+        error = (kind == .live ? "Sender" : "Titel") + " ließ sich nicht abspielen" + (msg.map { " (\($0))" } ?? "")
         setBuffering(false)
+        if kind != .live { diagnose(it, msg) }
+    }
+
+    private func vlcStateName() -> String {
+        #if canImport(TVVLCKit)
+        switch vlc.state {
+        case .opening: return "öffnet"
+        case .buffering: return "puffert"
+        case .playing: return "spielt"
+        case .paused: return "Pause"
+        case .stopped: return "gestoppt"
+        case .ended: return "Ende"
+        case .error: return "Fehler"
+        case .esAdded: return "Spuren"
+        @unknown default: return "?"
+        }
+        #else
+        return "-"
+        #endif
+    }
+
+    /// Film/Folge startet nicht: kurz beim Anbieter nachfragen, was er antwortet, und das melden (ohne Zugangsdaten)
+    private func diagnose(_ it: TVItem, _ msg: String?) {
+        guard let u = currentURL else { return }
+        let key = "\(kind)-\(u.lastPathComponent)"
+        guard !diagSent.contains(key) else { return }
+        diagSent.insert(key)
+        let ext = u.pathExtension.lowercased(), title = self.title ?? it.name
+        let parts = u.path.split(separator: "/")
+        let shown = (u.scheme ?? "") + "://" + (u.host ?? "") + "/" + (parts.first.map(String.init) ?? "") + "/…/…/" + u.lastPathComponent
+        let engineInfo = (usingVLC ? "VLC" : "Apple-Player") + " · Einstellung \(vodEngine) · VLC versucht \(triedVLC ? "ja" : "nein") · VLC-Zustand \(vlcStateName())"
+        let av = lastAVError ?? "-"
+        Task.detached {
+            var req = URLRequest(url: u, timeoutInterval: 12)
+            req.setValue(TVStore.userAgent, forHTTPHeaderField: "User-Agent")
+            req.setValue("bytes=0-15", forHTTPHeaderField: "Range")
+            var probe = ""
+            do {
+                let (data, resp) = try await URLSession.shared.data(for: req)
+                let h = resp as? HTTPURLResponse
+                let magic = data.prefix(8).map { String(format: "%02x", $0) }.joined()
+                let fin = h?.url.map { ($0.scheme ?? "") + "://" + ($0.host ?? "") } ?? "-"
+                probe = "HTTP \(h?.statusCode ?? 0) · \(h?.value(forHTTPHeaderField: "Content-Type") ?? "-") · Länge \(h?.value(forHTTPHeaderField: "Content-Range") ?? h?.value(forHTTPHeaderField: "Content-Length") ?? "-") · Anfang \(magic) · Ziel \(fin)"
+            } catch {
+                probe = "Abruf fehlgeschlagen: \((error as NSError).domain) \((error as NSError).code) \(error.localizedDescription)"
+            }
+            Report.send("wiedergabe", "Startet nicht (Apple TV): \(title)\nFormat: \(ext) · Adresse: \(shown)\nPlayer: \(engineInfo)\nMeldung: \(msg ?? "-")\nApple-Player: \(av)\nAnbieter: \(probe)")
+        }
     }
 
     /// Ersatzsender versuchen (gleicher Sender in anderer Variante). true = gewechselt
@@ -367,6 +437,7 @@ final class PlayerEngine: ObservableObject {
 
     func stop() {
         stallTask?.cancel()
+        vodWatch?.cancel()
         player.pause()
         player.replaceCurrentItem(with: nil)
         stopVLC()
