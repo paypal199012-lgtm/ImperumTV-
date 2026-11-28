@@ -41,7 +41,8 @@ struct LiveScreen: View {
 
     enum F: Hashable { case search, cat(String), ch(Int), full, fav, prog }
     @FocusState private var focus: F?
-    @State private var cat = "all"
+    /// Gewählte Kategorie bleibt gemerkt – nach Vollbild und „Zurück“ wieder dieselbe Kategorie und derselbe Sender
+    @AppStorage("tv.live.cat") private var cat = "all"
     @State private var query = ""
     @State private var shown: TVItem?
     @State private var epg: [EPGEntry] = []
@@ -70,6 +71,12 @@ struct LiveScreen: View {
 
     private var info: TVItem? { shown ?? engine.item ?? channels.first }
 
+    /// Zeile des gerade laufenden Senders in dieser Liste (bei zusammengefassten Qualitäten die Zeile der Gruppe)
+    private var playingRepId: Int? {
+        guard engine.kind == .live, let id = engine.item?.id else { return nil }
+        return groups.first { g in g.variants.contains { $0.id == id } }?.rep.id
+    }
+
     private func group(of it: TVItem?) -> MergeGroup? {
         guard let it = it else { return nil }
         let v = store.variants(of: it)
@@ -81,6 +88,7 @@ struct LiveScreen: View {
             ScreenTitle(text: "Live TV")
 
             // Kategorien
+            ScrollViewReader { catProxy in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     TextField("Suchen", text: $query)
@@ -94,14 +102,21 @@ struct LiveScreen: View {
                         CatRow(name: (store.catLocked(.live, c.id) ? "🔒 " : "") + c.name, count: store.live.lazy.filter { $0.cat == c.id }.count,
                                active: cat == c.id) { cat = c.id; if store.catLocked(.live, c.id) { askPin = true } }
                             .remoteFocused($focus, equals: .cat(c.id))
+                            .id("cat-" + c.id)
                     }
                 }
                 .padding(.vertical, 20).padding(.horizontal, 10)
+            }
+            .onAppear {
+                if cat != "all" && cat != "fav" && !store.visibleCats(.live).contains(where: { $0.id == cat }) { cat = "all" }
+                if cat != "all" && cat != "fav" { DispatchQueue.main.async { catProxy.scrollTo("cat-" + cat, anchor: .center) } }
+            }
             }
             .focusSection()                 // nach rechts kommt man von jeder Zeile aus in die Senderliste
             .place(20, 92, 400, 970)
 
             // Sender
+            ScrollViewReader { chProxy in
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     if channels.isEmpty {
@@ -124,6 +139,7 @@ struct LiveScreen: View {
                         }
                         .buttonStyle(GoldStyle(active: engine.kind == .live && g.variants.contains { $0.id == engine.item?.id }))
                         .remoteFocused($focus, equals: .ch(ch.id))
+                        .id(ch.id)
                         .contextMenu {
                             if g.variants.count > 1 { Button("◎ Qualität wählen") { qualityFor = g } }
                             Button(store.isFav(ch, .live) ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen") { store.toggleFav(ch, .live) }
@@ -132,6 +148,15 @@ struct LiveScreen: View {
                     }
                 }
                 .padding(.vertical, 20).padding(.horizontal, 6)
+            }
+            .onAppear {
+                // Zurück aus dem Vollbild: Liste an den laufenden Sender bringen und ihn auswählen
+                guard let id = playingRepId else { return }
+                DispatchQueue.main.async {
+                    chProxy.scrollTo(id, anchor: .center)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { focus = .ch(id) }
+                }
+            }
             }
             .focusSection()                 // von jeder Senderzeile nach rechts zu den Knöpfen, nach links zu den Kategorien
             .place(416, 92, 568, 970)
@@ -168,7 +193,7 @@ struct LiveScreen: View {
             Text("Die Wahl wird für diesen Sender gemerkt.")
         }
         .frame(width: 1920, height: 1080)
-        .defaultFocus($focus, .ch(engine.item?.id ?? channels.first?.id ?? 0))
+        .defaultFocus($focus, .ch(playingRepId ?? channels.first?.id ?? 0))
         .onChange(of: focus) { _, f in
             switch f {
             case .cat(let c)?: cat = c
