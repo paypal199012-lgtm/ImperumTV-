@@ -639,15 +639,12 @@ struct PlayerScreen: View {
     var body: some View {
         ZStack {
             Button(action: {
-                if let m = menu {                             // Untermenü offen: OK führt die gewählte Zeile aus
-                    let it = menuItems(m)
-                    if menuSel < it.count { it[menuSel].run() }
-                    return
+                // Leichtes Tippen auf die Touch-Fläche zählt nicht als OK – nur echtes Drücken (wie bei den Knöpfen der Leiste)
+                guard TVRemote.clickOnly else { okPressed(); return }
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 60_000_000)   // Klick der Fernbedienung kommt manchmal kurz danach an
+                    if !TVRemote.shared.wasSwipe() { okPressed() }
                 }
-                if osd, let k = barSel ?? barFocus { runBar(k); showOSD(); return }
-                if pop == "intro" { engine.seek(by: 20); introDone = true; engine.notice("Intro übersprungen (+20 s)") }
-                else if pop == "next" { goNext() }
-                else { showBar() }
             }) {
                 ZStack {
                     Color.black
@@ -978,14 +975,31 @@ struct PlayerScreen: View {
     }
 
     /// Leiste mit Knöpfen zeigen, Fokus auf Pause/Weiter
+    /// OK auf der Videofläche: Zeile im Menü, Knopf der Leiste, „Intro überspringen“ oder Leiste zeigen
+    private func okPressed() {
+        if let m = menu {                             // Untermenü offen: OK führt die gewählte Zeile aus
+            let it = menuItems(m)
+            if menuSel < it.count { it[menuSel].run() }
+            return
+        }
+        if osd, let k = barSel ?? barFocus { runBar(k); showOSD(); return }
+        if pop == "intro" { engine.seek(by: 20); introDone = true; engine.notice("Intro übersprungen (+20 s)") }
+        else if pop == "next" { goNext() }
+        else { showBar() }
+    }
+
     private func showBar(_ key: String = "play") {
         showOSD()
         barSel = key
         // erst wenn die Knöpfe da sind, kann einer den Fokus bekommen (nur wenn noch derselbe Knopf gewählt ist)
+        // mehrmals versuchen: der Fokus des Apple TV soll wirklich auf den Knopf (sonst bleibt er auf der Videofläche)
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 80_000_000)
-            if barSel == key { barFocus = key }
-            if barFocus == nil, barSel == key { try? await Task.sleep(nanoseconds: 200_000_000); if barSel == key { barFocus = key } }
+            for wait in [80, 200, 400] as [UInt64] {
+                try? await Task.sleep(nanoseconds: wait * 1_000_000)
+                guard barSel == key, osd else { return }
+                if barFocus == key { return }
+                barFocus = key
+            }
         }
     }
 
