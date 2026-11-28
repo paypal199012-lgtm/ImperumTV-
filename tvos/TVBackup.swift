@@ -27,7 +27,7 @@ final class Backup: ObservableObject {
         ("parental", "Kindersicherung"), ("settings", "Einstellungen")
     ]
     private static let settingsKeys: Set<String> = [
-        "tv.theme", "tv.clock", "tv.autonext", "tv.intro", "tv.netq", "tv.liveExt", "tv.gravity", "tv.liveEngine", "tv.vodEngine",
+        "tv.theme", "tv.clock", "tv.autonext", "tv.intro", "tv.netq", "tv.liveExt", "tv.gravity", "tv.liveEngine", "tv.vodEngine", "tv.clickZap",
         "tv.autoAlt", "tv.altWait", "tv.buffer", "tv.mergeCh", "tv.mergePref", "tv.mergeOff", "tv.genreScan"
     ]
 

@@ -693,6 +693,8 @@ struct PlayerScreen: View {
                     }
                     return
                 }
+                // Nur Drücken schaltet um bzw. spult – bloßes Wischen auf der Touch-Fläche wird ignoriert (einstellbar)
+                if TVRemote.clickOnly && TVRemote.shared.wasSwipe() { return }
                 // Live: noch kein Knopf gewählt → links/rechts zeigt die Leiste und wählt gleich „Pause“ (wie OK)
                 if engine.kind == .live && (dir == .left || dir == .right) { showBar(); return }
                 switch dir {

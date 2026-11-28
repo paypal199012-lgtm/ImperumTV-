@@ -178,6 +178,7 @@ struct SettingsScreen: View {
     @AppStorage("tv.clock") private var clock = "sec"
     @AppStorage("tv.autonext") private var autoNext = true
     @AppStorage("tv.intro") private var introBtn = true
+    @AppStorage("tv.clickZap") private var clickZap = true
     @AppStorage("tv.netq") private var netq = "always"
     @State private var pinMode: String?          // "set", "check-off"
     @State private var note: String?
@@ -225,6 +226,7 @@ struct SettingsScreen: View {
                     }
                     row("next", "Nächste Folge", autoNext ? "An · 10 s" : "Aus") { autoNext.toggle() }
                     row("next", "Intro überspringen", introBtn ? "An · 20 s" : "Aus") { introBtn.toggle() }
+                    row("tv", "Vollbild: Wischen", clickZap ? "Aus · nur Drücken" : "Schaltet um") { clickZap.toggle(); TVRemote.clickOnly = clickZap }
                 }
                 section("clock", "Anzeige & Familie") {
                     row("list", "Genres sammeln", genres.status) {

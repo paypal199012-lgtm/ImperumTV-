@@ -24,6 +24,8 @@ struct ImperumTVApp: App {
     @StateObject private var engine = PlayerEngine()
     @StateObject private var resume = ResumeBook()
 
+    init() { Task { @MainActor in TVRemote.shared.start() } }
+
     var body: some Scene {
         WindowGroup {
             RootView()
