@@ -218,7 +218,12 @@ final class PlayerEngine: ObservableObject {
         vlcReady = false
         let m = VLCMedia(url: url)
         let cache = kind == .live ? (bufferMode == "small" ? 1000 : bufferMode == "large" ? 5000 : 2500) : 1500
-        m.addOptions(["network-caching": cache, "http-user-agent": TVStore.userAgent, "http-reconnect": true])
+        var opts: [String: Any] = ["network-caching": cache, "http-user-agent": TVStore.userAgent, "http-reconnect": true]
+        // MKV-Filme/-Folgen: VLCs eigener MKV-Leser springt beim Start ans Dateiende (Inhaltsverzeichnis) und öffnet dafür
+        // eine zweite Verbindung – Zugänge mit nur 1 Verbindung blockieren die, das Bild kam nie (Apple TV, „puffert“).
+        // Der FFmpeg-Leser liest das Verzeichnis erst beim Spulen; geht er nicht, nimmt VLC wie bisher den eigenen.
+        if kind != .live && url.pathExtension.lowercased() == "mkv" { opts["demux"] = "avformat,any" }
+        m.addOptions(opts)
         vlc.media = m
         vlc.play()
         vodWatch?.cancel()
