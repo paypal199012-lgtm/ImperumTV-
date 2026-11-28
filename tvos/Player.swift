@@ -218,12 +218,7 @@ final class PlayerEngine: ObservableObject {
         vlcReady = false
         let m = VLCMedia(url: url)
         let cache = kind == .live ? (bufferMode == "small" ? 1000 : bufferMode == "large" ? 5000 : 2500) : 1500
-        var opts: [String: Any] = ["network-caching": cache, "http-user-agent": TVStore.userAgent, "http-reconnect": true]
-        // MKV-Filme/-Folgen: VLCs eigener MKV-Leser springt beim Start ans Dateiende (Inhaltsverzeichnis) und öffnet dafür
-        // eine zweite Verbindung – Zugänge mit nur 1 Verbindung blockieren die, das Bild kam nie (Apple TV, „puffert“).
-        // Der FFmpeg-Leser liest das Verzeichnis erst beim Spulen; geht er nicht, nimmt VLC wie bisher den eigenen.
-        if kind != .live && url.pathExtension.lowercased() == "mkv" { opts["demux"] = "avformat,any" }
-        m.addOptions(opts)
+        m.addOptions(["network-caching": cache, "http-user-agent": TVStore.userAgent, "http-reconnect": true])
         vlc.media = m
         vlc.play()
         vodWatch?.cancel()
@@ -232,6 +227,8 @@ final class PlayerEngine: ObservableObject {
             vodWatch = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 25_000_000_000)
                 guard let self = self, !Task.isCancelled, self.usingVLC, !self.vlcReady, self.item?.id == it?.id, self.currentURL == u else { return }
+                // VLC meldet auch beim Abspielen oft weiter „puffert“: läuft die Zeit oder spielt er, ist alles gut
+                if self.vlc.isPlaying || self.vlc.time.intValue > 0 { self.vlcReady = true; return }
                 self.failed("VLC: nach 25 s noch kein Bild (Zustand \(self.vlcStateName()))")
             }
         }
@@ -266,6 +263,7 @@ final class PlayerEngine: ObservableObject {
         let len = Double(vlc.media?.length.intValue ?? 0) / 1000
         duration = kind == .live ? 0 : max(0, len)
         playing = vlc.isPlaying
+        if !vlcReady && kind != .live && (vlc.isPlaying || vlc.time.intValue > 0) { vlcReady = true; vodWatch?.cancel() }
         switch st {
         case .opening, .buffering:
             setBuffering(!vlc.isPlaying)
