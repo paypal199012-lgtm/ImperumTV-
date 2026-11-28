@@ -237,7 +237,8 @@ struct VodScreen: View {
             chooseFor = g
             return
         }
-        nav.push(.movieDetail(it))
+        // Serien in die Serien-Ansicht (vorher landeten Serien ohne zweite Fassung in der Film-Ansicht und starteten nicht)
+        nav.push(kind == .series ? .seriesDetail(it) : .movieDetail(it))
     }
 }
 
